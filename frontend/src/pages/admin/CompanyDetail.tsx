@@ -3,6 +3,12 @@ import { useParams, Link } from 'react-router-dom';
 import { apiGet, apiPatch } from '../../api/client';
 import type { AdminCompany, ComplianceStatus } from '../../api/types';
 import type { DocumentListItem } from '../../api/types';
+import DashboardLayout from '../../components/layout/DashboardLayout';
+import PageHeader from '../../components/layout/PageHeader';
+import DataTable from '../../components/table/DataTable';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 
 interface DownloadResponse {
   documentId: string;
@@ -70,7 +76,6 @@ export default function CompanyDetail() {
     }
   }
 
-  /** When all required document types have an approved (VERIFIED) doc, set company status to COMPLETED (ACTIVE). */
   async function tryActivateCompany() {
     if (!id) return;
     try {
@@ -129,130 +134,186 @@ export default function CompanyDetail() {
 
   if (loading) {
     return (
-      <div>
-        <h1>Company detail</h1>
-        <p>Loading…</p>
-      </div>
+      <DashboardLayout>
+        <div className="flex justify-center items-center py-12">
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      </DashboardLayout>
     );
   }
 
   if (error) {
     return (
-      <div>
-        <h1>Company detail</h1>
-        <p style={{ color: 'crimson' }}>{error}</p>
-        <Link to="/admin/companies">Back to companies</Link>
-      </div>
+      <DashboardLayout>
+        <PageHeader title="Company Detail" />
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-800">{error}</p>
+          <Link to="/admin/companies" className="mt-4 inline-block text-sm text-blue-600 hover:text-blue-800">
+            ← Back to companies
+          </Link>
+        </div>
+      </DashboardLayout>
     );
   }
 
   if (!company) {
     return (
-      <div>
-        <h1>Company detail</h1>
-        <p>Company not found.</p>
-        <Link to="/admin/companies">Back to companies</Link>
-      </div>
+      <DashboardLayout>
+        <PageHeader title="Company Detail" />
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">Company not found.</p>
+          <Link to="/admin/companies" className="mt-4 inline-block text-sm text-blue-600 hover:text-blue-800">
+            ← Back to companies
+          </Link>
+        </div>
+      </DashboardLayout>
     );
   }
 
+  const documentColumns = [
+    {
+      key: 'documentType',
+      header: 'Document Type',
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (doc: DocumentListItem) => (
+        <div>
+          <Badge status={doc.status} />
+          {doc.rejectionReason && (
+            <p className="mt-1 text-xs text-gray-500">{doc.rejectionReason}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'fileName',
+      header: 'File Name',
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (doc: DocumentListItem) => (
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDownload(doc.id);
+            }}
+          >
+            Download
+          </Button>
+          {doc.status !== 'VERIFIED' && (
+            <Button
+              variant="success"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleApprove(doc.id);
+              }}
+              disabled={actioningId === doc.id}
+              isLoading={actioningId === doc.id}
+            >
+              Approve
+            </Button>
+          )}
+          {doc.status !== 'REJECTED' && (
+            <div className="flex items-center space-x-2">
+              <Input
+                type="text"
+                placeholder="Rejection reason"
+                value={rejectionReasons[doc.id] ?? ''}
+                onChange={(e) =>
+                  setRejectionReasons((prev) => ({
+                    ...prev,
+                    [doc.id]: e.target.value,
+                  }))
+                }
+                className="w-48"
+              />
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReject(doc.id);
+                }}
+                disabled={actioningId === doc.id || !rejectionReasons[doc.id]?.trim()}
+                isLoading={actioningId === doc.id}
+              >
+                Reject
+              </Button>
+            </div>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div>
-      <p style={{ marginBottom: '1rem' }}>
-        <Link to="/admin/companies">← Back to companies</Link>
-      </p>
-      <h1>Company detail</h1>
+    <DashboardLayout>
+      <PageHeader
+        title="Company Detail"
+        breadcrumbs={[
+          { label: 'Admin', path: '/admin/companies' },
+          { label: 'Companies', path: '/admin/companies' },
+          { label: company.companyName },
+        ]}
+      />
 
-      <section style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Company</h2>
-        <p><strong>Name:</strong> {company.companyName}</p>
-        <p><strong>Contact email:</strong> {company.contactEmail}</p>
-        <p><strong>Status:</strong> {company.onboardingStatus}</p>
-        {company.renewalDate && (
-          <p><strong>Renewal date:</strong> {formatDate(company.renewalDate)}</p>
-        )}
-      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Company Information</h2>
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Company Name</dt>
+                <dd className="mt-1 text-sm text-gray-900">{company.companyName}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Contact Email</dt>
+                <dd className="mt-1 text-sm text-gray-900">{company.contactEmail}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Status</dt>
+                <dd className="mt-1">
+                  <Badge status={company.onboardingStatus} />
+                </dd>
+              </div>
+              {company.renewalDate && (
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Renewal Date</dt>
+                  <dd className="mt-1 text-sm text-gray-900">{formatDate(company.renewalDate)}</dd>
+                </div>
+              )}
+              <div>
+                <dt className="text-sm font-medium text-gray-500">Created Date</dt>
+                <dd className="mt-1 text-sm text-gray-900">{formatDate(company.createdAt)}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
 
-      <section>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Documents</h2>
-        {documents.length === 0 ? (
-          <p style={{ color: '#666' }}>No documents.</p>
-        ) : (
-          <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: '56rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #333', textAlign: 'left' }}>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Document type</th>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Status</th>
-                <th style={{ padding: '0.5rem 0.75rem' }}>File name</th>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((doc) => (
-                <tr key={doc.id} style={{ borderBottom: '1px solid #ddd' }}>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>{doc.documentType}</td>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>
-                    {doc.status}
-                    {doc.rejectionReason && (
-                      <span style={{ color: '#666', display: 'block', fontSize: '0.85rem' }}>
-                        {doc.rejectionReason}
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>{doc.fileName}</td>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(doc.id)}
-                      style={{ marginRight: '0.5rem', padding: '0.35rem 0.6rem' }}
-                    >
-                      Download
-                    </button>
-                    {doc.status !== 'VERIFIED' && (
-                      <button
-                        type="button"
-                        onClick={() => handleApprove(doc.id)}
-                        disabled={actioningId === doc.id}
-                        style={{ marginRight: '0.5rem', padding: '0.35rem 0.6rem' }}
-                      >
-                        Approve
-                      </button>
-                    )}
-                    {doc.status !== 'REJECTED' && (
-                      <>
-                        <input
-                          type="text"
-                          placeholder="Rejection reason"
-                          value={rejectionReasons[doc.id] ?? ''}
-                          onChange={(e) =>
-                            setRejectionReasons((prev) => ({
-                              ...prev,
-                              [doc.id]: e.target.value,
-                            }))
-                          }
-                          style={{
-                            width: '10rem',
-                            padding: '0.3rem 0.5rem',
-                            marginRight: '0.35rem',
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleReject(doc.id)}
-                          disabled={actioningId === doc.id || !rejectionReasons[doc.id]?.trim()}
-                          style={{ padding: '0.35rem 0.6rem' }}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </div>
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Documents</h2>
+            {documents.length === 0 ? (
+              <p className="text-sm text-gray-500">No documents uploaded.</p>
+            ) : (
+              <DataTable
+                columns={documentColumns}
+                data={documents}
+                loading={false}
+                emptyMessage="No documents found."
+                keyExtractor={(doc) => doc.id}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
   );
 }
