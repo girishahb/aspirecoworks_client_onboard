@@ -1,54 +1,33 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { LoginPage } from './auth/LoginPage';
-import { AuthVerifyPage } from './auth/AuthVerifyPage';
-import { OnboardingPage } from './onboarding/OnboardingPage';
-import { OnboardingDocumentsPage } from './onboarding/OnboardingDocumentsPage';
-import { OnboardingWaitingPage } from './onboarding/OnboardingWaitingPage';
-import { OnboardingGuard } from './guards/OnboardingGuard';
-import { AdminGuard } from './guards/AdminGuard';
-import { AdminCompaniesPage } from './admin/AdminCompaniesPage';
-import { AdminCompanyDocumentsPage } from './admin/AdminCompanyDocumentsPage';
+import { Routes, Route, Link, Navigate } from 'react-router-dom';
+import Onboarding from './pages/Onboarding';
+import UploadDocuments from './pages/UploadDocuments';
+import Status from './pages/Status';
+import Companies from './pages/admin/Companies';
+import CompanyDetail from './pages/admin/CompanyDetail';
 
-function Home() {
+function Nav() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold text-stone-900">Aspire Coworks</h1>
-        <a
-          href="/login"
-          className="mt-4 inline-block text-stone-600 underline hover:text-stone-900"
-        >
-          Sign in
-        </a>
-        <span className="mx-2 text-stone-400">·</span>
-        <a
-          href="/onboarding"
-          className="mt-4 inline-block text-stone-600 underline hover:text-stone-900"
-        >
-          Go to onboarding
-        </a>
-      </div>
-    </div>
+    <nav style={{ marginBottom: '1rem' }}>
+      <Link to="/onboarding" style={{ marginRight: '1rem' }}>Onboarding</Link>
+      <Link to="/upload-documents" style={{ marginRight: '1rem' }}>Upload documents</Link>
+      <Link to="/status" style={{ marginRight: '1rem' }}>Status</Link>
+      <Link to="/admin/companies">Admin</Link>
+    </nav>
   );
 }
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/auth/verify" element={<AuthVerifyPage />} />
-      <Route path="/onboarding" element={<OnboardingGuard />}>
-        <Route index element={<OnboardingPage />} />
-        <Route path="documents" element={<OnboardingDocumentsPage />} />
-        <Route path="waiting" element={<OnboardingWaitingPage />} />
-      </Route>
-      <Route path="/dashboard" element={<div className="min-h-screen flex items-center justify-center bg-stone-50"><p className="text-stone-600">Dashboard</p></div>} />
-      <Route path="/admin" element={<AdminGuard />}>
-        <Route path="companies" element={<AdminCompaniesPage />} />
-        <Route path="companies/:companyId/documents" element={<AdminCompanyDocumentsPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <div style={{ padding: '1rem', fontFamily: 'sans-serif' }}>
+      <Nav />
+      <Routes>
+        <Route path="/" element={<Navigate to="/onboarding" replace />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/upload-documents" element={<UploadDocuments />} />
+        <Route path="/status" element={<Status />} />
+        <Route path="/admin/companies" element={<Companies />} />
+        <Route path="/admin/companies/:id" element={<CompanyDetail />} />
+      </Routes>
+    </div>
   );
 }

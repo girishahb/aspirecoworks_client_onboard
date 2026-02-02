@@ -14,6 +14,7 @@ export interface CompanyMe {
   contactEmail: string;
   contactPhone: string | null;
   renewalDate: string | null;
+  renewalStatus: string | null;
   onboardingStatus: string;
   createdAt: string;
   updatedAt: string;

@@ -110,10 +110,11 @@ function ComplianceSummaryPanel({
 
 /**
  * Admin Document Review page.
- * Route: /admin/companies/:companyId/documents
+ * Route: /admin/companies/:id (param id = companyId)
  */
 export function AdminCompanyDocumentsPage() {
-  const { companyId } = useParams<{ companyId: string }>();
+  const params = useParams<{ id?: string; companyId?: string }>();
+  const companyId = params.id ?? params.companyId;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);

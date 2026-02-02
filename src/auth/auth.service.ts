@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailerService } from '../mailer/mailer.service';
 import { RegisterDto } from './dto/register.dto';
+import { UserRole } from '../common/enums/user-role.enum';
 
 const MAGIC_LINK_EXPIRY_MINUTES = 15;
 
@@ -133,5 +134,54 @@ export class AuthService {
 
     const user = await this.usersService.findOne(authToken.userId);
     return this.login(user);
+  }
+
+  // DEV ONLY – REMOVE BEFORE PRODUCTION. No password; find or create user by email; issue JWT.
+  async devLogin(email: string): Promise<{ accessToken: string; user: { id: string; email: string; role: string } }> {
+    const env = this.config.get<string>('NODE_ENV');
+    if (env === 'production') {
+      throw new NotFoundException('Not found');
+    }
+
+    const trimmed = email?.trim();
+    if (!trimmed) {
+      throw new UnauthorizedException('Email is required');
+    }
+
+    let user = await this.prisma.user.findUnique({
+      where: { email: trimmed },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+
+    if (!user) {
+      const passwordHash = await bcrypt.hash('DEV-NO-PASSWORD', 10);
+      user = await this.prisma.user.create({
+        data: {
+          email: trimmed,
+          passwordHash,
+          firstName: 'Dev',
+          lastName: 'User',
+          role: UserRole.ADMIN,
+          isActive: true,
+        },
+        select: { id: true, email: true, role: true, isActive: true },
+      });
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is inactive');
+    }
+
+    const payload = { email: user.email, sub: user.id, role: user.role };
+    const accessToken = this.jwtService.sign(payload);
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+    };
   }
 }

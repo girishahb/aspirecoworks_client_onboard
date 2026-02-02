@@ -2,10 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import type { PrismaClient } from '.prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailerService } from '../mailer/mailer.service';
+import { EmailService } from '../email/email.service';
+import { renewalReminder } from '../email/templates/renewal-reminder';
+import { ReminderType } from './renewal.types';
 
-/** Days before renewal to send reminders. No hardcoded company IDs or dates. */
-const REMINDER_DAYS_BEFORE = [30, 7, 1] as const;
+/** Days before renewal to send reminders (matches ReminderType). */
+const REMINDER_DAYS_BEFORE = [30, 7] as const;
+
+function formatRenewalDate(d: Date | null): string {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
 
 @Injectable()
 export class RenewalsService {
@@ -13,7 +24,7 @@ export class RenewalsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mailer: MailerService,
+    private readonly email: EmailService,
   ) {}
 
   private get db(): PrismaClient {
@@ -21,27 +32,31 @@ export class RenewalsService {
   }
 
   /**
-   * Daily cron: run once per day at 3:00 AM.
-   * - Fetches companies with renewalDate > today
-   * - For each company, if days remaining is 30, 7, or 1: check if reminder already sent; if not, send and insert record.
-   * Idempotent, no duplicate emails, exceptions in one company do not stop the loop.
+   * Daily cron: run once per day at 2 AM.
+   * - Marks companies with renewalDate < today as EXPIRED.
+   * - Sends REMINDER_30 / REMINDER_7 for companies at 30 or 7 days before renewal.
+   * - Avoids duplicate reminders via RenewalReminder table.
+   * - One company failure does not crash the job.
    */
-  @Cron('0 3 * * *', { name: 'renewal-reminders' })
+  @Cron('0 2 * * *', { name: 'renewal-reminders' })
   async runDailyRenewalReminders(): Promise<void> {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    let companies: Array<{
+    this.logger.log('Renewal cron: checking companies (reminders + expiration).');
+
+    // 1. Mark EXPIRED where renewalDate < today and send expired email
+    let expired: Array<{
       id: string;
       companyName: string;
       contactEmail: string;
       renewalDate: Date | null;
     }>;
-
     try {
-      companies = await this.db.clientProfile.findMany({
+      expired = await this.db.clientProfile.findMany({
         where: {
-          renewalDate: { gt: today },
+          renewalDate: { lt: today },
+          OR: [{ renewalStatus: null }, { renewalStatus: 'ACTIVE' }],
         },
         select: {
           id: true,
@@ -51,19 +66,72 @@ export class RenewalsService {
         },
       });
     } catch (err) {
-      this.logger.error('Failed to fetch companies for renewal reminders', err);
+      this.logger.error('Failed to fetch companies for expiration', err);
       return;
     }
 
-    for (const company of companies) {
+    for (const company of expired) {
+      try {
+        await this.db.clientProfile.update({
+          where: { id: company.id },
+          data: { renewalStatus: 'EXPIRED' },
+        });
+        this.logger.log(
+          `Renewal expired: company=${company.id} companyName=${company.companyName} renewalDate=${company.renewalDate?.toISOString() ?? 'null'}`,
+        );
+        const to = company.contactEmail?.trim();
+        if (to) {
+          try {
+            const { subject, html, text } = renewalReminder({
+              companyName: company.companyName,
+              daysBefore: 0,
+              renewalDateStr: formatRenewalDate(company.renewalDate),
+            });
+            await this.email.sendEmail({ to, subject, html, text });
+          } catch (emailErr) {
+            this.logger.warn(
+              `Expired email failed company=${company.id}: ${emailErr instanceof Error ? emailErr.message : emailErr}`,
+            );
+          }
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Renewal expiration skip company ${company.id}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    // 2. Reminders for renewalDate in 30 or 7 days
+    let upcoming: Array<{
+      id: string;
+      companyName: string;
+      contactEmail: string;
+      renewalDate: Date | null;
+    }>;
+    try {
+      upcoming = await this.db.clientProfile.findMany({
+        where: {
+          renewalDate: { gte: today },
+        },
+        select: {
+          id: true,
+          companyName: true,
+          contactEmail: true,
+          renewalDate: true,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Failed to fetch companies for reminders', err);
+      return;
+    }
+
+    for (const company of upcoming) {
       try {
         await this.processCompanyRenewalReminders(company, today);
       } catch (err) {
         this.logger.warn(
-          `Renewal reminder loop: skip company ${company.id} after error`,
-          err instanceof Error ? err.message : err,
+          `Renewal reminder skip company ${company.id}: ${err instanceof Error ? err.message : err}`,
         );
-        // Continue loop; do not throw
       }
     }
   }
@@ -93,6 +161,9 @@ export class RenewalsService {
     for (const daysBefore of REMINDER_DAYS_BEFORE) {
       if (daysRemaining !== daysBefore) continue;
 
+      const reminderType =
+        daysBefore === 30 ? ReminderType.REMINDER_30 : ReminderType.REMINDER_7;
+
       const alreadySent = await this.db.renewalReminder.findUnique({
         where: {
           companyId_daysBefore: {
@@ -104,20 +175,24 @@ export class RenewalsService {
 
       if (alreadySent) continue;
 
+      const to = company.contactEmail?.trim();
+      if (!to) {
+        this.logger.warn(`Renewal reminder skipped (no contact email): company=${company.id}`);
+        continue;
+      }
       try {
-        await this.mailer.sendRenewalReminder(
-          {
-            id: company.id,
-            companyName: company.companyName,
-            contactEmail: company.contactEmail,
-            renewalDate: company.renewalDate,
-          },
+        const { subject, html, text } = renewalReminder({
+          companyName: company.companyName,
           daysBefore,
+          renewalDateStr: formatRenewalDate(company.renewalDate),
+        });
+        await this.email.sendEmail({ to, subject, html, text });
+        this.logger.log(
+          `Reminder sent: company=${company.id} type=${reminderType} daysBefore=${daysBefore}`,
         );
       } catch (err) {
         this.logger.warn(
-          `Failed to send renewal reminder company=${company.id} daysBefore=${daysBefore}`,
-          err instanceof Error ? err.message : err,
+          `Failed to send renewal reminder company=${company.id} daysBefore=${daysBefore}: ${err instanceof Error ? err.message : err}`,
         );
         continue;
       }
@@ -131,8 +206,7 @@ export class RenewalsService {
         });
       } catch (err) {
         this.logger.warn(
-          `Failed to create RenewalReminder record company=${company.id} daysBefore=${daysBefore} (email may have been sent)`,
-          err instanceof Error ? err.message : err,
+          `Failed to create RenewalReminder company=${company.id} daysBefore=${daysBefore} (email may have been sent): ${err instanceof Error ? err.message : err}`,
         );
       }
     }

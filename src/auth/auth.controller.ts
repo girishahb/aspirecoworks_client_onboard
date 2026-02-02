@@ -12,8 +12,10 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RequestLoginDto } from './dto/request-login.dto';
+import { DevLoginDto } from './dto/dev-login.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { LocalAuthGuard } from './guards/local-auth.guard';
+import { DevOnlyGuard } from '../common/guards/dev-only.guard';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -54,5 +56,17 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
+  }
+
+  // DEV ONLY – REMOVE BEFORE PRODUCTION
+  @Public()
+  @UseGuards(DevOnlyGuard)
+  @Post('dev-login')
+  @ApiOperation({ summary: '[DEV ONLY] Login by email only, create user if not exists' })
+  @ApiResponse({ status: 201, description: 'JWT issued' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Not available in production' })
+  async devLogin(@Body() dto: DevLoginDto) {
+    return this.authService.devLogin(dto.email);
   }
 }

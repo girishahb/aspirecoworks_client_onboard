@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailerModule } from './mailer/mailer.module';
+import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientProfilesModule } from './client-profiles/client-profiles.module';
@@ -12,6 +13,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { ComplianceModule } from './compliance/compliance.module';
 import { RenewalsModule } from './renewals/renewals.module';
+import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -23,6 +25,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     ScheduleModule.forRoot(),
     PrismaModule,
     MailerModule,
+    EmailModule,
     AuthModule,
     UsersModule,
     ClientProfilesModule,
@@ -31,7 +34,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AuditLogsModule,
     ComplianceModule,
     RenewalsModule,
+    HealthModule,
   ],
+  controllers: [],
   providers: [
     {
       provide: APP_GUARD,

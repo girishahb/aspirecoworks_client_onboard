@@ -28,9 +28,26 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
+  // Graceful shutdown
+  app.enableShutdownHooks();
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Swagger documentation: http://localhost:${port}/api`);
+  const baseUrl = `http://localhost:${port}`;
+  console.log(`🚀 Server running on ${baseUrl}`);
+  console.log(`Swagger documentation: ${baseUrl}/api`);
+
+  // Handle graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    await app.close();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('SIGINT received, shutting down gracefully...');
+    await app.close();
+    process.exit(0);
+  });
 }
 bootstrap();

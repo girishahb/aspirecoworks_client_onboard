@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -7,6 +8,9 @@ import {
 import type { PrismaClient } from '.prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../storage/r2.service';
+import { EmailService } from '../email/email.service';
+import { documentApproved } from '../email/templates/document-approved';
+import { documentRejected } from '../email/templates/document-rejected';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { ReviewDocumentDto } from './dto/review-document.dto';
 import { DocumentStatus } from '../common/enums/document-status.enum';
@@ -16,10 +20,13 @@ import { randomUUID } from 'crypto';
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
   constructor(
     private prisma: PrismaService,
     private r2Service: R2Service,
     private auditLogsService: AuditLogsService,
+    private emailService: EmailService,
   ) {}
 
   /** Typed Prisma client delegate access (PrismaService extends PrismaClient) */
@@ -332,6 +339,30 @@ export class DocumentsService {
         rejectionReason: dto.rejectionReason || null,
       },
     });
+
+    const to = updated.clientProfile?.contactEmail?.trim();
+    if (to) {
+      try {
+        if (dto.status === DocumentStatus.VERIFIED) {
+          const { subject, html, text } = documentApproved({
+            companyName: updated.clientProfile.companyName,
+            documentType: updated.documentType,
+          });
+          await this.emailService.sendEmail({ to, subject, html, text });
+        } else if (dto.status === DocumentStatus.REJECTED && dto.rejectionReason) {
+          const { subject, html, text } = documentRejected({
+            companyName: updated.clientProfile.companyName,
+            documentType: updated.documentType,
+            rejectionReason: dto.rejectionReason,
+          });
+          await this.emailService.sendEmail({ to, subject, html, text });
+        }
+      } catch (emailErr) {
+        this.logger.warn(
+          `Document review email failed documentId=${id}: ${emailErr instanceof Error ? emailErr.message : emailErr}`,
+        );
+      }
+    }
 
     return updated;
   }

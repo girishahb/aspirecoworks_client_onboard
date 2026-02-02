@@ -169,7 +169,7 @@ export function AdminCompaniesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <Link
-                        to={`/admin/companies/${company.id}/documents`}
+                        to={`/admin/companies/${company.id}`}
                         className="inline-block rounded-lg bg-stone-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-800"
                       >
                         Review Documents

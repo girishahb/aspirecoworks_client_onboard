@@ -11,7 +11,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -21,7 +21,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "scripts:dev-login": "ts-node scripts/dev-login.ts",
+    "scripts:upload-document": "ts-node scripts/upload-document.ts",
+    "scripts:download-document": "ts-node scripts/download-document.ts",
+    "scripts:review-document": "ts-node scripts/review-document.ts",
+    "scripts:test-renewals": "ts-node scripts/test-renewals.ts",
+    "scripts:test-email": "ts-node scripts/test-email.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.978.0",

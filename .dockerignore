@@ -1,0 +1,29 @@
+# Dependencies and build output (installed/generated in image)
+node_modules
+dist
+frontend
+
+# Environment (never bake into image)
+.env
+.env.*
+!.env.example
+
+# Git and IDE
+.git
+.gitignore
+.idea
+.vscode
+*.md
+
+# Tests and coverage
+coverage
+.nyc_output
+*.spec.ts
+test
+jest.config.js
+.eslintrc.js
+.prettierrc
+
+# Misc
+*.log
+.DS_Store

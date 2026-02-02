@@ -42,6 +42,11 @@ enum DocumentType {
   OTHER
 }
 
+enum RenewalStatus {
+  ACTIVE
+  EXPIRED
+}
+
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
@@ -93,6 +98,7 @@ model ClientProfile {
   country           String?
   onboardingStatus  OnboardingStatus @default(PENDING)
   renewalDate       DateTime?
+  renewalStatus     RenewalStatus?
   notes             String?          @db.Text
   createdById       String
   createdAt         DateTime         @default(now())

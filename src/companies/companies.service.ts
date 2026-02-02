@@ -2,21 +2,28 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
+import { companyActivated } from '../email/templates/company-activated';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { UpdateCompanyStatusDto } from './dto/update-status.dto';
 import { UpdateCompanyRenewalDto } from './dto/update-renewal.dto';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { OnboardingStatus } from '../common/enums/onboarding-status.enum';
 
 @Injectable()
 export class CompaniesService {
+  private readonly logger = new Logger(CompaniesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly emailService: EmailService,
   ) {}
 
   async create(createCompanyDto: CreateCompanyDto, userId: string) {
@@ -198,6 +205,25 @@ export class CompaniesService {
         },
       },
     });
+
+    const transitionToActive =
+      existing.onboardingStatus !== OnboardingStatus.COMPLETED &&
+      dto.status === OnboardingStatus.COMPLETED;
+    if (transitionToActive) {
+      const to = updated.contactEmail?.trim();
+      if (to) {
+        try {
+          const { subject, html, text } = companyActivated({
+            companyName: updated.companyName,
+          });
+          await this.emailService.sendEmail({ to, subject, html, text });
+        } catch (emailErr) {
+          this.logger.warn(
+            `Company activated email failed companyId=${id}: ${emailErr instanceof Error ? emailErr.message : emailErr}`,
+          );
+        }
+      }
+    }
 
     return updated;
   }
