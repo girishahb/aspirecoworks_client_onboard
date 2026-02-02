@@ -1,0 +1,188 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  ADMIN
+  MANAGER
+  CLIENT
+  USER
+}
+
+enum OnboardingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum DocumentStatus {
+  PENDING
+  UPLOADED
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentType {
+  CONTRACT
+  LICENSE
+  CERTIFICATE
+  IDENTIFICATION
+  FINANCIAL
+  OTHER
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          UserRole  @default(USER)
+  companyId     String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  company         ClientProfile?  @relation("CompanyUsers", fields: [companyId], references: [id])
+  createdClients  ClientProfile[] @relation("CreatedBy")
+  documents       Document[]
+  auditLogs       AuditLog[]
+  authTokens      AuthToken[]
+
+  @@map("users")
+}
+
+model AuthToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_tokens")
+}
+
+model ClientProfile {
+  id                String           @id @default(uuid())
+  companyName       String
+  contactEmail      String
+  contactPhone      String?
+  taxId             String?          @unique
+  address           String?
+  city              String?
+  state             String?
+  zipCode           String?
+  country           String?
+  onboardingStatus  OnboardingStatus @default(PENDING)
+  renewalDate       DateTime?
+  notes             String?          @db.Text
+  createdById       String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  createdBy         User             @relation("CreatedBy", fields: [createdById], references: [id])
+  users             User[]           @relation("CompanyUsers")
+  documents         Document[]
+  auditLogs         AuditLog[]
+  renewalReminders  RenewalReminder[]
+
+  @@map("client_profiles")
+}
+
+model RenewalReminder {
+  id        String   @id @default(uuid())
+  companyId String
+  daysBefore Int
+  sentAt    DateTime @default(now())
+
+  // Relations
+  company   ClientProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, daysBefore])
+  @@index([companyId])
+  @@index([sentAt])
+  @@map("renewal_reminders")
+}
+
+model Document {
+  id              String         @id @default(uuid())
+  clientProfileId String
+  uploadedById    String
+  fileName        String
+  fileKey         String         @unique
+  documentType    DocumentType
+  fileSize        Int
+  mimeType        String?
+  status          DocumentStatus @default(PENDING)
+  verifiedAt      DateTime?
+  verifiedById    String?
+  rejectionReason String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  clientProfile   ClientProfile  @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+  uploadedBy      User           @relation(fields: [uploadedById], references: [id])
+  auditLogs       AuditLog[]
+
+  @@index([clientProfileId])
+  @@index([uploadedById])
+  @@index([fileKey])
+  @@index([documentType])
+  @@map("documents")
+}
+
+model ComplianceRequirement {
+  id          String       @id @default(uuid())
+  documentType DocumentType @unique
+  name        String?
+  description String?      @db.Text
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("compliance_requirements")
+}
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  userId          String?
+  clientProfileId String?
+  documentId      String?
+  action          String
+  entityType      String
+  entityId        String
+  changes         Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  user            User?           @relation(fields: [userId], references: [id])
+  clientProfile   ClientProfile?  @relation(fields: [clientProfileId], references: [id])
+  document        Document?       @relation(fields: [documentId], references: [id])
+
+  @@index([userId])
+  @@index([clientProfileId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
