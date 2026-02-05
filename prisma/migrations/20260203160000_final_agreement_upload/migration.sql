@@ -1,0 +1,3 @@
+-- Final agreement upload by admin
+ALTER TYPE "OnboardingStage" ADD VALUE IF NOT EXISTS 'FINAL_AGREEMENT_SHARED';
+ALTER TYPE "DocumentType" ADD VALUE IF NOT EXISTS 'AGREEMENT_FINAL';

@@ -21,11 +21,11 @@ export class ComplianceController {
   constructor(private readonly complianceService: ComplianceService) {}
 
   @Get('status')
-  @Roles(UserRole.COMPANY_ADMIN)
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
   @ApiOperation({
     summary: 'Get compliance status (company-scoped)',
     description:
-      'Returns compliance status for the authenticated company. COMPANY_ADMIN only; company is determined by request.user.companyId.',
+      'Returns compliance status for the authenticated company. CLIENT or COMPANY_ADMIN only; company is determined by request.user.companyId.',
   })
   @ApiResponse({ status: 200, description: 'Compliance status (computed, not stored in DB)' })
   @ApiResponse({ status: 403, description: 'Forbidden' })

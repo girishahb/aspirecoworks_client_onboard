@@ -27,7 +27,7 @@ export class ClientProfilesController {
   constructor(private readonly clientProfilesService: ClientProfilesService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Create a new client profile' })
   @ApiResponse({ status: 201, description: 'Client profile created successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
@@ -36,7 +36,7 @@ export class ClientProfilesController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Get all client profiles' })
   @ApiResponse({ status: 200, description: 'List of client profiles' })
   findAll(@CurrentUser() user: any) {
@@ -44,7 +44,7 @@ export class ClientProfilesController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Get client profile by ID' })
   @ApiResponse({ status: 200, description: 'Client profile found' })
   @ApiResponse({ status: 404, description: 'Client profile not found' })
@@ -54,7 +54,7 @@ export class ClientProfilesController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Update client profile' })
   @ApiResponse({ status: 200, description: 'Client profile updated successfully' })
   @ApiResponse({ status: 404, description: 'Client profile not found' })
@@ -68,16 +68,41 @@ export class ClientProfilesController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  @ApiOperation({ summary: 'Update client profile onboarding status (Admin/Manager only)' })
-  @ApiResponse({ status: 200, description: 'Status updated successfully' })
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Update client profile onboarding stage (Super Admin/Admin/Manager)' })
+  @ApiResponse({ status: 200, description: 'Stage updated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid stage transition' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   updateStatus(
     @Param('id') id: string,
     @Body() updateStatusDto: UpdateStatusDto,
     @CurrentUser() user: any,
   ) {
-    return this.clientProfilesService.updateStatus(id, updateStatusDto.status, user.id, user.role);
+    return this.clientProfilesService.updateStage(id, updateStatusDto.stage, user.id, user.role);
+  }
+
+  @Post(':id/confirm-payment')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Record payment success and move to KYC_IN_PROGRESS (Admin/Manager only)' })
+  @ApiResponse({ status: 200, description: 'Payment confirmed; KYC uploads are now allowed' })
+  @ApiResponse({ status: 400, description: 'Current stage is not PAYMENT_CONFIRMED' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  confirmPayment(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.clientProfilesService.confirmPayment(id, user.id, user.role);
+  }
+
+  @Post(':id/activate')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({
+    summary: 'Activate company (after agreement completion)',
+    description:
+      'Only allowed when onboarding stage is FINAL_AGREEMENT_SHARED. Sets activationDate, updates stage to ACTIVE, and sends activation email to company contact.',
+  })
+  @ApiResponse({ status: 200, description: 'Company activated' })
+  @ApiResponse({ status: 400, description: 'Stage is not FINAL_AGREEMENT_SHARED' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  activateCompany(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.clientProfilesService.activateCompany(id, user.id, user.role);
   }
 
   @Delete(':id')

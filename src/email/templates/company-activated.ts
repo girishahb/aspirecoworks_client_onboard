@@ -1,14 +1,10 @@
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml, wrapBrandedEmail, ctaButton } from './layout';
 
 export interface CompanyActivatedParams {
   companyName: string;
+  activationDate?: Date;
   dashboardUrl?: string;
+  supportEmail?: string;
 }
 
 export function companyActivated(params: CompanyActivatedParams): {
@@ -16,19 +12,29 @@ export function companyActivated(params: CompanyActivatedParams): {
   html: string;
   text: string;
 } {
-  const { companyName, dashboardUrl = 'https://app.aspirecoworks.com/dashboard' } = params;
-  const subject = `Access enabled – ${companyName}`;
-  const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
+  const {
+    companyName,
+    activationDate = new Date(),
+    dashboardUrl = 'https://app.aspirecoworks.com/dashboard',
+    supportEmail = 'support@aspirecoworks.com',
+  } = params;
+  const subject = 'Welcome to Aspire Coworks – Account Activated';
+  const startDate = activationDate.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const content = `
   <p>Hello,</p>
-  <p><strong>${escapeHtml(companyName)}</strong> is now active on Aspire Coworks.</p>
-  <p>Access enabled – welcome to Aspire Coworks. Go to your dashboard: ${escapeHtml(dashboardUrl)}</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
-  const text = `Hello,\n\n${companyName} is now active on Aspire Coworks.\n\nAccess enabled – welcome to Aspire Coworks. Go to your dashboard: ${dashboardUrl}\n\n— Aspire Coworks`;
+  <p><strong>Welcome to Aspire Coworks.</strong> Your account for <strong>${escapeHtml(companyName)}</strong> is now activated.</p>
+  <p><strong>Confirmation:</strong> Your onboarding is complete and access is enabled.</p>
+  <p><strong>Start date:</strong> ${escapeHtml(startDate)}</p>
+  <p>Sign in to your dashboard to access resources. For any questions, contact us at <a href="mailto:${supportEmail}">${escapeHtml(supportEmail)}</a>.</p>
+  ${ctaButton(dashboardUrl, 'Go to dashboard')}
+  `;
+
+  const html = wrapBrandedEmail(content);
+  const text = `Hello,\n\nWelcome to Aspire Coworks. Your account for ${companyName} is now activated.\n\nConfirmation: Your onboarding is complete and access is enabled.\nStart date: ${startDate}\n\nSign in to your dashboard: ${dashboardUrl}\nFor support: ${supportEmail}\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

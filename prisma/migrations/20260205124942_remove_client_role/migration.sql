@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "UserRole" DROP VALUE IF EXISTS 'CLIENT';

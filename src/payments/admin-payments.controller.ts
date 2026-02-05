@@ -1,0 +1,86 @@
+import {
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+  ParseEnumPipe,
+  ParseIntPipe,
+  ParseDatePipe,
+  Optional,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
+import { PaymentsService } from './payments.service';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../common/enums/user-role.enum';
+
+@ApiTags('Admin Payments')
+@ApiBearerAuth()
+@Controller('admin/payments')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+export class AdminPaymentsController {
+  constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'List all payments with filters',
+    description: 'Returns paginated list of payments with optional filters for status, company, and date range.',
+  })
+  @ApiQuery({ name: 'status', enum: ['CREATED', 'PAID', 'FAILED'], required: false })
+  @ApiQuery({ name: 'companyId', required: false })
+  @ApiQuery({ name: 'fromDate', required: false, type: String })
+  @ApiQuery({ name: 'toDate', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'List of payments' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async findAll(
+    @Query('status') status?: 'CREATED' | 'PAID' | 'FAILED',
+    @Query('companyId') companyId?: string,
+    @Query('fromDate') fromDateStr?: string,
+    @Query('toDate') toDateStr?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    const fromDate = fromDateStr ? new Date(fromDateStr) : undefined;
+    const toDate = toDateStr ? new Date(toDateStr) : undefined;
+
+    return this.paymentsService.findAll({
+      status,
+      companyId,
+      fromDate,
+      toDate,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('companies/:companyId')
+  @ApiOperation({
+    summary: 'Get payment history for a company',
+    description: 'Returns all payments for a specific company.',
+  })
+  @ApiResponse({ status: 200, description: 'Company payment history' })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async getCompanyPayments(@Param('companyId') companyId: string) {
+    return this.paymentsService.findByCompanyId(companyId);
+  }
+
+  @Post(':paymentId/resend-link')
+  @ApiOperation({
+    summary: 'Resend payment link',
+    description: 'Resends the payment link to the company contact email.',
+  })
+  @ApiResponse({ status: 200, description: 'Payment link sent successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request (no link, already paid, etc.)' })
+  @ApiResponse({ status: 404, description: 'Payment not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async resendPaymentLink(@Param('paymentId') paymentId: string) {
+    return this.paymentsService.resendPaymentLink(paymentId);
+  }
+}

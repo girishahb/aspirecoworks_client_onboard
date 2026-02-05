@@ -8,6 +8,7 @@ import {
   Request,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -23,19 +24,23 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 50, ttl: 60000 } }) // 50 requests per minute (lenient for dev)
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @ApiOperation({ summary: 'Login user (password)' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
   async login(@Request() req: ExpressRequest & { user: any }) {
     return this.authService.login(req.user);
   }
 
   @Public()
+  @Throttle({ default: { limit: 50, ttl: 60000 } }) // 50 requests per minute (lenient for dev)
   @Post('request-login')
   @ApiOperation({ summary: 'Request magic-link (passwordless) sign-in' })
   @ApiResponse({ status: 201, description: 'If account exists, sign-in link sent' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
   async requestLogin(@Body() dto: RequestLoginDto) {
     return this.authService.requestLogin(dto.email);
   }

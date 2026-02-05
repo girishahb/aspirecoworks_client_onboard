@@ -13,15 +13,25 @@ datasource db {
 enum UserRole {
   SUPER_ADMIN
   COMPANY_ADMIN
+  CLIENT
   ADMIN
   MANAGER
-  CLIENT
   USER
 }
 
-enum OnboardingStatus {
-  PENDING
-  IN_PROGRESS
+enum OnboardingStage {
+  ADMIN_CREATED
+  PAYMENT_PENDING
+  PENDING_DOCUMENTS
+  DOCUMENTS_SUBMITTED
+  UNDER_REVIEW
+  PAYMENT_CONFIRMED
+  KYC_IN_PROGRESS
+  KYC_REVIEW
+  AGREEMENT_DRAFT_SHARED
+  SIGNED_AGREEMENT_RECEIVED
+  FINAL_AGREEMENT_SHARED
+  ACTIVE
   COMPLETED
   REJECTED
 }
@@ -29,17 +39,36 @@ enum OnboardingStatus {
 enum DocumentStatus {
   PENDING
   UPLOADED
+  REVIEW_PENDING
+  PENDING_WITH_CLIENT
+  PENDING_WITH_ADMIN
+  APPROVED
   VERIFIED
   REJECTED
 }
 
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+}
+
 enum DocumentType {
+  KYC
   CONTRACT
   LICENSE
   CERTIFICATE
   IDENTIFICATION
   FINANCIAL
+  AGREEMENT_DRAFT
+  AGREEMENT_SIGNED
+  AGREEMENT_FINAL
   OTHER
+}
+
+enum DocumentOwner {
+  CLIENT
+  ADMIN
 }
 
 enum RenewalStatus {
@@ -48,23 +77,24 @@ enum RenewalStatus {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  role          UserRole  @default(USER)
-  companyId     String?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole @default(USER)
+  companyId    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  company         ClientProfile?  @relation("CompanyUsers", fields: [companyId], references: [id])
-  createdClients  ClientProfile[] @relation("CreatedBy")
-  documents       Document[]
-  auditLogs       AuditLog[]
-  authTokens      AuthToken[]
+  company        ClientProfile?  @relation("CompanyUsers", fields: [companyId], references: [id])
+  createdClients ClientProfile[] @relation("CreatedBy")
+  documents      Document[] // uploaded by this user
+  ownedDocuments Document[]      @relation("DocumentOwner")
+  auditLogs      AuditLog[]
+  authTokens     AuthToken[]
 
   @@map("users")
 }
@@ -77,7 +107,7 @@ model AuthToken {
   usedAt    DateTime?
 
   // Relations
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId])
@@ -86,42 +116,50 @@ model AuthToken {
 }
 
 model ClientProfile {
-  id                String           @id @default(uuid())
-  companyName       String
-  contactEmail      String
-  contactPhone      String?
-  taxId             String?          @unique
-  address           String?
-  city              String?
-  state             String?
-  zipCode           String?
-  country           String?
-  onboardingStatus  OnboardingStatus @default(PENDING)
-  renewalDate       DateTime?
-  renewalStatus     RenewalStatus?
-  notes             String?          @db.Text
-  createdById       String
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id              String          @id @default(uuid())
+  companyName     String
+  contactEmail    String
+  contactPhone    String?
+  taxId           String?         @unique
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+  country         String?
+  onboardingStage OnboardingStage @default(ADMIN_CREATED)
+  activationDate  DateTime?
+  kycCompleted    Boolean         @default(false)
+  renewalDate     DateTime?
+  renewalStatus   RenewalStatus?
+  notes           String?         @db.Text
+  // Billing details for invoices
+  gstNumber       String?
+  billingName     String?
+  billingAddress  String?
+  createdById     String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   // Relations
-  createdBy         User             @relation("CreatedBy", fields: [createdById], references: [id])
-  users             User[]           @relation("CompanyUsers")
-  documents         Document[]
-  auditLogs         AuditLog[]
-  renewalReminders  RenewalReminder[]
+  createdBy        User              @relation("CreatedBy", fields: [createdById], references: [id])
+  users            User[]            @relation("CompanyUsers")
+  documents        Document[]
+  payments         Payment[]
+  invoices         Invoice[]
+  auditLogs        AuditLog[]
+  renewalReminders RenewalReminder[]
 
   @@map("client_profiles")
 }
 
 model RenewalReminder {
-  id        String   @id @default(uuid())
-  companyId String
+  id         String   @id @default(uuid())
+  companyId  String
   daysBefore Int
-  sentAt    DateTime @default(now())
+  sentAt     DateTime @default(now())
 
   // Relations
-  company   ClientProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company ClientProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, daysBefore])
   @@index([companyId])
@@ -133,37 +171,103 @@ model Document {
   id              String         @id @default(uuid())
   clientProfileId String
   uploadedById    String
+  ownerId         String? // User who owns this document in the workflow (defaults to uploader)
+  documentOwner   DocumentOwner  @default(CLIENT) // CLIENT or ADMIN (workflow owner)
   fileName        String
   fileKey         String         @unique
-  documentType    DocumentType
+  documentType    DocumentType // KYC, CONTRACT, AGREEMENT_*, etc.
   fileSize        Int
   mimeType        String?
   status          DocumentStatus @default(PENDING)
+  version         Int            @default(1) // Increments when replaced by a new upload
+  replacesId      String? // Previous document this one replaces (keeps history)
   verifiedAt      DateTime?
   verifiedById    String?
   rejectionReason String?        @db.Text
+  adminRemarks    String?        @db.Text
+  reviewNotes     String?        @db.Text
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  // Relations
-  clientProfile   ClientProfile  @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
-  uploadedBy      User           @relation(fields: [uploadedById], references: [id])
-  auditLogs       AuditLog[]
+  // Relations (company = ClientProfile)
+  clientProfile ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+  uploadedBy    User          @relation(fields: [uploadedById], references: [id])
+  owner         User?         @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  replaces      Document?     @relation("DocumentVersions", fields: [replacesId], references: [id], onDelete: SetNull)
+  replacedBy    Document[]    @relation("DocumentVersions")
+  auditLogs     AuditLog[]
 
   @@index([clientProfileId])
   @@index([uploadedById])
+  @@index([ownerId])
   @@index([fileKey])
   @@index([documentType])
+  @@index([replacesId])
+  @@index([clientProfileId, documentType])
   @@map("documents")
 }
 
+model Payment {
+  id                String        @id @default(uuid())
+  clientProfileId   String
+  amount            Float
+  currency          String        @default("INR")
+  status            PaymentStatus @default(CREATED)
+  provider          String // e.g. Razorpay
+  providerPaymentId String?
+  paymentLink       String?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations (company = ClientProfile)
+  clientProfile ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+  invoices      Invoice[]
+
+  @@index([clientProfileId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  companyId      String
+  paymentId      String
+  invoiceNumber  String   @unique
+  amount         Float // Base amount (before GST)
+  gstAmount      Float
+  totalAmount    Float // amount + gstAmount
+  // Future-ready fields for CGST/SGST/IGST split
+  cgstAmount     Float?   @default(0)
+  sgstAmount     Float?   @default(0)
+  igstAmount     Float?   @default(0)
+  // Billing details
+  gstNumber      String? // Client GST number
+  billingName    String
+  billingAddress String
+  // PDF storage
+  pdfUrl         String?
+  pdfFileKey     String? // Storage key for PDF file
+  createdAt      DateTime @default(now())
+
+  // Relations
+  company ClientProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payment Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([paymentId])
+  @@index([invoiceNumber])
+  @@index([createdAt])
+  @@map("invoices")
+}
+
 model ComplianceRequirement {
-  id          String       @id @default(uuid())
+  id           String       @id @default(uuid())
   documentType DocumentType @unique
-  name        String?
-  description String?      @db.Text
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  name         String?
+  description  String?      @db.Text
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@map("compliance_requirements")
 }
@@ -182,9 +286,9 @@ model AuditLog {
   createdAt       DateTime @default(now())
 
   // Relations
-  user            User?           @relation(fields: [userId], references: [id])
-  clientProfile   ClientProfile?  @relation(fields: [clientProfileId], references: [id])
-  document        Document?       @relation(fields: [documentId], references: [id])
+  user          User?          @relation(fields: [userId], references: [id])
+  clientProfile ClientProfile? @relation(fields: [clientProfileId], references: [id])
+  document      Document?      @relation(fields: [documentId], references: [id])
 
   @@index([userId])
   @@index([clientProfileId])

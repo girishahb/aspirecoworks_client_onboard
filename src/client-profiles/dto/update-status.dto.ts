@@ -1,9 +1,9 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { OnboardingStatus } from '../../common/enums/onboarding-status.enum';
+import { OnboardingStage } from '../../common/enums/onboarding-stage.enum';
 
 export const updateStatusSchema = z.object({
-  status: z.nativeEnum(OnboardingStatus),
+  stage: z.nativeEnum(OnboardingStage),
 });
 
 export class UpdateStatusDto extends createZodDto(updateStatusSchema) {}

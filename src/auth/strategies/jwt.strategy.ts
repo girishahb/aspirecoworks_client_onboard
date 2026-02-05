@@ -22,6 +22,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
+    // Ensure companyId is included (it should be from findOne, but log for debugging)
+    if (!user.companyId && (user.role === 'CLIENT' || user.role === 'COMPANY_ADMIN')) {
+      console.warn(`[JWT Strategy] User ${user.id} (${user.role}) has no companyId - this may cause access issues`);
+    }
     return user;
   }
 }

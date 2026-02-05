@@ -1,6 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { OnboardingStatus } from '../../common/enums/onboarding-status.enum';
+import { OnboardingStage } from '../../common/enums/onboarding-stage.enum';
 
 export const createCompanySchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
@@ -12,9 +12,8 @@ export const createCompanySchema = z.object({
   state: z.string().optional(),
   zipCode: z.string().optional(),
   country: z.string().optional(),
-  onboardingStatus: z.nativeEnum(OnboardingStatus).default(OnboardingStatus.PENDING),
+  onboardingStage: z.nativeEnum(OnboardingStage).default(OnboardingStage.ADMIN_CREATED),
   notes: z.string().optional(),
 });
 
 export class CreateCompanyDto extends createZodDto(createCompanySchema) {}
-

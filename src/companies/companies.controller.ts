@@ -36,20 +36,20 @@ export class CompaniesController {
     return this.companiesService.create(createCompanyDto, user.id);
   }
 
-  // GET /companies/me (COMPANY_ADMIN)
+  // GET /companies/me (CLIENT or COMPANY_ADMIN)
   @Get('me')
-  @Roles(UserRole.COMPANY_ADMIN)
-  @ApiOperation({ summary: 'Get current company for the logged-in COMPANY_ADMIN' })
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
+  @ApiOperation({ summary: 'Get current company for the logged-in CLIENT or COMPANY_ADMIN' })
   @ApiResponse({ status: 200, description: 'Company details' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   getMyCompany(@CurrentUser() user: any) {
     return this.companiesService.findMyCompany(user);
   }
 
-  // PATCH /companies/me (COMPANY_ADMIN)
+  // PATCH /companies/me (CLIENT or COMPANY_ADMIN)
   @Patch('me')
-  @Roles(UserRole.COMPANY_ADMIN)
-  @ApiOperation({ summary: 'Update current company for the logged-in COMPANY_ADMIN' })
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
+  @ApiOperation({ summary: 'Update current company for the logged-in CLIENT or COMPANY_ADMIN' })
   @ApiResponse({ status: 200, description: 'Company updated successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   updateMyCompany(

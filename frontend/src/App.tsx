@@ -1,19 +1,51 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Onboarding from './pages/Onboarding';
-import UploadDocuments from './pages/UploadDocuments';
-import Status from './pages/Status';
-import Companies from './pages/admin/Companies';
-import CompanyDetail from './pages/admin/CompanyDetail';
+import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Dashboard from './pages/Dashboard';
+import ClientDocuments from './pages/ClientDocuments';
+import ClientPayments from './pages/ClientPayments';
+import ClientProfile from './pages/ClientProfile';
+import ClientInvoices from './pages/ClientInvoices';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import AdminLogin from './pages/AdminLogin';
+import AdminInvoices from './pages/AdminInvoices';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminCompanyDetail from './pages/AdminCompanyDetail';
+import AdminAuditLog from './pages/AdminAuditLog';
+import AdminPayments from './pages/AdminPayments';
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/onboarding" replace />} />
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/upload-documents" element={<UploadDocuments />} />
-      <Route path="/status" element={<Status />} />
-      <Route path="/admin/companies" element={<Companies />} />
-      <Route path="/admin/companies/:id" element={<CompanyDetail />} />
+        <Route path="/" element={<Layout />}>
+        <Route index element={<Navigate to="/login" replace />} />
+        <Route path="login" element={<Login />} />
+        <Route path="signup" element={<Signup />} />
+        <Route path="privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="terms-of-service" element={<TermsOfService />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="client/documents" element={<ClientDocuments />} />
+          <Route path="client/payments" element={<ClientPayments />} />
+          <Route path="client/invoices" element={<ClientInvoices />} />
+          <Route path="client/profile" element={<ClientProfile />} />
+        </Route>
+        <Route path="admin">
+          <Route index element={<Navigate to="/admin/login" replace />} />
+          <Route path="login" element={<AdminLogin />} />
+          <Route element={<AdminRoute />}>
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
+            <Route path="audit-log" element={<AdminAuditLog />} />
+            <Route path="payments" element={<AdminPayments />} />
+            <Route path="invoices" element={<AdminInvoices />} />
+          </Route>
+        </Route>
+      </Route>
     </Routes>
   );
 }

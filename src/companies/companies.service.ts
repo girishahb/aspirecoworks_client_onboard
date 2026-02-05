@@ -14,7 +14,8 @@ import { UpdateCompanyStatusDto } from './dto/update-status.dto';
 import { UpdateCompanyRenewalDto } from './dto/update-renewal.dto';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { OnboardingStatus } from '../common/enums/onboarding-status.enum';
+import { OnboardingStage } from '../common/enums/onboarding-stage.enum';
+import { assertValidTransition } from '../client-profiles/onboarding-stage.helper';
 
 @Injectable()
 export class CompaniesService {
@@ -67,8 +68,14 @@ export class CompaniesService {
   }
 
   async findMyCompany(user: { id: string; companyId?: string | null; role: UserRole }) {
+    // Log for debugging
+    this.logger.log(`[findMyCompany] User: ${user.id}, Role: ${user.role}, CompanyId: ${user.companyId || 'NULL'}`);
+    
     if (!user.companyId) {
-      throw new ForbiddenException('No company associated with this user');
+      this.logger.error(`[findMyCompany] User ${user.id} (${user.role}) has no companyId`);
+      throw new ForbiddenException(
+        `No company associated with this user. User ID: ${user.id}, Role: ${user.role}. Please contact support or ensure your account is linked to a company.`
+      );
     }
 
     const company = await this.prisma.clientProfile.findUnique({
@@ -185,10 +192,12 @@ export class CompaniesService {
       throw new NotFoundException('Company not found');
     }
 
+    assertValidTransition(existing.onboardingStage, dto.stage);
+
     const updated = await this.prisma.clientProfile.update({
       where: { id },
       data: {
-        onboardingStatus: dto.status,
+        onboardingStage: dto.stage,
       },
     });
 
@@ -199,16 +208,16 @@ export class CompaniesService {
       entityType: 'Company',
       entityId: id,
       changes: {
-        status: {
-          before: existing.onboardingStatus,
-          after: dto.status,
+        stage: {
+          before: existing.onboardingStage,
+          after: dto.stage,
         },
       },
     });
 
     const transitionToActive =
-      existing.onboardingStatus !== OnboardingStatus.COMPLETED &&
-      dto.status === OnboardingStatus.COMPLETED;
+      existing.onboardingStage !== OnboardingStage.COMPLETED &&
+      dto.stage === OnboardingStage.COMPLETED;
     if (transitionToActive) {
       const to = updated.contactEmail?.trim();
       if (to) {

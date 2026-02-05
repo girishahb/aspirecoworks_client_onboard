@@ -4,11 +4,14 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -24,11 +27,30 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
-    response.status(status).json({
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Log errors (always log server errors, optionally log client errors)
+    if (status >= 500) {
+      this.logger.error(
+        `HTTP ${status} ${request.method} ${request.url}`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+    } else if (!isProduction) {
+      this.logger.warn(`HTTP ${status} ${request.method} ${request.url}`, message);
+    }
+
+    const errorResponse: any = {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
       message: typeof message === 'string' ? message : (message as any).message || message,
-    });
+    };
+
+    // Only include stack trace in development
+    if (!isProduction && exception instanceof Error && exception.stack) {
+      errorResponse.stack = exception.stack;
+    }
+
+    response.status(status).json(errorResponse);
   }
 }

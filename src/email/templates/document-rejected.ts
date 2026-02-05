@@ -1,10 +1,4 @@
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml, wrapBrandedEmail, ctaButton } from './layout';
 
 export interface DocumentRejectedParams {
   companyName: string;
@@ -18,20 +12,18 @@ export function documentRejected(params: DocumentRejectedParams): {
   html: string;
   text: string;
 } {
-  const { companyName, documentType, rejectionReason, uploadUrl = 'https://app.aspirecoworks.com/upload-documents' } = params;
+  const { companyName, documentType, rejectionReason, uploadUrl = 'https://app.aspirecoworks.com/dashboard' } = params;
   const subject = `Document needs attention – ${companyName}`;
-  const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
+
+  const content = `
   <p>Hello,</p>
   <p>Your document (<strong>${escapeHtml(documentType)}</strong>) for <strong>${escapeHtml(companyName)}</strong> was not approved.</p>
-  <p>Reason: ${escapeHtml(rejectionReason)}</p>
-  <p>Please upload a new version: ${escapeHtml(uploadUrl)}</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
+  <p><strong>Reason:</strong> ${escapeHtml(rejectionReason)}</p>
+  <p>Please sign in and upload a new version or contact us if you have questions.</p>
+  ${ctaButton(uploadUrl, 'Upload new document')}
+  `;
+
+  const html = wrapBrandedEmail(content);
   const text = `Hello,\n\nYour document (${documentType}) for ${companyName} was not approved.\n\nReason: ${rejectionReason}\n\nPlease upload a new version: ${uploadUrl}\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

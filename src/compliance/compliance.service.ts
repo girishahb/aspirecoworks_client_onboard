@@ -81,14 +81,14 @@ export class ComplianceService {
   }
 
   /**
-   * GET /compliance/status - company-scoped (uses request.user.companyId for COMPANY_ADMIN)
+   * GET /compliance/status - company-scoped (uses request.user.companyId for CLIENT)
    */
   async getStatusForCurrentUser(user: {
     id: string;
     companyId?: string | null;
     role: UserRole;
   }): Promise<ComplianceStatusResult> {
-    if (user.role === UserRole.COMPANY_ADMIN) {
+    if (user.role === UserRole.CLIENT || user.role === UserRole.COMPANY_ADMIN) {
       if (!user.companyId) {
         throw new ForbiddenException('No company associated with this user');
       }

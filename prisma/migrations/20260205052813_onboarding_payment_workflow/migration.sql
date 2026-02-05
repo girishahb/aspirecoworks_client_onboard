@@ -1,0 +1,1 @@
+-- No schema changes (consolidated in 20260205052705_onboarding_payment_workflow).

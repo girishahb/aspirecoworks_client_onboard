@@ -97,11 +97,22 @@ export class R2Service {
     fileName: string,
     uuid: string,
   ): string {
-    // Extract file extension from fileName
+    // Extract file extension from fileName (sanitized)
     const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
-    const extension = ext ? `.${ext}` : '';
+    const extension = ext && ['.pdf', '.jpg', '.jpeg', '.png'].includes(`.${ext}`) ? `.${ext}` : '';
     
-    // Format: company/{companyId}/{type}/{uuid}.{ext}
-    return `company/${companyId}/${documentType.toLowerCase()}/${uuid}${extension}`;
+    // Organize by document type into folders
+    let folder = 'kyc';
+    if (documentType.includes('AGREEMENT_DRAFT')) {
+      folder = 'agreements/draft';
+    } else if (documentType.includes('AGREEMENT_SIGNED')) {
+      folder = 'agreements/signed';
+    } else if (documentType.includes('AGREEMENT_FINAL')) {
+      folder = 'agreements/final';
+    }
+    
+    // Format: company/{companyId}/{folder}/{uuid}.{ext}
+    // UUID ensures uniqueness, original filename is NOT used in key for security
+    return `company/${companyId}/${folder}/${uuid}${extension}`;
   }
 }
