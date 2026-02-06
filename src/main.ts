@@ -2,11 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  // Razorpay webhook needs raw body for signature verification; use raw parser for that path only
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method === 'POST' && req.path === '/webhooks/razorpay') {
+      return next();
+    }
+    express.json()(req, res, next);
+  });
+  app.use('/webhooks/razorpay', express.raw({ type: 'application/json' }));
 
   // Security: Helmet for HTTP headers
   app.use(helmet({

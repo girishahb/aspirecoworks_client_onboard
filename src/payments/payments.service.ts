@@ -164,6 +164,51 @@ export class PaymentsService {
   }
 
   /**
+   * Find payment by Razorpay payment ID (providerPaymentId) across all companies.
+   * Used by webhook to resolve payment from event payload.
+   */
+  async findByProviderPaymentId(providerPaymentId: string): Promise<{
+    id: string;
+    clientProfileId: string;
+    status: string;
+    providerPaymentId: string | null;
+  } | null> {
+    if (!providerPaymentId) return null;
+
+    return this.prisma.payment.findFirst({
+      where: { providerPaymentId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        clientProfileId: true,
+        status: true,
+        providerPaymentId: true,
+      },
+    });
+  }
+
+  /**
+   * Find first CREATED payment for a company (for webhook fallback when providerPaymentId not yet set).
+   */
+  async findFirstCreatedByCompanyId(companyId: string): Promise<{
+    id: string;
+    clientProfileId: string;
+    status: string;
+    providerPaymentId: string | null;
+  } | null> {
+    return this.prisma.payment.findFirst({
+      where: { clientProfileId: companyId, status: 'CREATED' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        clientProfileId: true,
+        status: true,
+        providerPaymentId: true,
+      },
+    });
+  }
+
+  /**
    * Resend payment link to company contact email.
    */
   async resendPaymentLink(paymentId: string) {

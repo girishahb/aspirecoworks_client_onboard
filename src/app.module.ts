@@ -18,6 +18,7 @@ import { ComplianceModule } from './compliance/compliance.module';
 import { RenewalsModule } from './renewals/renewals.module';
 import { HealthModule } from './health/health.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -66,6 +67,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     RenewalsModule,
     HealthModule,
     InvoicesModule,
+    WebhooksModule,
   ],
   controllers: [],
   providers: [
