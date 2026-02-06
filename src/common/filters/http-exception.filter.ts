@@ -39,12 +39,38 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.warn(`HTTP ${status} ${request.method} ${request.url}`, message);
     }
 
+    // Extract message and errors from exception response
+    let errorMessage: string;
+    let errors: any[] | undefined;
+    
+    if (typeof message === 'string') {
+      errorMessage = message;
+    } else if (typeof message === 'object' && message !== null) {
+      const msgObj = message as any;
+      errorMessage = msgObj.message || 'An error occurred';
+      // Preserve errors array if present
+      if (Array.isArray(msgObj.errors)) {
+        errors = msgObj.errors;
+      } else if (msgObj.message && Array.isArray(msgObj.message)) {
+        // NestJS sometimes puts validation errors in message array
+        errors = msgObj.message.map((m: string) => ({ message: m }));
+        errorMessage = 'Validation failed';
+      }
+    } else {
+      errorMessage = 'An error occurred';
+    }
+
     const errorResponse: any = {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: typeof message === 'string' ? message : (message as any).message || message,
+      message: errorMessage,
     };
+
+    // Include errors array if present
+    if (errors && errors.length > 0) {
+      errorResponse.errors = errors;
+    }
 
     // Only include stack trace in development
     if (!isProduction && exception instanceof Error && exception.stack) {

@@ -57,6 +57,25 @@ export async function getCompany(companyId: string): Promise<AdminCompany> {
 }
 
 /**
+ * Create a new client profile (company).
+ * Backend: POST /client-profiles (ADMIN, MANAGER).
+ */
+export async function createCompany(data: {
+  companyName: string;
+  contactEmail: string;
+  contactPhone?: string;
+  taxId?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  notes?: string;
+}): Promise<AdminCompany> {
+  return apiPost<AdminCompany>('/client-profiles', data);
+}
+
+/**
  * List documents for a company.
  * Backend: GET /documents/company/:companyId (SUPER_ADMIN).
  */

@@ -2,6 +2,23 @@
 
 This guide helps you verify all the features we've built so far.
 
+## Login credentials (after seed)
+
+These users are created by `npx prisma db seed` (see `prisma/seed.ts`). Use them to log in at the frontend or via `POST /auth/login`.
+
+| Role | Email | Password | Use |
+|------|--------|----------|-----|
+| **Admin** | `admin@aspirecoworks.com` | `Admin123!` | Admin dashboard: `http://localhost:5173/admin/login` |
+| **Manager** | `manager@aspirecoworks.com` | `Manager123!` | Manager role (if used in app) |
+| **Company admin** | `company-admin@example.com` | `Client123!` | Client dashboard (Example Corp) — `http://localhost:5173/login` |
+| **Client** | `client@example.com` | `Client123!` | Client role, same company as company-admin |
+
+**Dev-login script:** `npm run scripts:dev-login` uses a *different* admin: `admin@aspirecoworks.in` / `DEV-ADMIN-PASSWORD` (creates this user if missing). Use that for API token generation; use `admin@aspirecoworks.com` for UI login after seed.
+
+**Reset admin password:** If admin login fails, run `npm run scripts:reset-admin-password` to set `admin@aspirecoworks.com` password back to `Admin123!`.
+
+---
+
 ## Prerequisites
 
 1. **Database Setup**
@@ -129,11 +146,11 @@ Expected: `"test"` or `"live"`
 
 **Via Admin API** (requires authentication):
 ```bash
-# First, get auth token (login as admin)
+# First, get auth token (login as admin — use seed credentials)
 POST http://localhost:3000/auth/login
 {
-  "email": "admin@example.com",
-  "password": "password"
+  "email": "admin@aspirecoworks.com",
+  "password": "Admin123!"
 }
 
 # Create a payment for a company
@@ -148,20 +165,33 @@ Authorization: Bearer <token>
 
 ### Step 2: Mark Payment as PAID
 
-**Via Webhook:**
-```bash
-POST http://localhost:3000/payments/webhook
-Content-Type: application/json
-X-Razorpay-Signature: <signature>  # Required if webhook secret configured
+The app exposes a **Razorpay webhook** at `POST /webhooks/razorpay`. Razorpay sends `payment.captured` / `order.paid` events with a signed body. You can test it locally in two ways:
 
-{
-  "companyId": "<company-id>",
-  "paymentId": "<payment-id>",
-  "providerPaymentId": "pay_test_123"
-}
-```
+#### Option A: Test script (no real payment, no ngrok)
 
-**What happens:**
+1. Ensure backend is running: `npm run start:dev`
+2. Ensure you have a **CREATED** payment for a company (e.g. created via Admin → create payment).
+3. Set `RAZORPAY_WEBHOOK_SECRET` in `.env` (same value as in Razorpay Dashboard → Webhooks).
+4. Run the test script with the company ID that has the pending payment:
+
+   ```bash
+   npm run scripts:test-razorpay-webhook -- --companyId=<your-company-uuid>
+   ```
+
+   Optional args: `--paymentId=pay_xxx`, `--event=order.paid`, `--url=http://localhost:3000/webhooks/razorpay`
+
+5. Check backend logs and DB: payment should become PAID, onboarding stage should move to KYC_IN_PROGRESS, and an invoice should be created.
+
+#### Option B: Real Razorpay delivery to your machine (ngrok)
+
+1. Expose your local server: `ngrok http 3000`
+2. In Razorpay Dashboard → **Settings** → **Webhooks**, add (or edit) a webhook:
+   - **URL:** `https://<your-ngrok-host>/webhooks/razorpay`
+   - **Events:** `payment.captured`, `order.paid`
+3. Copy the **Webhook Secret** and set `RAZORPAY_WEBHOOK_SECRET` in `.env`.
+4. Create a test payment (e.g. via your app’s payment link) and complete it in test mode. Razorpay will POST to your ngrok URL; your backend will verify the signature and process the event.
+
+**What happens when the webhook is processed:**
 1. ✅ Payment status updated to PAID
 2. ✅ Company onboarding stage moves to KYC_IN_PROGRESS
 3. ✅ Invoice automatically created
@@ -244,34 +274,23 @@ Authorization: Bearer <admin-token>
 
 ## 7. Webhook Signature Verification
 
-### Test Valid Signature
+The Razorpay webhook endpoint is **`POST /webhooks/razorpay`**. It requires the raw JSON body and the `x-razorpay-signature` header (HMAC SHA256 of the body using `RAZORPAY_WEBHOOK_SECRET`).
+
+### Test with the provided script (valid signature)
 
 ```bash
-# Generate test signature (requires webhook secret)
-# Use Razorpay's signature generation or test manually
-
-POST http://localhost:3000/payments/webhook
-Content-Type: application/json
-X-Razorpay-Signature: <valid-signature>
-
-{
-  "companyId": "test-company-id",
-  "paymentId": "test-payment-id"
-}
+npm run scripts:test-razorpay-webhook -- --companyId=<company-uuid>
 ```
 
-**Expected:** `200 OK`
+**Expected:** `200 OK` and payment marked PAID (if a matching payment exists).
 
-### Test Invalid Signature
+### Test invalid signature
 
 ```bash
-POST http://localhost:3000/payments/webhook
-Content-Type: application/json
-X-Razorpay-Signature: invalid_signature
-
-{
-  "companyId": "test-company-id"
-}
+curl -X POST http://localhost:3000/webhooks/razorpay \
+  -H "Content-Type: application/json" \
+  -H "x-razorpay-signature: invalid_signature" \
+  -d "{\"event\":\"payment.captured\",\"payload\":{}}"
 ```
 
 **Expected:** `401 Unauthorized` with message "Invalid webhook signature"

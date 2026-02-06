@@ -72,10 +72,46 @@ export async function apiPost<T = unknown>(path: string, body?: unknown): Promis
   const res = await request(path, { method: 'POST', body });
   const data = await parseJson(res);
   if (!res.ok) {
-    const message = typeof data === 'object' && data !== null && 'message' in data
+    // Log the full error response for debugging
+    console.error('API Error Response:', data);
+    
+    let message = typeof data === 'object' && data !== null && 'message' in data
       ? String((data as { message: unknown }).message)
       : res.statusText;
-    throw new Error(message || `Request failed ${res.status}`);
+    
+    // Include validation errors if present - check multiple possible structures
+    let errorDetails: string[] = [];
+    if (typeof data === 'object' && data !== null) {
+      // Check for errors array directly
+      if ('errors' in data && Array.isArray((data as { errors: unknown }).errors)) {
+        const errors = (data as { errors: unknown[] }).errors;
+        errorDetails = errors.map((e: any) => {
+          if (typeof e === 'object' && e !== null) {
+            if ('path' in e && 'message' in e) {
+              return `${e.path}: ${e.message}`;
+            }
+            if ('message' in e) {
+              return String(e.message);
+            }
+          }
+          return String(e);
+        });
+      }
+      // Check for message array (NestJS sometimes formats errors this way)
+      if ('message' in data && Array.isArray((data as { message: unknown }).message)) {
+        errorDetails = (data as { message: string[] }).message.map(m => String(m));
+      }
+    }
+    
+    // If message already contains details (from ZodValidationPipe), use it as-is
+    // Otherwise, append error details
+    if (errorDetails.length > 0 && !message.includes(':')) {
+      message = `${message}\n\nValidation Errors:\n${errorDetails.map((e, i) => `${i + 1}. ${e}`).join('\n')}`;
+    }
+    
+    const error = new Error(message || `Request failed ${res.status}`);
+    (error as any).response = data;
+    throw error;
   }
   return data as T;
 }

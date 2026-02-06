@@ -7,10 +7,10 @@ import {
   Param,
   Delete,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientProfilesService } from './client-profiles.service';
-import { CreateClientProfileDto } from './dto/create-client-profile.dto';
 import { UpdateClientProfileDto } from './dto/update-client-profile.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -31,8 +31,35 @@ export class ClientProfilesController {
   @ApiOperation({ summary: 'Create a new client profile' })
   @ApiResponse({ status: 201, description: 'Client profile created successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  create(@Body() createClientProfileDto: CreateClientProfileDto, @CurrentUser() user: any) {
-    return this.clientProfilesService.create(createClientProfileDto, user.id);
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  async create(@Body() body: any, @CurrentUser() user: any) {
+    console.log('BODY RECEIVED:', body);
+
+    const companyName = body?.companyName;
+    const contactEmail = body?.contactEmail;
+
+    if (!companyName || !contactEmail) {
+      throw new BadRequestException({
+        message: 'Missing fields',
+        received: body,
+      });
+    }
+
+    return this.clientProfilesService.create(
+      {
+        companyName,
+        contactEmail,
+        contactPhone: body?.contactPhone,
+        taxId: body?.taxId,
+        address: body?.address,
+        city: body?.city,
+        state: body?.state,
+        zipCode: body?.zipCode,
+        country: body?.country,
+        notes: body?.notes,
+      },
+      user.id,
+    );
   }
 
   @Get()

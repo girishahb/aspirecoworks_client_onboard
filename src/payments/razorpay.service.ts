@@ -90,20 +90,33 @@ export class RazorpayService {
         `amount=${params.amount}, mode=${this.mode.toUpperCase()}`,
     );
 
-    const options = {
+    const options: any = {
       amount: params.amount * 100, // Razorpay expects amount in paise
       currency: params.currency || 'INR',
       description: params.description || `Payment for ${params.companyName}`,
       customer: params.customer,
+      notify: {
+        sms: true,
+        email: true,
+      },
+      reminder_enable: true,
       notes: {
         companyId: params.companyId,
         companyName: params.companyName,
         mode: this.mode,
       },
+      options: {
+        checkout: {
+          theme: {
+            hide_topbar: false,
+            color: '#0A2540',
+          },
+        },
+      },
     };
 
     try {
-      const paymentLink = await this.razorpayClient.paymentLink.create(options);
+      const paymentLink: any = await this.razorpayClient.paymentLink.create(options);
       this.logger.log(
         `Payment link created: id=${paymentLink.id}, ` +
           `companyId=${params.companyId}, mode=${this.mode.toUpperCase()}`,

@@ -29,6 +29,7 @@
     "scripts:review-document": "ts-node scripts/review-document.ts",
     "scripts:test-renewals": "ts-node scripts/test-renewals.ts",
     "scripts:test-email": "ts-node scripts/test-email.ts",
+    "scripts:test-razorpay-webhook": "ts-node scripts/test-razorpay-webhook.ts",
     "backup:db": "bash scripts/backup-db.sh",
     "backup:db:win": "powershell -ExecutionPolicy Bypass -File scripts/backup-db.ps1"
   },

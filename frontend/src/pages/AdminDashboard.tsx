@@ -233,13 +233,24 @@ export default function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log('Review KYC button clicked');
                   // Filter to KYC pending companies
                   const kycCompanies = companies.filter(
                     (c) => c.onboardingStage === 'KYC_IN_PROGRESS' || c.onboardingStage === 'KYC_REVIEW',
                   );
+                  console.log('KYC companies found:', kycCompanies.length);
                   if (kycCompanies.length > 0) {
                     navigate(`/admin/companies/${kycCompanies[0].id}`);
+                  } else {
+                    // Navigate to companies list if no KYC companies found
+                    if (companies.length > 0) {
+                      console.log('Navigating to first company:', companies[0].id);
+                      navigate(`/admin/companies/${companies[0].id}`);
+                    } else {
+                      alert('No companies found. Create a client first.');
+                    }
                   }
                 }}
                 className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-background"
@@ -248,15 +259,26 @@ export default function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log('Upload Agreements button clicked');
                   // Filter to agreement pending companies
                   const agreementCompanies = companies.filter(
                     (c) =>
                       c.onboardingStage === 'AGREEMENT_DRAFT_SHARED' ||
                       c.onboardingStage === 'SIGNED_AGREEMENT_RECEIVED',
                   );
+                  console.log('Agreement companies found:', agreementCompanies.length);
                   if (agreementCompanies.length > 0) {
                     navigate(`/admin/companies/${agreementCompanies[0].id}`);
+                  } else {
+                    // Navigate to companies list if no agreement companies found
+                    if (companies.length > 0) {
+                      console.log('Navigating to first company:', companies[0].id);
+                      navigate(`/admin/companies/${companies[0].id}`);
+                    } else {
+                      alert('No companies found. Create a client first.');
+                    }
                   }
                 }}
                 className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-background"
@@ -265,13 +287,24 @@ export default function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log('Activate Clients button clicked');
                   // Filter to ready for activation
                   const readyCompanies = companies.filter(
                     (c) => c.onboardingStage === 'FINAL_AGREEMENT_SHARED',
                   );
+                  console.log('Ready companies found:', readyCompanies.length);
                   if (readyCompanies.length > 0) {
                     navigate(`/admin/companies/${readyCompanies[0].id}`);
+                  } else {
+                    // Navigate to companies list if no ready companies found
+                    if (companies.length > 0) {
+                      console.log('Navigating to first company:', companies[0].id);
+                      navigate(`/admin/companies/${companies[0].id}`);
+                    } else {
+                      alert('No companies found. Create a client first.');
+                    }
                   }
                 }}
                 className="rounded-lg border border-success bg-success px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-success/90"

@@ -2,18 +2,24 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { OnboardingStage } from '../../common/enums/onboarding-stage.enum';
 
+// Helper to transform empty strings to undefined for optional fields
+const optionalString = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : val),
+  z.string().optional()
+);
+
 export const createClientProfileSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
   contactEmail: z.string().email('Invalid email format'),
-  contactPhone: z.string().optional(),
-  taxId: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
-  onboardingStage: z.nativeEnum(OnboardingStage).default(OnboardingStage.ADMIN_CREATED),
-  notes: z.string().optional(),
+  contactPhone: optionalString,
+  taxId: optionalString,
+  address: optionalString,
+  city: optionalString,
+  state: optionalString,
+  zipCode: optionalString,
+  country: optionalString,
+  onboardingStage: z.nativeEnum(OnboardingStage).default(OnboardingStage.ADMIN_CREATED).optional(),
+  notes: optionalString,
 });
 
 export class CreateClientProfileDto extends createZodDto(createClientProfileSchema) {}

@@ -49,11 +49,14 @@ RAZORPAY_MODE=test
 ### Webhook Secret
 
 1. Go to **Settings** → **Webhooks**
-2. Create a webhook URL pointing to: `https://yourdomain.com/payments/webhook`
-3. Copy the **Webhook Secret** (shown only once)
-4. Set `RAZORPAY_WEBHOOK_SECRET`
+2. Create a webhook URL pointing to: `https://yourdomain.com/webhooks/razorpay`
+3. Select events: **payment.captured**, **order.paid**
+4. Copy the **Webhook Secret** (shown only once)
+5. Set `RAZORPAY_WEBHOOK_SECRET` in your environment
 
-**Note**: Webhook signature verification requires the raw request body. Ensure your NestJS application is configured to preserve raw body for webhook endpoints. If using Express, you may need to configure `express.raw()` middleware for the webhook route.
+**Note**: Webhook signature verification requires the raw request body. The app is configured to use raw body for `POST /webhooks/razorpay` only.
+
+**Testing locally:** Use a tunnel (e.g. [ngrok](https://ngrok.com)) and set the webhook URL to `https://<tunnel>/webhooks/razorpay`, or run the script `npm run scripts:test-razorpay-webhook -- --companyId=<uuid>` to send a signed test payload to `http://localhost:3000/webhooks/razorpay`. See **TESTING_GUIDE.md** for details.
 
 ## Safe Switching Process
 

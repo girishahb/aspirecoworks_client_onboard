@@ -129,10 +129,10 @@ export class DocumentsController {
   }
 
   @Get('company/:companyId')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
-    summary: 'List documents for a company (SUPER_ADMIN only)',
-    description: 'Returns documents for the given company. SUPER_ADMIN only.',
+    summary: 'List documents for a company (SUPER_ADMIN, ADMIN, MANAGER)',
+    description: 'Returns documents for the given company. SUPER_ADMIN, ADMIN, and MANAGER roles can access.',
   })
   @ApiResponse({ status: 200, description: 'List of documents' })
   @ApiResponse({ status: 403, description: 'Forbidden' })

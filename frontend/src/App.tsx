@@ -15,6 +15,7 @@ import AdminLogin from './pages/AdminLogin';
 import AdminInvoices from './pages/AdminInvoices';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminCompanyDetail from './pages/AdminCompanyDetail';
+import AdminCreateCompany from './pages/AdminCreateCompany';
 import AdminAuditLog from './pages/AdminAuditLog';
 import AdminPayments from './pages/AdminPayments';
 
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="login" element={<AdminLogin />} />
           <Route element={<AdminRoute />}>
             <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="companies/new" element={<AdminCreateCompany />} />
             <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
             <Route path="audit-log" element={<AdminAuditLog />} />
             <Route path="payments" element={<AdminPayments />} />

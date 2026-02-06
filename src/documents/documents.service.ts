@@ -424,15 +424,22 @@ export class DocumentsService {
 
   /**
    * GET /documents/company/:companyId
-   * Get documents for a specific company (SUPER_ADMIN only)
-   * Never accept companyId from client for COMPANY_ADMIN - this route is SUPER_ADMIN only
+   * Get documents for a specific company (SUPER_ADMIN, ADMIN, MANAGER)
+   * Never accept companyId from client for COMPANY_ADMIN - this route is admin-only
    */
   async findByCompany(
     companyId: string,
     user: { id: string; role: UserRole },
   ) {
-    if (user.role !== UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException('Only SUPER_ADMIN can access documents by company ID');
+    // Allow SUPER_ADMIN, ADMIN, and MANAGER roles
+    if (
+      user.role !== UserRole.SUPER_ADMIN &&
+      user.role !== UserRole.ADMIN &&
+      user.role !== UserRole.MANAGER
+    ) {
+      throw new ForbiddenException(
+        'Only SUPER_ADMIN, ADMIN, and MANAGER can access documents by company ID',
+      );
     }
 
     // Verify company exists

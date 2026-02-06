@@ -6,6 +6,7 @@ import {
   Query,
   UseGuards,
   Request,
+  UsePipes,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { Throttle } from '@nestjs/throttler';
@@ -14,9 +15,11 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RequestLoginDto } from './dto/request-login.dto';
 import { DevLoginDto } from './dto/dev-login.dto';
+import { loginSchema } from './dto/login.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { DevOnlyGuard } from '../common/guards/dev-only.guard';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -25,6 +28,7 @@ export class AuthController {
 
   @Public()
   @Throttle({ default: { limit: 50, ttl: 60000 } }) // 50 requests per minute (lenient for dev)
+  @UsePipes(new ZodValidationPipe(loginSchema))
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @ApiOperation({ summary: 'Login user (password)' })

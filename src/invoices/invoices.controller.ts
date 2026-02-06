@@ -25,14 +25,14 @@ export class InvoicesController {
   @ApiResponse({ status: 200, description: 'List of invoices' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async getMyInvoices(
+    @CurrentUser() user: any,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
-    @CurrentUser() user: any,
   ) {
     return this.invoicesService.findAll({
-      companyId: user.companyId || undefined,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      companyId: user?.companyId || undefined,
+      page,
+      limit,
     });
   }
 

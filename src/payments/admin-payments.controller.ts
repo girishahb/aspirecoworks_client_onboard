@@ -3,15 +3,15 @@ import {
   Get,
   Param,
   Post,
+  Body,
   Query,
   UseGuards,
   ParseEnumPipe,
   ParseIntPipe,
-  ParseDatePipe,
-  Optional,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -24,6 +24,24 @@ import { UserRole } from '../common/enums/user-role.enum';
 @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 export class AdminPaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Post()
+  @ApiOperation({
+    summary: 'Create a new payment for a company',
+    description:
+      'Creates a Razorpay payment link for a company, saves the payment record, updates company stage to PAYMENT_PENDING, and sends payment link email to company contact.',
+  })
+  @ApiResponse({ status: 201, description: 'Payment created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request (invalid company, stage, etc.)' })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async create(@Body() createPaymentDto: CreatePaymentDto) {
+    return this.paymentsService.create(
+      createPaymentDto.companyId,
+      createPaymentDto.amount,
+      createPaymentDto.currency,
+    );
+  }
 
   @Get()
   @ApiOperation({
