@@ -18,6 +18,8 @@ export class InvoicePdfService {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
       const buffers: Buffer[] = [];
+      // A4: 595.28 x 841.89 pt; content width with margin 50 each side
+      const pageContentWidth = 595.28 - 100;
 
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => {
@@ -101,80 +103,97 @@ export class InvoicePdfService {
           .moveDown(1);
       }
 
-      // Items Table Header
+      // Items Table: columns fit within content width (495pt)
+      const colDescX = 50;
+      const colDescWidth = 310;
+      const colAmountX = 50 + colDescWidth;
+      const colAmountWidth = 60;
+      const colGstX = colAmountX + colAmountWidth;
+      const colGstWidth = 60;
+      const colTotalX = colGstX + colGstWidth;
+      const colTotalWidth = 60;
+      const tableRight = colTotalX + colTotalWidth;
+
+      // Items Table Header (each cell has explicit width)
       const tableTop = doc.y;
-      doc
-        .fontSize(10)
-        .font('Helvetica-Bold')
-        .text('Description', 50, tableTop)
-        .text('Amount', 400, tableTop, { align: 'right' })
-        .text('GST (18%)', 480, tableTop, { align: 'right' })
-        .text('Total', 550, tableTop, { align: 'right' })
-        .moveDown(0.5);
+      doc.fontSize(10).font('Helvetica-Bold');
+      doc.text('Description', colDescX, tableTop, { width: colDescWidth });
+      doc.text('Amount', colAmountX, tableTop, { width: colAmountWidth, align: 'right' });
+      doc.text('GST (18%)', colGstX, tableTop, { width: colGstWidth, align: 'right' });
+      doc.text('Total', colTotalX, tableTop, { width: colTotalWidth, align: 'right' });
+      doc.moveDown(0.5);
 
-      // Draw line under header
       doc
-        .moveTo(50, doc.y)
-        .lineTo(550, doc.y)
+        .moveTo(colDescX, doc.y)
+        .lineTo(tableRight, doc.y)
         .stroke()
         .moveDown(0.5);
 
-      // Invoice Item
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text('Coworking Service', 50, doc.y)
-        .text(`₹${invoice.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 400, doc.y, {
-          align: 'right',
-        })
-        .text(`₹${invoice.gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 480, doc.y, {
-          align: 'right',
-        })
-        .text(`₹${invoice.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 550, doc.y, {
-          align: 'right',
-        })
-        .moveDown(1);
+      // Invoice Item row: description in its column; amounts in their columns with width
+      const itemRowY = doc.y;
+      doc.fontSize(10).font('Helvetica');
+      doc.text('Coworking Service', colDescX, itemRowY, { width: colDescWidth });
+      doc.text(`₹${invoice.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, colAmountX, itemRowY, {
+        width: colAmountWidth,
+        align: 'right',
+      });
+      doc.text(`₹${invoice.gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, colGstX, itemRowY, {
+        width: colGstWidth,
+        align: 'right',
+      });
+      doc.text(`₹${invoice.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, colTotalX, itemRowY, {
+        width: colTotalWidth,
+        align: 'right',
+      });
+      doc.y = Math.max(doc.y, itemRowY);
+      doc.moveDown(1);
 
-      // Draw line under item
       doc
-        .moveTo(50, doc.y)
-        .lineTo(550, doc.y)
+        .moveTo(colDescX, doc.y)
+        .lineTo(tableRight, doc.y)
         .stroke()
         .moveDown(0.5);
 
-      // Total Section
+      // Total Section: single line in a right-aligned box so it is not clipped
       const totalY = doc.y;
-      doc
-        .fontSize(11)
-        .font('Helvetica-Bold')
-        .text('Total Amount:', 400, totalY, { align: 'right' })
-        .text(`₹${invoice.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 550, totalY, {
-          align: 'right',
-        })
-        .moveDown(2);
+      const rightBlockX = 350;
+      const rightBlockWidth = pageContentWidth - (rightBlockX - 50);
+      doc.fontSize(11).font('Helvetica-Bold');
+      doc.text(
+        `Total Amount: ₹${invoice.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+        rightBlockX,
+        totalY,
+        { width: rightBlockWidth, align: 'right' },
+      );
+      doc.moveDown(2);
 
-      // GST Breakdown
-      doc
-        .fontSize(9)
-        .font('Helvetica')
-        .text(`Amount (before GST): ₹${invoice.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, {
-          align: 'right',
-        })
-        .text(`GST (${gstRate}%): ₹${invoice.gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, {
-          align: 'right',
-        })
-        .moveDown(2);
+      // GST Breakdown: same right-side box so "Amount (before GST):" is not cut off
+      doc.fontSize(9).font('Helvetica');
+      doc.text(
+        `Amount (before GST): ₹${invoice.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+        rightBlockX,
+        doc.y,
+        { width: rightBlockWidth, align: 'right' },
+      );
+      doc.text(
+        `GST (${gstRate}%): ₹${invoice.gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+        rightBlockX,
+        doc.y,
+        { width: rightBlockWidth, align: 'right' },
+      );
+      doc.moveDown(2);
 
-      // Footer
-      doc
-        .fontSize(8)
-        .font('Helvetica-Oblique')
-        .text('This is a system generated invoice.', 50, doc.page.height - 100, {
-          align: 'center',
-        })
-        .text('For any queries, please contact support@aspirecoworks.com', 50, doc.y, {
-          align: 'center',
-        });
+      // Footer: full content width so center alignment works
+      const footerY = doc.page.height - 100;
+      doc.fontSize(8).font('Helvetica-Oblique');
+      doc.text('This is a system generated invoice.', 50, footerY, {
+        width: pageContentWidth,
+        align: 'center',
+      });
+      doc.text('For any queries, please contact support@aspirecoworks.com', 50, doc.y, {
+        width: pageContentWidth,
+        align: 'center',
+      });
 
       doc.end();
     });

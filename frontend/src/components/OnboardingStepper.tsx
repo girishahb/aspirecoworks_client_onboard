@@ -43,9 +43,13 @@ export default function OnboardingStepper({
           {ONBOARDING_STEPS.map((step, index) => {
             const completed = currentIndex > index;
             const current = currentIndex === index;
+            const stageForLabel =
+              completed && step.stages.length > 0
+                ? (step.stages[step.stages.length - 1] as import('../onboardingSteps').OnboardingStage)
+                : (stage as import('../onboardingSteps').OnboardingStage) ?? null;
             const Icon = getStepIcon(step, (stage as import('../onboardingSteps').OnboardingStage) ?? null);
-            const title = step.getTitle((stage as import('../onboardingSteps').OnboardingStage) ?? null);
-            const subtitle = step.getSubtitle((stage as import('../onboardingSteps').OnboardingStage) ?? null);
+            const title = step.getTitle(stageForLabel);
+            const subtitle = step.getSubtitle(stageForLabel);
 
             return (
               <div key={step.stepIndex} className="flex flex-1 flex-col items-center">
@@ -109,9 +113,13 @@ export default function OnboardingStepper({
         {ONBOARDING_STEPS.map((step, index) => {
           const completed = currentIndex > index;
           const current = currentIndex === index;
+          const stageForLabel =
+            completed && step.stages.length > 0
+              ? (step.stages[step.stages.length - 1] as import('../onboardingSteps').OnboardingStage)
+              : (stage as import('../onboardingSteps').OnboardingStage) ?? null;
           const Icon = getStepIcon(step, (stage as import('../onboardingSteps').OnboardingStage) ?? null);
-          const title = step.getTitle((stage as import('../onboardingSteps').OnboardingStage) ?? null);
-          const subtitle = step.getSubtitle((stage as import('../onboardingSteps').OnboardingStage) ?? null);
+          const title = step.getTitle(stageForLabel);
+          const subtitle = step.getSubtitle(stageForLabel);
 
           return (
             <div

@@ -1,10 +1,16 @@
-import { Body, Controller, Post, Headers, UnauthorizedException } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiHeader } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Headers, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags, ApiHeader } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { UserRole } from '../common/enums/user-role.enum';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { PaymentsService } from './payments.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { RazorpayService } from './razorpay.service';
+import { UseGuards } from '@nestjs/common';
 
 /** DTO for payment webhook payload. In production, verify provider signature and map providerPaymentId to companyId. */
 export class PaymentWebhookDto {
@@ -25,6 +31,21 @@ export class PaymentsController {
     private readonly invoicesService: InvoicesService,
     private readonly razorpayService: RazorpayService,
   ) {}
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get payments for current user\'s company' })
+  @ApiResponse({ status: 200, description: 'List of payments for the company' })
+  @ApiResponse({ status: 403, description: 'Forbidden – user has no company' })
+  async getMyPayments(@CurrentUser() user: { companyId?: string | null }) {
+    if (!user?.companyId) {
+      throw new ForbiddenException('No company linked to your account');
+    }
+    const result = await this.paymentsService.findByCompanyId(user.companyId);
+    return result.payments;
+  }
 
   @Post('webhook')
   @Public()

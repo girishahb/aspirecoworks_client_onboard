@@ -29,10 +29,16 @@ export class InvoicesController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
+    const companyId = user?.companyId;
+    if (!companyId) {
+      throw new ForbiddenException('No company associated with your account');
+    }
+    const pageNum = page != null ? Number(page) : undefined;
+    const limitNum = limit != null ? Number(limit) : undefined;
     return this.invoicesService.findAll({
-      companyId: user?.companyId || undefined,
-      page,
-      limit,
+      companyId,
+      page: pageNum,
+      limit: limitNum,
     });
   }
 

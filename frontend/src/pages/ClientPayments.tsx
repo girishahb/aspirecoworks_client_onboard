@@ -49,10 +49,8 @@ export default function ClientPayments() {
     setLoading(true);
     setError(null);
     try {
-      // For now, return empty array - backend endpoint needs to be created
-      // const data = await getMyPayments();
-      // setPayments(data);
-      setPayments([]);
+      const data = await getMyPayments();
+      setPayments(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load payments');
       setPayments([]);
@@ -83,15 +81,9 @@ export default function ClientPayments() {
             <Receipt className="h-4 w-4" />
             View Invoices
           </Link>
-        <div className="flex gap-4">
-          <Link to="/client/invoices" className="inline-flex items-center gap-1 text-primary hover:text-accent">
-            <Receipt className="h-4 w-4" />
-            View Invoices
-          </Link>
           <Link to="/dashboard" className="text-primary hover:text-accent">
             ← Back to Dashboard
           </Link>
-        </div>
         </div>
       </div>
 

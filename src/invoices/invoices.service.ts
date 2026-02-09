@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -223,7 +224,9 @@ export class InvoicesService {
 
     // Upload directly using S3 client
     if (!this.s3Client || !this.bucketName) {
-      throw new Error('Storage not configured');
+      throw new ServiceUnavailableException(
+        'Storage is not configured. Set R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME to generate invoice PDFs.',
+      );
     }
 
     const putCommand = new PutObjectCommand({
@@ -236,7 +239,8 @@ export class InvoicesService {
     await this.s3Client.send(putCommand);
 
     // Generate download URL and update invoice
-    const downloadUrl = await this.r2Service.generateDownloadUrl(fileKey, 3600 * 24 * 365); // 1 year expiry
+    // S3/R2 Sig V4: presigned URLs must expire in ≤ 7 days (604800 seconds)
+    const downloadUrl = await this.r2Service.generateDownloadUrl(fileKey, 3600 * 24 * 7);
 
     await this.prisma.invoice.update({
       where: { id: invoiceId },
@@ -311,7 +315,9 @@ export class InvoicesService {
     page?: number;
     limit?: number;
   }) {
-    const { companyId, page = 1, limit = 50 } = filters;
+    const { companyId, page: pageIn = 1, limit: limitIn = 50 } = filters;
+    const page = typeof pageIn === 'number' && Number.isFinite(pageIn) ? pageIn : 1;
+    const limit = typeof limitIn === 'number' && Number.isFinite(limitIn) ? limitIn : 50;
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -393,31 +399,52 @@ export class InvoicesService {
    * Get download URL for invoice PDF.
    */
   async getDownloadUrl(invoiceId: string): Promise<{ downloadUrl: string; fileName: string }> {
-    const invoice = await this.findOne(invoiceId);
+    try {
+      const invoice = await this.findOne(invoiceId);
 
-    if (!invoice.pdfFileKey) {
-      // Generate PDF if not exists
-      await this.generateAndStorePdf(invoiceId);
-      const updated = await this.findOne(invoiceId);
-      if (!updated.pdfUrl) {
-        throw new BadRequestException('PDF generation in progress. Please try again later.');
+      if (!invoice.pdfFileKey) {
+        // Generate PDF if not exists
+        await this.generateAndStorePdf(invoiceId);
+        const updated = await this.findOne(invoiceId);
+        if (!updated.pdfUrl) {
+          throw new BadRequestException('PDF generation in progress. Please try again later.');
+        }
+        return {
+          downloadUrl: updated.pdfUrl!,
+          fileName: `${invoice.invoiceNumber}.pdf`,
+        };
       }
+
+      // Generate fresh presigned URL
+      const downloadUrl = await this.r2Service.generateDownloadUrl(
+        invoice.pdfFileKey,
+        3600, // 1 hour expiry
+      );
+
       return {
-        downloadUrl: updated.pdfUrl!,
+        downloadUrl,
         fileName: `${invoice.invoiceNumber}.pdf`,
       };
+    } catch (err: any) {
+      // Re-throw Nest HTTP exceptions as-is so they return proper status + message
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
+        throw err;
+      }
+      const rawMessage = err?.message ?? String(err);
+      this.logger.warn(`Invoice download failed for ${invoiceId}: ${rawMessage}`, err?.stack);
+      // Surface the actual error so user can fix config (e.g. bucket name, permissions)
+      const safeMessage =
+        typeof rawMessage === 'string' && rawMessage.length < 200
+          ? rawMessage
+          : 'Storage or PDF generation failed. Check server logs.';
+      throw new ServiceUnavailableException(
+        `Unable to generate download link: ${safeMessage}`,
+      );
     }
-
-    // Generate fresh presigned URL
-    const downloadUrl = await this.r2Service.generateDownloadUrl(
-      invoice.pdfFileKey,
-      3600, // 1 hour expiry
-    );
-
-    return {
-      downloadUrl,
-      fileName: `${invoice.invoiceNumber}.pdf`,
-    };
   }
 }
 
