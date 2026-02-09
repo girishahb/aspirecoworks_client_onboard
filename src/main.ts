@@ -99,9 +99,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   const baseUrl = `http://localhost:${port}`;
-  console.log(`🚀 Server running on ${baseUrl}`);
+  console.log(`🚀 Server running on ${baseUrl} (listening on 0.0.0.0:${port})`);
   console.log(`Swagger documentation: ${baseUrl}/api`);
 
   // Handle graceful shutdown
