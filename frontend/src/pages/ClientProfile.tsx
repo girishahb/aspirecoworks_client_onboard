@@ -11,7 +11,8 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 export default function ClientProfile() {
-  const _user = getCurrentUser();
+  // Ensure user is authenticated (side effect only)
+  void getCurrentUser();
   const [company, setCompany] = useState<CompanyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +84,7 @@ export default function ClientProfile() {
             {company.taxId ? (
               <div>
                 <dt className="text-sm font-medium text-muted">Tax ID</dt>
-                <dd className="mt-1 text-text">{company.taxId}</dd>
+                <dd className="mt-1 text-text">{String(company.taxId)}</dd>
               </div>
             ) : null}
             {addressParts.length > 0 ? (
@@ -119,8 +120,8 @@ export default function ClientProfile() {
                 <dt className="text-sm font-medium text-muted">Contact Phone</dt>
                 <dd className="mt-1 flex items-center gap-2 text-text">
                   <Phone className="h-4 w-4 text-muted" />
-                  <a href={`tel:${company.contactPhone}`} className="text-primary hover:text-accent">
-                    {company.contactPhone}
+                  <a href={`tel:${String(company.contactPhone)}`} className="text-primary hover:text-accent">
+                    {String(company.contactPhone)}
                   </a>
                 </dd>
               </div>
@@ -136,12 +137,12 @@ export default function ClientProfile() {
               <dt className="text-sm font-medium text-muted">Onboarding Stage</dt>
               <dd className="mt-1 text-text">{company.onboardingStage || '—'}</dd>
             </div>
-            {company.activationDate && (
+            {company.activationDate ? (
               <div>
                 <dt className="text-sm font-medium text-muted">Activation Date</dt>
                 <dd className="mt-1 text-text">{formatDate(company.activationDate as string)}</dd>
               </div>
-            )}
+            ) : null}
             {company.renewalDate && (
               <div>
                 <dt className="text-sm font-medium text-muted">Renewal Date</dt>

@@ -4,18 +4,18 @@ export interface PipelineVisualizationProps {
   stats: DashboardStats;
 }
 
-/** Pipeline stages in order for visualization. */
-const _PIPELINE_STAGES = [
-  { key: 'ADMIN_CREATED', label: 'Registration' },
-  { key: 'PAYMENT_PENDING', label: 'Payment' },
-  { key: 'PAYMENT_CONFIRMED', label: 'Payment' },
-  { key: 'KYC_IN_PROGRESS', label: 'KYC' },
-  { key: 'KYC_REVIEW', label: 'KYC' },
-  { key: 'AGREEMENT_DRAFT_SHARED', label: 'Agreements' },
-  { key: 'SIGNED_AGREEMENT_RECEIVED', label: 'Agreements' },
-  { key: 'FINAL_AGREEMENT_SHARED', label: 'Agreements' },
-  { key: 'ACTIVE', label: 'Active' },
-] as const;
+// Pipeline stages reserved for future use
+// const PIPELINE_STAGES = [
+//   { key: 'ADMIN_CREATED', label: 'Registration' },
+//   { key: 'PAYMENT_PENDING', label: 'Payment' },
+//   { key: 'PAYMENT_CONFIRMED', label: 'Payment' },
+//   { key: 'KYC_IN_PROGRESS', label: 'KYC' },
+//   { key: 'KYC_REVIEW', label: 'KYC' },
+//   { key: 'AGREEMENT_DRAFT_SHARED', label: 'Agreements' },
+//   { key: 'SIGNED_AGREEMENT_RECEIVED', label: 'Agreements' },
+//   { key: 'FINAL_AGREEMENT_SHARED', label: 'Agreements' },
+//   { key: 'ACTIVE', label: 'Active' },
+// ] as const;
 
 /** Group stages into pipeline buckets. */
 const PIPELINE_BUCKETS = [

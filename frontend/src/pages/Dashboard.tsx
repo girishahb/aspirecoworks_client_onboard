@@ -25,7 +25,8 @@ function statusBadgeLabel(company: CompanyProfile): string {
 }
 
 export default function Dashboard() {
-  const _user = getCurrentUser();
+  // Ensure user is authenticated (side effect only)
+  void getCurrentUser();
   const [company, setCompany] = useState<CompanyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

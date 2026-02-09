@@ -38,19 +38,19 @@ export interface OnboardingStepConfig {
   icon: LucideIcon;
 }
 
-/** All onboarding stages in order for step-index calculation. */
-const _STAGE_ORDER: OnboardingStage[] = [
-  'ADMIN_CREATED',
-  'PAYMENT_PENDING',
-  'PAYMENT_CONFIRMED',
-  'KYC_IN_PROGRESS',
-  'KYC_REVIEW',
-  'AGREEMENT_DRAFT_SHARED',
-  'SIGNED_AGREEMENT_RECEIVED',
-  'FINAL_AGREEMENT_SHARED',
-  'ACTIVE',
-  'COMPLETED',
-];
+// All onboarding stages in order for step-index calculation (reserved for future use)
+// const STAGE_ORDER: OnboardingStage[] = [
+//   'ADMIN_CREATED',
+//   'PAYMENT_PENDING',
+//   'PAYMENT_CONFIRMED',
+//   'KYC_IN_PROGRESS',
+//   'KYC_REVIEW',
+//   'AGREEMENT_DRAFT_SHARED',
+//   'SIGNED_AGREEMENT_RECEIVED',
+//   'FINAL_AGREEMENT_SHARED',
+//   'ACTIVE',
+//   'COMPLETED',
+// ];
 
 export const ONBOARDING_STEPS: OnboardingStepConfig[] = [
   {
