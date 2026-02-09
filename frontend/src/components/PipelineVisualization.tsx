@@ -5,7 +5,7 @@ export interface PipelineVisualizationProps {
 }
 
 /** Pipeline stages in order for visualization. */
-const PIPELINE_STAGES = [
+const _PIPELINE_STAGES = [
   { key: 'ADMIN_CREATED', label: 'Registration' },
   { key: 'PAYMENT_PENDING', label: 'Payment' },
   { key: 'PAYMENT_CONFIRMED', label: 'Payment' },

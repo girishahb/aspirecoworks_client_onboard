@@ -53,8 +53,29 @@ async function bootstrap() {
       ? [] // Must be set in production
       : ['http://localhost:5173', 'http://localhost:3000']; // Dev defaults
 
+  // Allow health checks without CORS (must be BEFORE CORS middleware)
+  app.use((req: any, res, next) => {
+    if (req.path === '/' || req.path === '/health' || req.path.startsWith('/health')) {
+      // Set CORS headers for health checks
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type');
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+      }
+      // For root path, return simple response (Render health check)
+      if (req.path === '/' && req.method === 'GET') {
+        return res.status(200).json({ status: 'ok', service: 'aspirecoworks-client-onboard' });
+      }
+      // For /health, let it continue to the health controller
+    }
+    next();
+  });
+
+  // Enable CORS (will skip health checks marked above)
   app.enableCors({
     origin: (origin, callback) => {
+      // Note: Health checks are handled by middleware above, so they won't reach here
       if (!origin || allowedOrigins.length === 0) {
         // Allow requests with no origin (mobile apps, Postman, etc.) in dev only
         if (process.env.NODE_ENV !== 'production') {

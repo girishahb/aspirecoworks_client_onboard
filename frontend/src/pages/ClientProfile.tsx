@@ -11,7 +11,7 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 export default function ClientProfile() {
-  const user = getCurrentUser();
+  const _user = getCurrentUser();
   const [company, setCompany] = useState<CompanyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,13 +80,13 @@ export default function ClientProfile() {
               <dt className="text-sm font-medium text-muted">Company Name</dt>
               <dd className="mt-1 text-text">{company.companyName}</dd>
             </div>
-            {company.taxId && (
+            {company.taxId ? (
               <div>
                 <dt className="text-sm font-medium text-muted">Tax ID</dt>
                 <dd className="mt-1 text-text">{company.taxId}</dd>
               </div>
-            )}
-            {addressParts.length > 0 && (
+            ) : null}
+            {addressParts.length > 0 ? (
               <div>
                 <dt className="text-sm font-medium text-muted">Address</dt>
                 <dd className="mt-1 flex items-start gap-2 text-text">
@@ -94,7 +94,7 @@ export default function ClientProfile() {
                   <span>{addressParts.join(', ')}</span>
                 </dd>
               </div>
-            )}
+            ) : null}
           </dl>
         </section>
 
@@ -114,7 +114,7 @@ export default function ClientProfile() {
                 </a>
               </dd>
             </div>
-            {company.contactPhone && (
+            {company.contactPhone ? (
               <div>
                 <dt className="text-sm font-medium text-muted">Contact Phone</dt>
                 <dd className="mt-1 flex items-center gap-2 text-text">
@@ -124,7 +124,7 @@ export default function ClientProfile() {
                   </a>
                 </dd>
               </div>
-            )}
+            ) : null}
           </dl>
         </section>
 

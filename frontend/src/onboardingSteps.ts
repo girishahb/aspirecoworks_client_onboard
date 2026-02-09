@@ -39,7 +39,7 @@ export interface OnboardingStepConfig {
 }
 
 /** All onboarding stages in order for step-index calculation. */
-const STAGE_ORDER: OnboardingStage[] = [
+const _STAGE_ORDER: OnboardingStage[] = [
   'ADMIN_CREATED',
   'PAYMENT_PENDING',
   'PAYMENT_CONFIRMED',

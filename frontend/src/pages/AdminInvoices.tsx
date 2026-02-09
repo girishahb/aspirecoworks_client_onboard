@@ -63,7 +63,7 @@ export default function AdminInvoices() {
     }
   }
 
-  async function handleDownload(invoiceId: string, invoiceNumber: string) {
+  async function handleDownload(invoiceId: string) {
     try {
       const { downloadUrl } = await downloadInvoice(invoiceId);
       window.open(downloadUrl, '_blank', 'noopener,noreferrer');
@@ -182,7 +182,7 @@ export default function AdminInvoices() {
                       <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => handleDownload(invoice.id, invoice.invoiceNumber)}
+                          onClick={() => handleDownload(invoice.id)}
                           className="inline-flex items-center gap-1 rounded-lg border border-primary bg-primary px-3 py-1 text-sm font-medium text-white transition-colors hover:bg-primary/90"
                         >
                           <Download className="h-4 w-4" />

@@ -273,9 +273,9 @@ export default function ClientDocuments() {
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-muted" />
                         <span className="font-medium">{doc.fileName}</span>
-                        {doc.version && typeof doc.version === 'number' && doc.version > 1 && (
+                        {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
                           <span className="text-xs text-muted">v{doc.version}</span>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted">{doc.documentType}</td>
@@ -376,9 +376,9 @@ export default function ClientDocuments() {
                   <div className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-muted" />
                     <span className="font-medium">{doc.fileName}</span>
-                        {doc.version && typeof doc.version === 'number' && doc.version > 1 && (
+                        {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
                           <span className="text-xs text-muted">v{doc.version}</span>
-                        )}
+                        ) : null}
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     <Badge variant={documentStatusVariant(doc.status)}>

@@ -309,7 +309,7 @@ export default function AdminCompanyDetail() {
             alignItems: 'center',
           }}
         >
-          {ONBOARDING_STAGE_ORDER.map((s, i) => {
+          {ONBOARDING_STAGE_ORDER.map((s) => {
             const order = getStageOrder(s);
             const reached = currentStageOrder >= order;
             const current = company.onboardingStage === s;
