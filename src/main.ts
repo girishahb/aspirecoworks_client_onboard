@@ -3,6 +3,7 @@ import { ValidationPipe, PipeTransform, ArgumentMetadata } from '@nestjs/common'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SKIP_VALIDATION_KEY } from './common/pipes/zod-validation.pipe';
@@ -15,7 +16,7 @@ async function bootstrap() {
 
   // JSON parser for all routes (must be before our debug middleware)
   app.use(express.json({
-    verify: (req: any, res, buf) => {
+    verify: (req: Request, _res: Response, buf: Buffer) => {
       // Store raw body for debugging
       if (req.path === '/client-profiles' && req.method === 'POST') {
         try {
@@ -47,7 +48,7 @@ async function bootstrap() {
   }));
 
   // Allow health checks (must be BEFORE CORS middleware)
-  app.use((req: any, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path === '/' || req.path === '/health' || req.path.startsWith('/health')) {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
