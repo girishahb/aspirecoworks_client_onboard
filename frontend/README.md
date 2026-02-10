@@ -8,7 +8,7 @@ Minimal Vite + React + TypeScript application.
 npm install
 ```
 
-Copy `.env.example` to `.env` and set `VITE_API_BASE_URL` to your backend URL (default: `http://localhost:3000`).
+Copy `.env.example` to `.env` and optionally set `VITE_API_URL` to your backend URL (e.g. `http://localhost:3000` for local dev; unset uses `https://api.aspirecoworks.in`).
 
 ## Development
 
@@ -39,7 +39,7 @@ npm run preview
 - `src/App.tsx` – root component
 - `src/index.css` – global styles
 - `src/vite-env.d.ts` – Vite type references
-- `src/api/url.ts` – helper to build API URLs from `VITE_API_BASE_URL`
+- `src/api/url.ts` – helper to build API URLs from `VITE_API_URL` (default: `https://api.aspirecoworks.in`)
 
 No backend code; frontend only.
 

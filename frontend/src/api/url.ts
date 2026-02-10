@@ -1,11 +1,12 @@
 /**
  * Backend API base URL from environment.
- * Falls back to http://localhost:3000 when unset (e.g. dev).
+ * Production default: https://api.aspirecoworks.in
+ * Set VITE_API_URL to override (e.g. http://localhost:3000 for local dev).
  */
-const BASE_URL =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL
-    ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
-    : 'http://localhost:3000';
+const API_BASE =
+  typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL
+    ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
+    : 'https://api.aspirecoworks.in';
 
 /**
  * Build a full API URL from a path.
@@ -13,12 +14,12 @@ const BASE_URL =
  */
 export function apiUrl(path: string): string {
   const p = path.startsWith('/') ? path : `/${path}`;
-  return `${BASE_URL}${p}`;
+  return `${API_BASE}${p}`;
 }
 
 /**
  * Backend API base URL (no trailing slash).
  */
 export function getApiBaseUrl(): string {
-  return BASE_URL;
+  return API_BASE;
 }
