@@ -54,6 +54,8 @@ enum PaymentStatus {
 }
 
 enum DocumentType {
+  AADHAAR
+  PAN
   KYC
   CONTRACT
   LICENSE

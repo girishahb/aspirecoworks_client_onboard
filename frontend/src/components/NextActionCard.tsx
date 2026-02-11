@@ -121,7 +121,7 @@ function getActionConfig(
       return {
         type: 'warning' as const,
         title: 'Upload Your KYC Documents',
-        description: 'Upload your contracts, licenses, identification, and other required documents to proceed with onboarding.',
+        description: 'Upload your Aadhaar and PAN documents to proceed with onboarding.',
         icon: <Upload className="h-6 w-6 text-accent" strokeWidth={2} />,
         button: {
           label: 'Upload Documents',

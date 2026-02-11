@@ -104,6 +104,19 @@ async function main() {
     },
   });
 
+  // KYC compliance requirements: Aadhaar and PAN only
+  for (const docType of ['AADHAAR', 'PAN']) {
+    await prisma.complianceRequirement.upsert({
+      where: { documentType: docType },
+      update: {},
+      create: {
+        documentType: docType,
+        name: docType === 'AADHAAR' ? 'Aadhaar Card' : 'PAN Card',
+        description: docType === 'AADHAAR' ? 'Aadhaar card for identity verification' : 'PAN card for tax identification',
+      },
+    });
+  }
+
   console.log('Seed data created:');
   console.log('- Admin user:', admin.email);
   console.log('- Manager user:', manager.email);

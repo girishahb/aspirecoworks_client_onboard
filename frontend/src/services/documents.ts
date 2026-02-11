@@ -2,11 +2,14 @@ import { apiGet, apiPost } from './api';
 
 /** Document types supported by the backend. */
 export type DocumentType =
+  | 'AADHAAR'
+  | 'PAN'
   | 'CONTRACT'
   | 'LICENSE'
   | 'CERTIFICATE'
   | 'IDENTIFICATION'
   | 'FINANCIAL'
+  | 'KYC'
   | 'AGREEMENT_DRAFT'
   | 'AGREEMENT_SIGNED'
   | 'AGREEMENT_FINAL'

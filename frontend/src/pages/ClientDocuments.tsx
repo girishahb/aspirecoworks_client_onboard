@@ -12,13 +12,10 @@ import { getMyCompany } from '../services/company';
 import Badge from '../components/Badge';
 import { Download, Upload, FileText, FileCheck, AlertCircle } from 'lucide-react';
 
-const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
-  { value: 'CONTRACT', label: 'Contract' },
-  { value: 'LICENSE', label: 'License' },
-  { value: 'CERTIFICATE', label: 'Certificate' },
-  { value: 'IDENTIFICATION', label: 'Identification' },
-  { value: 'FINANCIAL', label: 'Financial' },
-  { value: 'OTHER', label: 'Other' },
+/** KYC document types: only Aadhaar and PAN required. */
+const KYC_DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
+  { value: 'AADHAAR', label: 'Aadhaar' },
+  { value: 'PAN', label: 'PAN' },
 ];
 
 function formatDate(iso: string | null | undefined): string {
@@ -49,7 +46,7 @@ export default function ClientDocuments() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [documentType, setDocumentType] = useState<DocumentType>('OTHER');
+  const [documentType, setDocumentType] = useState<DocumentType>('AADHAAR');
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -91,7 +88,7 @@ export default function ClientDocuments() {
       await uploadDocument(selectedFile, documentType, (p) => setUploadProgress(p));
       setUploadSuccess('Document uploaded successfully');
       setSelectedFile(null);
-      setDocumentType('OTHER');
+      setDocumentType('AADHAAR');
       await loadData();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
@@ -196,18 +193,27 @@ export default function ClientDocuments() {
             onSubmit={handleUpload}
             className="mb-4 rounded-lg border border-border bg-white p-4 shadow-sm"
           >
-            <h3 className="mb-3 text-sm font-semibold">Upload New Document</h3>
+            <h3 className="mb-3 text-sm font-semibold">Confirm upload</h3>
+            <p className="mb-3 text-sm text-muted">
+              <strong>File:</strong> {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB){' '}
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.onchange = (e) => {
+                    const f = (e.target as HTMLInputElement).files?.[0];
+                    if (f) setSelectedFile(f);
+                  };
+                  input.click();
+                }}
+                disabled={uploading}
+                className="text-primary hover:underline disabled:opacity-50"
+              >
+                Change file
+              </button>
+            </p>
             <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium">File</label>
-                <input
-                  type="file"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-                  required
-                  disabled={uploading}
-                  className="w-full rounded border border-border px-3 py-2 text-sm"
-                />
-              </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">Document Type</label>
                 <select
@@ -216,7 +222,7 @@ export default function ClientDocuments() {
                   disabled={uploading}
                   className="w-full rounded border border-border px-3 py-2 text-sm"
                 >
-                  {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                  {KYC_DOCUMENT_TYPE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -229,7 +235,7 @@ export default function ClientDocuments() {
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  disabled={!selectedFile || uploading}
+                  disabled={uploading}
                   className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {uploading ? 'Uploading…' : 'Upload'}
@@ -237,6 +243,7 @@ export default function ClientDocuments() {
                 <button
                   type="button"
                   onClick={() => setSelectedFile(null)}
+                  disabled={uploading}
                   className="rounded-lg border border-border bg-white px-4 py-2 text-sm"
                 >
                   Cancel
@@ -251,7 +258,7 @@ export default function ClientDocuments() {
             <FileCheck className="mx-auto mb-3 h-12 w-12 text-muted" />
             <p className="text-muted">No KYC documents uploaded yet.</p>
             {canUploadKyc && (
-              <p className="mt-2 text-sm text-muted">Click "Upload Document" to get started.</p>
+              <p className="mt-2 text-sm text-muted">Upload your Aadhaar and PAN documents. Click "Upload Document" to get started.</p>
             )}
           </div>
         ) : (

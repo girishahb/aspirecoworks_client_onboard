@@ -71,7 +71,7 @@ export const ONBOARDING_STEPS: OnboardingStepConfig[] = [
     stepIndex: 2,
     stages: ['KYC_IN_PROGRESS', 'KYC_REVIEW'],
     getTitle: (s) => (s === 'KYC_REVIEW' ? 'KYC Under Review' : 'Upload KYC Documents'),
-    getSubtitle: (s) => (s === 'KYC_REVIEW' ? 'Under admin review' : 'Upload contracts, IDs, licenses'),
+    getSubtitle: (s) => (s === 'KYC_REVIEW' ? 'Under admin review' : 'Upload Aadhaar and PAN'),
     icon: FileCheck,
   },
   {
