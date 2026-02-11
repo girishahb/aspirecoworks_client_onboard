@@ -143,22 +143,33 @@ export class DocumentsService {
       uuid,
     );
 
-    const document = await this.db.document.create({
-      data: {
-        clientProfileId: user.companyId,
-        uploadedById: user.id,
-        ownerId: user.id,
-        fileName: dto.fileName,
-        fileKey,
-        documentType: dto.documentType,
-        fileSize: dto.fileSize,
-        mimeType: dto.mimeType,
-        status: isSignedAgreement ? DocumentStatus.REVIEW_PENDING : DocumentStatus.REVIEW_PENDING,
-        version,
-        replacesId,
-        reviewNotes: null,
-      },
-    });
+    let document;
+    try {
+      document = await this.db.document.create({
+        data: {
+          clientProfileId: user.companyId,
+          uploadedById: user.id,
+          ownerId: user.id,
+          fileName: dto.fileName,
+          fileKey,
+          documentType: dto.documentType,
+          fileSize: dto.fileSize,
+          mimeType: dto.mimeType,
+          status: isSignedAgreement ? DocumentStatus.REVIEW_PENDING : DocumentStatus.REVIEW_PENDING,
+          version,
+          replacesId,
+          reviewNotes: null,
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(`Document create failed: ${err?.message}`, err?.stack);
+      if (err?.code === '22P02' || err?.message?.includes('invalid input value for enum')) {
+        throw new BadRequestException(
+          'Document type not supported. Ensure database migrations have been applied (run: npx prisma migrate deploy).',
+        );
+      }
+      throw err;
+    }
 
     const uploadUrl = await this.r2Service.generateUploadUrl(
       fileKey,
