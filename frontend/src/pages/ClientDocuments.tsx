@@ -149,7 +149,10 @@ export default function ClientDocuments() {
   const needsAadhaar = !hasApprovedAadhaar && !hasAadhaarPending;
   const needsPan = !hasApprovedPan && !hasPanPending;
 
-  const canUploadKyc = company?.onboardingStage === 'KYC_IN_PROGRESS' || company?.onboardingStage === 'PAYMENT_CONFIRMED';
+  const canUploadKyc =
+    company?.onboardingStage === 'KYC_IN_PROGRESS' ||
+    company?.onboardingStage === 'KYC_REVIEW' ||
+    company?.onboardingStage === 'PAYMENT_CONFIRMED';
   const canUploadSigned = company?.onboardingStage === 'AGREEMENT_DRAFT_SHARED';
 
   function openUploadForType(type: DocumentType) {
