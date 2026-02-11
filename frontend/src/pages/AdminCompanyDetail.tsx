@@ -10,6 +10,7 @@ import {
   uploadFinalAgreement,
   activateCompany,
   getComplianceStatus,
+  updateCompanyStage,
   type AdminCompany,
   type AdminDocumentListItem,
   type ComplianceStatus,
@@ -25,13 +26,13 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 function documentStatusVariant(status: string): 'approved' | 'rejected' | 'pending' {
-  if (status === 'VERIFIED') return 'approved';
+  if (status === 'VERIFIED' || status === 'APPROVED') return 'approved';
   if (status === 'REJECTED') return 'rejected';
   return 'pending';
 }
 
 function documentStatusLabel(status: string): string {
-  if (status === 'VERIFIED') return 'Approved';
+  if (status === 'VERIFIED' || status === 'APPROVED') return 'Approved';
   if (status === 'REJECTED') return 'Rejected';
   if (status === 'UPLOADED' || status === 'REVIEW_PENDING') return 'Pending review';
   if (status === 'PENDING_WITH_CLIENT') return 'Pending with client';
@@ -92,6 +93,7 @@ export default function AdminCompanyDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activateBusy, setActivateBusy] = useState(false);
+  const [kycCompleteBusy, setKycCompleteBusy] = useState(false);
   const [agreementDraftFile, setAgreementDraftFile] = useState<File | null>(null);
   const [agreementDraftUploading, setAgreementDraftUploading] = useState(false);
   const [agreementDraftError, setAgreementDraftError] = useState<string | null>(null);
@@ -213,6 +215,23 @@ export default function AdminCompanyDetail() {
   const isAlreadyActive =
     company?.onboardingStage === 'ACTIVE' || company?.onboardingStage === 'COMPLETED';
   const canActivate = company?.onboardingStage === 'FINAL_AGREEMENT_SHARED';
+  const isKycReviewStage = company?.onboardingStage === 'KYC_REVIEW';
+  const canMarkKycComplete = isKycReviewStage && compliance?.isCompliant === true;
+
+  async function handleMarkKycComplete() {
+    if (!companyId || !canMarkKycComplete) return;
+    if (!window.confirm('Mark KYC review as complete and move to Agreement draft stage?')) return;
+    setActionError(null);
+    setKycCompleteBusy(true);
+    try {
+      await updateCompanyStage(companyId, 'AGREEMENT_DRAFT_SHARED');
+      await loadData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update stage');
+    } finally {
+      setKycCompleteBusy(false);
+    }
+  }
 
   async function handleActivate() {
     if (!companyId || !canActivate) return;
@@ -345,6 +364,21 @@ export default function AdminCompanyDetail() {
         {company.notes && <p><strong>Notes:</strong> {company.notes}</p>}
         {compliance && (
           <p><strong>Compliance:</strong> {compliance.isCompliant ? 'Compliant' : 'Missing documents'}{compliance.missingDocumentTypes?.length ? ` (${compliance.missingDocumentTypes.join(', ')})` : ''}</p>
+        )}
+        {canMarkKycComplete && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#e8f5e9', borderRadius: 6, border: '1px solid #81c784' }}>
+            <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.875rem' }}>
+              All KYC documents approved. Click below to mark KYC review complete and move to Agreement draft stage.
+            </p>
+            <button
+              type="button"
+              onClick={handleMarkKycComplete}
+              disabled={kycCompleteBusy}
+              style={{ backgroundColor: '#2e7d32', color: '#fff', padding: '0.5rem 1rem', border: 'none', borderRadius: 4, fontWeight: 600 }}
+            >
+              {kycCompleteBusy ? 'Updating…' : 'Mark KYC Review Complete'}
+            </button>
+          </div>
         )}
         <div style={{ marginTop: '1rem' }}>
           <button

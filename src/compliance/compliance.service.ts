@@ -50,16 +50,16 @@ export class ComplianceService {
 
     const requiredDocumentTypes: string[] = requirements.map((r) => r.documentType);
 
-    // Fetch approved (VERIFIED) documents for this company
+    // Fetch approved (VERIFIED or APPROVED) documents for this company
     const approvedDocuments = await this.db.document.findMany({
       where: {
         clientProfileId: companyId,
-        status: DocumentStatus.VERIFIED,
+        status: { in: [DocumentStatus.VERIFIED, DocumentStatus.APPROVED] },
       },
       select: { documentType: true },
     });
 
-    // Unique document types that have at least one VERIFIED document
+    // Unique document types that have at least one approved document
     const approvedDocumentTypes: string[] = [
       ...new Set(approvedDocuments.map((d) => d.documentType)),
     ];
@@ -99,14 +99,18 @@ export class ComplianceService {
   }
 
   /**
-   * GET /compliance/company/:companyId - SUPER_ADMIN only
+   * GET /compliance/company/:companyId - SUPER_ADMIN, ADMIN, MANAGER
    */
   async getStatusByCompanyId(
     companyId: string,
     user: { role: UserRole },
   ): Promise<ComplianceStatusResult> {
-    if (user.role !== UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException('Only SUPER_ADMIN can access compliance by company ID');
+    if (
+      user.role !== UserRole.SUPER_ADMIN &&
+      user.role !== UserRole.ADMIN &&
+      user.role !== UserRole.MANAGER
+    ) {
+      throw new ForbiddenException('Only SUPER_ADMIN, ADMIN, or MANAGER can access compliance by company ID');
     }
 
     return this.getComplianceStatus(companyId);

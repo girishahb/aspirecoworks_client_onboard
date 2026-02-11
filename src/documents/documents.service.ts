@@ -552,8 +552,12 @@ export class DocumentsService {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
 
-    if (user.role === UserRole.SUPER_ADMIN) {
-      // No additional checks
+    if (
+      user.role === UserRole.SUPER_ADMIN ||
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.MANAGER
+    ) {
+      // Admin roles can download any document (e.g. when reviewing a company)
     } else if (user.role === UserRole.CLIENT || user.role === UserRole.COMPANY_ADMIN) {
       if (!user.companyId) {
         throw new ForbiddenException('No company associated with this user');
@@ -562,7 +566,7 @@ export class DocumentsService {
         throw new ForbiddenException('You do not have permission to access this document');
       }
     } else {
-      throw new ForbiddenException('Only CLIENT or SUPER_ADMIN can download documents');
+      throw new ForbiddenException('Only CLIENT, COMPANY_ADMIN, or admin roles can download documents');
     }
 
     // Generate GET presigned URL (5 min expiry)

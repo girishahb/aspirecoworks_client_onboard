@@ -193,11 +193,11 @@ export class DocumentsController {
   }
 
   @Get(':id/download')
-  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
     summary: 'Get presigned download URL for a document',
     description:
-      'Returns a presigned download URL. SUPER_ADMIN can download any document. CLIENT/COMPANY_ADMIN can only download documents of their company. URL expires in 5 minutes.',
+      'Returns a presigned download URL. SUPER_ADMIN, ADMIN, MANAGER can download any document. CLIENT/COMPANY_ADMIN can only download documents of their company. URL expires in 5 minutes.',
   })
   @ApiResponse({ status: 200, description: 'Download URL generated successfully' })
   @ApiResponse({ status: 404, description: 'Document not found' })
