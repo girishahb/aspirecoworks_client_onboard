@@ -59,7 +59,7 @@ export async function uploadDocument(
   const data = await apiPost<UploadUrlResponse>('/documents/upload-url', payload);
   if (onProgress) onProgress(10);
 
-  const putOk = await putFileWithProgress(
+  await putFileWithProgress(
     data.uploadUrl,
     file,
     (loaded, total) => {
@@ -69,9 +69,6 @@ export async function uploadDocument(
       }
     }
   );
-  if (!putOk) {
-    throw new Error('Upload failed');
-  }
   if (onProgress) onProgress(100);
   return { documentId: data.documentId };
 }
@@ -93,7 +90,7 @@ export async function uploadSignedAgreement(
   const data = await apiPost<UploadUrlResponse>('/documents/upload-url', payload);
   if (onProgress) onProgress(10);
 
-  const putOk = await putFileWithProgress(
+  await putFileWithProgress(
     data.uploadUrl,
     file,
     (loaded, total) => {
@@ -103,9 +100,6 @@ export async function uploadSignedAgreement(
       }
     }
   );
-  if (!putOk) {
-    throw new Error('Upload failed');
-  }
   if (onProgress) onProgress(90);
   await apiPost<{ success: boolean }>(`/documents/${data.documentId}/confirm-signed-agreement`);
   if (onProgress) onProgress(100);
@@ -116,8 +110,8 @@ function putFileWithProgress(
   url: string,
   file: File,
   onProgress: (loaded: number, total: number) => void
-): Promise<boolean> {
-  return new Promise((resolve) => {
+): Promise<void> {
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
@@ -126,8 +120,24 @@ function putFileWithProgress(
         onProgress(e.loaded, e.total);
       }
     });
-    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
-    xhr.onerror = () => resolve(false);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        const hint =
+          xhr.status === 0
+            ? ' (Possible CORS issue: R2 bucket may need CORS configured for your domain)'
+            : ` (HTTP ${xhr.status})`;
+        reject(new Error(`Upload to storage failed${hint}`));
+      }
+    };
+    xhr.onerror = () => {
+      reject(
+        new Error(
+          'Upload to storage failed. Check browser console for details. R2 bucket may need CORS configured.'
+        )
+      );
+    };
     xhr.send(file);
   });
 }

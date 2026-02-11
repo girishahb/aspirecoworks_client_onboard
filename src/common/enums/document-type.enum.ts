@@ -13,10 +13,11 @@ export enum DocumentType {
   OTHER = 'OTHER',
 }
 
-/** Document types CLIENT is allowed to upload for KYC (Aadhaar and PAN only). */
+/** Document types CLIENT is allowed to upload for KYC (Aadhaar, PAN, and Other). */
 export const CLIENT_UPLOAD_DOCUMENT_TYPES = [
   DocumentType.AADHAAR,
   DocumentType.PAN,
+  DocumentType.OTHER,
   DocumentType.AGREEMENT_SIGNED,
 ] as const;
 

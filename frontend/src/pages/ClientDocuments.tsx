@@ -12,10 +12,11 @@ import { getMyCompany } from '../services/company';
 import Badge from '../components/Badge';
 import { Download, Upload, FileText, FileCheck, AlertCircle } from 'lucide-react';
 
-/** KYC document types: only Aadhaar and PAN required. */
+/** KYC document types: Aadhaar, PAN, and Other for additional documents. */
 const KYC_DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
   { value: 'AADHAAR', label: 'Aadhaar' },
   { value: 'PAN', label: 'PAN' },
+  { value: 'OTHER', label: 'Other' },
 ];
 
 function formatDate(iso: string | null | undefined): string {
@@ -129,8 +130,42 @@ export default function ClientDocuments() {
     ['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(d.documentType),
   );
 
+  const hasApprovedAadhaar = kycDocuments.some(
+    (d) => d.documentType === 'AADHAAR' && d.status === 'VERIFIED',
+  );
+  const hasApprovedPan = kycDocuments.some(
+    (d) => d.documentType === 'PAN' && d.status === 'VERIFIED',
+  );
+  const hasAadhaarPending = kycDocuments.some(
+    (d) =>
+      d.documentType === 'AADHAAR' &&
+      ['UPLOADED', 'REVIEW_PENDING', 'PENDING_WITH_CLIENT'].includes(d.status),
+  );
+  const hasPanPending = kycDocuments.some(
+    (d) =>
+      d.documentType === 'PAN' &&
+      ['UPLOADED', 'REVIEW_PENDING', 'PENDING_WITH_CLIENT'].includes(d.status),
+  );
+  const needsAadhaar = !hasApprovedAadhaar && !hasAadhaarPending;
+  const needsPan = !hasApprovedPan && !hasPanPending;
+
   const canUploadKyc = company?.onboardingStage === 'KYC_IN_PROGRESS' || company?.onboardingStage === 'PAYMENT_CONFIRMED';
   const canUploadSigned = company?.onboardingStage === 'AGREEMENT_DRAFT_SHARED';
+
+  function openUploadForType(type: DocumentType) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,.pdf,.doc,.docx';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        setSelectedFile(file);
+        setDocumentType(type);
+        document.getElementById('kyc-upload-form')?.scrollIntoView({ behavior: 'smooth' });
+      }
+    };
+    input.click();
+  }
 
   if (loading) {
     return (
@@ -164,26 +199,36 @@ export default function ClientDocuments() {
             KYC Documents
           </h2>
           {canUploadKyc && (
-            <button
-              type="button"
-              onClick={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.onchange = (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0];
-                  if (file) {
-                    setSelectedFile(file);
-                    // Show upload form
-                    document.getElementById('kyc-upload-form')?.scrollIntoView({ behavior: 'smooth' });
-                  }
-                };
-                input.click();
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
-            >
-              <Upload className="h-4 w-4" />
-              Upload Document
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {needsAadhaar && (
+                <button
+                  type="button"
+                  onClick={() => openUploadForType('AADHAAR')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload Aadhaar
+                </button>
+              )}
+              {needsPan && (
+                <button
+                  type="button"
+                  onClick={() => openUploadForType('PAN')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload PAN
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => openUploadForType('OTHER')}
+                className="inline-flex items-center gap-2 rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
+              >
+                <Upload className="h-4 w-4" />
+                Upload Other Document
+              </button>
+            </div>
           )}
         </div>
 
@@ -258,7 +303,9 @@ export default function ClientDocuments() {
             <FileCheck className="mx-auto mb-3 h-12 w-12 text-muted" />
             <p className="text-muted">No KYC documents uploaded yet.</p>
             {canUploadKyc && (
-              <p className="mt-2 text-sm text-muted">Upload your Aadhaar and PAN documents. Click "Upload Document" to get started.</p>
+              <p className="mt-2 text-sm text-muted">
+                Upload both Aadhaar and PAN documents using the buttons above.
+              </p>
             )}
           </div>
         ) : (
