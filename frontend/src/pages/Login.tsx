@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../services/auth';
+import { login, getCurrentUser } from '../services/auth';
+
+/** Roles that should go to admin dashboard instead of client dashboard. */
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
 
 const inputClass =
   'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent';
@@ -18,7 +21,9 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      navigate('/dashboard', { replace: true });
+      const user = getCurrentUser();
+      const isAdmin = user?.role && ADMIN_ROLES.includes(user.role);
+      navigate(isAdmin ? '/admin/dashboard' : '/dashboard', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

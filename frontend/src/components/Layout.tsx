@@ -8,7 +8,7 @@ export default function Layout() {
   
   try {
     user = getCurrentUser();
-    isAdmin = user?.role === 'ADMIN';
+    isAdmin = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(user?.role ?? '');
   } catch (error) {
     // Silently handle errors (e.g., localStorage not available)
     console.warn('Error getting current user in Layout:', error);

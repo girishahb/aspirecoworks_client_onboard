@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { login, getCurrentUser, logout } from '../services/auth';
 
 const NON_ADMIN_ERROR = 'Access denied. Admin accounts only.';
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
 
 const inputClass =
   'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60';
@@ -26,7 +27,7 @@ export default function AdminLogin() {
     try {
       await login(email.trim(), password);
       const user = getCurrentUser();
-      if (user?.role === 'ADMIN') {
+      if (user?.role && ADMIN_ROLES.includes(user.role)) {
         navigate('/admin/dashboard', { replace: true });
         return;
       }

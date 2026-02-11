@@ -659,8 +659,12 @@ export class DocumentsService {
     dto: ReviewDocumentDto,
     user: { id: string; role: UserRole },
   ) {
-    if (user.role !== UserRole.SUPER_ADMIN) {
-      throw new ForbiddenException('Only SUPER_ADMIN can review documents');
+    if (
+      user.role !== UserRole.SUPER_ADMIN &&
+      user.role !== UserRole.ADMIN &&
+      user.role !== UserRole.MANAGER
+    ) {
+      throw new ForbiddenException('Only SUPER_ADMIN, ADMIN, or MANAGER can review documents');
     }
 
     const existing = await this.db.document.findUnique({

@@ -207,9 +207,9 @@ export class DocumentsController {
   }
 
   @Patch(':id/review')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
-    summary: 'KYC review document (SUPER_ADMIN only)',
+    summary: 'KYC review document (SUPER_ADMIN, ADMIN, MANAGER)',
     description:
       'Approve (VERIFIED), reject (REJECTED with required rejectionReason), or mark Pending with Client (PENDING_WITH_CLIENT). Optional adminRemarks stored for all actions. When all latest KYC docs are verified and company is in KYC_REVIEW, stage moves to AGREEMENT_DRAFT_SHARED.',
   })
