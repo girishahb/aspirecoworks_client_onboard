@@ -37,6 +37,23 @@ export class R2Service {
   }
 
   /**
+   * Upload a file directly to R2 (server-side). Used for proxy uploads when browser direct PUT has CORS issues.
+   */
+  async uploadFile(
+    fileKey: string,
+    body: Buffer | Uint8Array,
+    contentType: string,
+  ): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: fileKey,
+      Body: body,
+      ContentType: contentType,
+    });
+    await this.s3Client.send(command);
+  }
+
+  /**
    * Generate a presigned URL for uploading a file
    * @param fileKey - The unique key for the file in R2
    * @param contentType - MIME type of the file

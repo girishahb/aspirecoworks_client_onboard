@@ -31,12 +31,14 @@ async function request(path: string, init: ApiRequestInit = {}): Promise<Respons
   const headers = new Headers(init.headers);
   const auth = getAuthHeaders();
   Object.entries(auth).forEach(([k, v]) => headers.set(k, v));
-  if (!headers.has('Content-Type') && init.body !== undefined) {
+  const isFormData = init.body instanceof FormData;
+  if (!headers.has('Content-Type') && init.body !== undefined && !isFormData) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const body =
-    init.body !== undefined && typeof init.body !== 'string'
+  const body = isFormData
+    ? (init.body as BodyInit)
+    : init.body !== undefined && typeof init.body !== 'string'
       ? JSON.stringify(init.body)
       : (init.body as BodyInit | undefined);
 

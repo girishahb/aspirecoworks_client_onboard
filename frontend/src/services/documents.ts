@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './api';
+import { apiGet, apiRequest } from './api';
 
 /** Document types supported by the backend. */
 export type DocumentType =
@@ -26,13 +26,6 @@ export interface DocumentListItem {
   [key: string]: unknown;
 }
 
-interface UploadUrlResponse {
-  documentId: string;
-  uploadUrl: string;
-  fileKey: string;
-  expiresIn: number;
-}
-
 interface DownloadUrlResponse {
   documentId: string;
   fileName: string;
@@ -41,105 +34,49 @@ interface DownloadUrlResponse {
 }
 
 /**
- * Upload a document: get presigned URL from backend (auth token sent automatically),
- * then PUT the file to storage. Backend uses presigned URLs, not multipart/form-data.
- * Optional onProgress(0-100) is called during the PUT.
+ * Upload a document via backend proxy (multipart/form-data).
+ * Avoids CORS issues with presigned R2 URLs. Optional onProgress(0-100).
  */
 export async function uploadDocument(
   file: File,
   documentType: DocumentType,
   onProgress?: (percent: number) => void
 ): Promise<{ documentId: string }> {
-  const payload = {
-    fileName: file.name,
-    documentType,
-    fileSize: file.size,
-    mimeType: file.type || undefined,
-  };
-  const data = await apiPost<UploadUrlResponse>('/documents/upload-url', payload);
   if (onProgress) onProgress(10);
 
-  await putFileWithProgress(
-    data.uploadUrl,
-    file,
-    (loaded, total) => {
-      if (total > 0) {
-        const p = 10 + Math.round((loaded / total) * 90);
-        onProgress?.(p);
-      }
-    }
-  );
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('documentType', documentType);
+
+  const res = await apiRequest('/documents/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
   if (onProgress) onProgress(100);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const message =
+      typeof data === 'object' && data !== null && 'message' in data
+        ? String((data as { message: unknown }).message)
+        : res.statusText;
+    throw new Error(message || `Upload failed (${res.status})`);
+  }
+
+  const data = (await res.json()) as { documentId: string };
   return { documentId: data.documentId };
 }
 
 /**
  * Upload signed agreement (CLIENT only, when stage is AGREEMENT_DRAFT_SHARED).
- * Gets upload URL for type AGREEMENT_SIGNED, uploads file, then confirms to update stage to SIGNED_AGREEMENT_RECEIVED.
+ * Uses proxy upload; backend handles confirm-signed-agreement automatically.
  */
 export async function uploadSignedAgreement(
   file: File,
   onProgress?: (percent: number) => void
 ): Promise<{ documentId: string }> {
-  const payload = {
-    fileName: file.name,
-    documentType: 'AGREEMENT_SIGNED' as DocumentType,
-    fileSize: file.size,
-    mimeType: file.type || undefined,
-  };
-  const data = await apiPost<UploadUrlResponse>('/documents/upload-url', payload);
-  if (onProgress) onProgress(10);
-
-  await putFileWithProgress(
-    data.uploadUrl,
-    file,
-    (loaded, total) => {
-      if (total > 0) {
-        const p = 10 + Math.round((loaded / total) * 80);
-        onProgress?.(p);
-      }
-    }
-  );
-  if (onProgress) onProgress(90);
-  await apiPost<{ success: boolean }>(`/documents/${data.documentId}/confirm-signed-agreement`);
-  if (onProgress) onProgress(100);
-  return { documentId: data.documentId };
-}
-
-function putFileWithProgress(
-  url: string,
-  file: File,
-  onProgress: (loaded: number, total: number) => void
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) {
-        onProgress(e.loaded, e.total);
-      }
-    });
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
-      } else {
-        const hint =
-          xhr.status === 0
-            ? ' (Possible CORS issue: R2 bucket may need CORS configured for your domain)'
-            : ` (HTTP ${xhr.status})`;
-        reject(new Error(`Upload to storage failed${hint}`));
-      }
-    };
-    xhr.onerror = () => {
-      reject(
-        new Error(
-          'Upload to storage failed. Check browser console for details. R2 bucket may need CORS configured.'
-        )
-      );
-    };
-    xhr.send(file);
-  });
+  return uploadDocument(file, 'AGREEMENT_SIGNED', onProgress);
 }
 
 /**

@@ -214,6 +214,149 @@ export class DocumentsService {
   }
 
   /**
+   * POST /documents/upload
+   * Proxy upload: client sends file via multipart; backend uploads to R2. Avoids CORS issues with presigned URLs.
+   */
+  async uploadDocumentProxy(
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    documentType: DocumentType,
+    user: { id: string; companyId?: string | null; role: UserRole },
+  ): Promise<{ documentId: string }> {
+    if (user.role !== UserRole.CLIENT && user.role !== UserRole.COMPANY_ADMIN) {
+      throw new ForbiddenException('Only CLIENT or COMPANY_ADMIN role can upload documents');
+    }
+    if (!user.companyId) {
+      throw new ForbiddenException('No company associated with this user');
+    }
+
+    const allowedTypes = CLIENT_UPLOAD_DOCUMENT_TYPES as unknown as DocumentType[];
+    if (!allowedTypes.includes(documentType)) {
+      throw new BadRequestException(
+        `Clients can only upload KYC or signed agreement documents. Requested type "${documentType}" is not allowed.`,
+      );
+    }
+
+    const company = await this.db.clientProfile.findUnique({
+      where: { id: user.companyId },
+      select: { id: true, onboardingStage: true },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    await this.onboardingService.assertNotActive(user.companyId);
+
+    const isSignedAgreement = documentType === DocumentType.AGREEMENT_SIGNED;
+
+    if (isSignedAgreement) {
+      await this.onboardingService.assertStage(
+        user.companyId,
+        [OnboardingStage.AGREEMENT_DRAFT_SHARED],
+        'Signed agreement upload is only available after agreement draft has been shared.',
+      );
+    } else {
+      await this.onboardingService.assertStage(
+        user.companyId,
+        [
+          OnboardingStage.PAYMENT_CONFIRMED,
+          OnboardingStage.KYC_IN_PROGRESS,
+          OnboardingStage.KYC_REVIEW,
+        ],
+        'Payment required before uploading KYC',
+      );
+    }
+
+    const uuid = randomUUID();
+    const sanitizedFileName = (file.originalname || 'document')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 255);
+    const ext = sanitizedFileName.toLowerCase().match(/\.[^.]+$/)?.[0];
+    const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+    if (!ext || !allowedExts.includes(ext)) {
+      throw new BadRequestException(
+        `Invalid file extension. Allowed: ${allowedExts.join(', ')}`,
+      );
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('File size exceeds maximum of 10MB');
+    }
+
+    const fileKey = this.r2Service.generateFileKey(
+      user.companyId,
+      documentType,
+      sanitizedFileName,
+      uuid,
+    );
+
+    await this.r2Service.uploadFile(
+      fileKey,
+      file.buffer,
+      file.mimetype || 'application/octet-stream',
+    );
+
+    let document;
+    try {
+      document = await this.db.document.create({
+        data: {
+          clientProfileId: user.companyId,
+          uploadedById: user.id,
+          ownerId: user.id,
+          fileName: file.originalname || 'document',
+          fileKey,
+          documentType,
+          fileSize: file.size,
+          mimeType: file.mimetype || null,
+          status: DocumentStatus.REVIEW_PENDING,
+          version: 1,
+          replacesId: null,
+          reviewNotes: null,
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(`Document create failed: ${err?.message}`, err?.stack);
+      if (err?.code === '22P02' || err?.message?.includes('invalid input value for enum')) {
+        throw new BadRequestException(
+          'Document type not supported. Ensure database migrations have been applied.',
+        );
+      }
+      throw err;
+    }
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      clientProfileId: user.companyId,
+      documentId: document.id,
+      action: isSignedAgreement ? 'UPLOAD_SIGNED_AGREEMENT' : 'UPLOAD_DOCUMENT',
+      entityType: 'Document',
+      entityId: document.id,
+      changes: {
+        fileName: file.originalname,
+        documentType,
+        fileSize: file.size,
+        fileKey,
+      },
+    });
+
+    if (!isSignedAgreement) {
+      try {
+        await this.onboardingService.onKycUploaded(user.companyId);
+        await this.onboardingService.moveToKycReviewAfterUpload(user.companyId);
+      } catch (err) {
+        this.logger.warn(
+          `KYC upload stage transition skipped companyId=${user.companyId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    if (isSignedAgreement) {
+      await this.confirmSignedAgreement(document.id, user);
+    }
+
+    return { documentId: document.id };
+  }
+
+  /**
    * POST /documents/:id/confirm-signed-agreement
    * CLIENT only. Call after uploading the signed agreement file. Updates company stage to SIGNED_AGREEMENT_RECEIVED.
    */

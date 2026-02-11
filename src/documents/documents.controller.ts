@@ -7,10 +7,14 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { AdminAgreementDraftUploadDto } from './dto/admin-agreement-draft-upload.dto';
@@ -20,6 +24,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { DocumentType } from '../common/enums/document-type.enum';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
@@ -27,6 +32,49 @@ import { UserRole } from '../common/enums/user-role.enum';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
+  @Post('upload')
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    }),
+  )
+  @ApiOperation({
+    summary: 'Upload document directly (proxy upload)',
+    description:
+      'Uploads a file via the backend to R2. Avoids CORS issues with presigned URLs. Use for KYC (Aadhaar, PAN, Other) or signed agreement. Multipart form: file, documentType.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        documentType: { type: 'string', enum: ['AADHAAR', 'PAN', 'OTHER', 'AGREEMENT_SIGNED'] },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Document uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid file or document type' })
+  async uploadDocument(
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    @Body('documentType') documentType: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    if (!documentType || !['AADHAAR', 'PAN', 'OTHER', 'AGREEMENT_SIGNED'].includes(documentType)) {
+      throw new BadRequestException('documentType must be one of: AADHAAR, PAN, OTHER, AGREEMENT_SIGNED');
+    }
+    return this.documentsService.uploadDocumentProxy(
+      file,
+      documentType as DocumentType,
+      user,
+    );
+  }
 
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
   @Post('upload-url')

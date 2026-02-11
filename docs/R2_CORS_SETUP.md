@@ -1,10 +1,12 @@
-# R2 CORS Setup for KYC Document Upload
+# R2 CORS Setup (Optional – Proxy Upload Default)
 
-The "Upload failed" error when uploading KYC documents (Aadhaar, PAN) is often caused by **missing CORS configuration** on the Cloudflare R2 bucket. The browser blocks the direct `PUT` request to the presigned R2 URL because the bucket must explicitly allow the frontend origin.
+**Update:** The app now uses **proxy upload** by default: files are sent to the backend via `POST /documents/upload`, and the backend uploads to R2. This avoids CORS entirely. You **do not need** R2 CORS if using proxy upload.
 
-## Why CORS is Required
+If you prefer **presigned URLs** (direct browser → R2 upload) for lower server bandwidth, configure R2 CORS as below.
 
-1. **Flow**: Frontend → `POST /documents/upload-url` (your backend) → presigned R2 URL → Frontend → `PUT` file directly to R2
+## Why CORS Was Needed (Presigned URLs)
+
+1. **Flow**: Frontend → `POST /documents/upload-url` (backend) → presigned R2 URL → Frontend → `PUT` file directly to R2
 2. The `PUT` goes from the browser to a different origin (R2), so the browser enforces CORS
 3. Without CORS, the request fails even if the presigned URL is valid
 
@@ -54,4 +56,5 @@ Replace origins with your actual frontend URL(s).
 ## Related
 
 - `ALLOWED_ORIGINS` controls CORS for your **backend API** (see [RENDER_ALLOWED_ORIGINS.md](./RENDER_ALLOWED_ORIGINS.md))
-- R2 CORS controls access to the **R2 bucket** itself when the browser uploads directly via presigned URL
+- R2 CORS controls access to the **R2 bucket** when the browser uploads directly via presigned URL
+- **Proxy upload** (`POST /documents/upload`) bypasses R2 CORS by sending files through your backend
