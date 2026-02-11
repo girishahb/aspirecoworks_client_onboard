@@ -89,8 +89,8 @@ export async function listMyDocuments(): Promise<DocumentListItem[]> {
 }
 
 /**
- * Get a presigned download URL for a document.
- * Auth token is sent automatically. Returns the URL; caller can open in new tab or download.
+ * Get a presigned download URL for a document (legacy).
+ * Prefer downloadDocumentFile for proxy download with forced save and better error handling.
  */
 export async function downloadDocument(
   documentId: string
@@ -100,4 +100,33 @@ export async function downloadDocument(
     downloadUrl: data.downloadUrl,
     fileName: data.fileName ?? 'document',
   };
+}
+
+/**
+ * Download document via proxy (streams through backend).
+ * Triggers browser download with correct filename. Handles missing files with a clear error.
+ */
+export async function downloadDocumentFile(documentId: string): Promise<void> {
+  const { apiUrl } = await import('../api/url');
+  const { getAuthHeaders } = await import('./auth');
+  const res = await fetch(apiUrl(`/documents/${documentId}/file`), {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(
+      (err as { message?: string }).message ?? `Download failed (${res.status})`
+    );
+  }
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get('Content-Disposition');
+  let fileName = 'document';
+  const match = contentDisposition?.match(/filename="?([^";\n]+)"?/);
+  if (match) fileName = match[1].replace(/\\"/g, '"');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
 }

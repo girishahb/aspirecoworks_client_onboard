@@ -581,6 +581,65 @@ export class DocumentsService {
   }
 
   /**
+   * Stream document file from R2 for download. Handles NoSuchKey with friendly error.
+   * Use this for proxy download to trigger browser download and handle missing files.
+   */
+  async streamDocumentFile(
+    documentId: string,
+    user: { id: string; companyId?: string | null; role: UserRole },
+  ): Promise<{ buffer: Buffer; fileName: string; contentType: string }> {
+    const document = await this.db.document.findUnique({
+      where: { id: documentId },
+      include: {
+        clientProfile: { select: { id: true } },
+      },
+    });
+
+    if (!document) {
+      throw new NotFoundException(`Document with ID ${documentId} not found`);
+    }
+
+    if (
+      user.role === UserRole.SUPER_ADMIN ||
+      user.role === UserRole.ADMIN ||
+      user.role === UserRole.MANAGER
+    ) {
+      // Admin roles can download any document
+    } else if (user.role === UserRole.CLIENT || user.role === UserRole.COMPANY_ADMIN) {
+      if (!user.companyId) {
+        throw new ForbiddenException('No company associated with this user');
+      }
+      if (document.clientProfileId !== user.companyId) {
+        throw new ForbiddenException('You do not have permission to access this document');
+      }
+    } else {
+      throw new ForbiddenException('Only CLIENT, COMPANY_ADMIN, or admin roles can download documents');
+    }
+
+    try {
+      const { buffer, contentType } = await this.r2Service.getFileBuffer(document.fileKey);
+      const safeFileName =
+        document.fileName?.replace(/[^a-zA-Z0-9._-]/g, '_') || 'document';
+      return {
+        buffer,
+        fileName: safeFileName,
+        contentType: contentType || 'application/octet-stream',
+      };
+    } catch (err: any) {
+      const code = err?.Code ?? err?.code ?? err?.name ?? '';
+      if (
+        code === 'NoSuchKey' ||
+        String(err?.message || '').toLowerCase().includes('no such key')
+      ) {
+        throw new NotFoundException(
+          'Document file not found in storage. It may not have been uploaded successfully. Please ask the client to re-upload.',
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
    * GET /documents/company/:companyId
    * Get documents for a specific company (SUPER_ADMIN, ADMIN, MANAGER)
    * Never accept companyId from client for COMPANY_ADMIN - this route is admin-only
@@ -1152,6 +1211,112 @@ export class DocumentsService {
   }
 
   /**
+   * POST /documents/admin/agreement-draft-upload
+   * Proxy upload for agreement draft: receives file via multipart, uploads to R2, notifies client.
+   * Avoids CORS issues with presigned URL.
+   */
+  async uploadAdminAgreementDraftProxy(
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    companyId: string,
+    user: { id: string; role: UserRole },
+  ): Promise<{ documentId: string }> {
+    if (
+      user.role !== UserRole.SUPER_ADMIN &&
+      user.role !== UserRole.ADMIN &&
+      user.role !== UserRole.MANAGER
+    ) {
+      throw new ForbiddenException(
+        'Only SUPER_ADMIN, ADMIN, or MANAGER can upload agreement drafts',
+      );
+    }
+
+    const company = await this.db.clientProfile.findUnique({
+      where: { id: companyId },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    await this.onboardingService.assertNotActive(companyId);
+    await this.onboardingService.assertStage(
+      companyId,
+      [OnboardingStage.AGREEMENT_DRAFT_SHARED],
+      'Agreement draft can only be uploaded when stage is Agreement draft shared.',
+    );
+
+    const allowedExts = ['.pdf', '.doc', '.docx'];
+    const ext = (file.originalname || '').toLowerCase().match(/\.[^.]+$/)?.[0];
+    if (!ext || !allowedExts.includes(ext)) {
+      throw new BadRequestException(
+        `Invalid file extension for agreement. Allowed: ${allowedExts.join(', ')}`,
+      );
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('File size exceeds maximum of 10MB');
+    }
+
+    const previousDraft = await this.db.document.findFirst({
+      where: {
+        clientProfileId: companyId,
+        documentType: DocumentType.AGREEMENT_DRAFT,
+      },
+      orderBy: { version: 'desc' },
+      select: { id: true, version: true },
+    });
+    const version = previousDraft ? previousDraft.version + 1 : 1;
+    const replacesId = previousDraft?.id ?? null;
+
+    const uuid = randomUUID();
+    const sanitizedFileName = (file.originalname || 'document')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 255);
+    const fileKey = this.r2Service.generateFileKey(
+      companyId,
+      DocumentType.AGREEMENT_DRAFT,
+      sanitizedFileName,
+      uuid,
+    );
+
+    await this.r2Service.uploadFile(
+      fileKey,
+      file.buffer,
+      file.mimetype || 'application/octet-stream',
+    );
+
+    const document = await this.db.document.create({
+      data: {
+        clientProfileId: companyId,
+        uploadedById: user.id,
+        ownerId: user.id,
+        documentOwner: 'ADMIN',
+        fileName: file.originalname || 'document',
+        fileKey,
+        documentType: DocumentType.AGREEMENT_DRAFT,
+        fileSize: file.size,
+        mimeType: file.mimetype || null,
+        status: DocumentStatus.APPROVED,
+        version,
+        replacesId,
+      },
+    });
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      clientProfileId: companyId,
+      documentId: document.id,
+      action: 'ADMIN_AGREEMENT_DRAFT_UPLOAD',
+      entityType: 'Document',
+      entityId: document.id,
+      changes: { fileName: file.originalname, fileKey },
+    });
+
+    await this.notifyAgreementDraftShared(document.id, user);
+
+    return { documentId: document.id };
+  }
+
+  /**
    * POST /documents/:id/notify-agreement-draft-shared
    * After admin has uploaded the agreement draft file, call this to notify the client by email and update company stage to AGREEMENT_DRAFT_SHARED.
    */
@@ -1334,6 +1499,111 @@ export class DocumentsService {
       fileKey,
       expiresIn: 300,
     };
+  }
+
+  /**
+   * POST /documents/admin/agreement-final-upload
+   * Proxy upload for final agreement. Avoids CORS.
+   */
+  async uploadAdminAgreementFinalProxy(
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    companyId: string,
+    user: { id: string; role: UserRole },
+  ): Promise<{ documentId: string }> {
+    if (
+      user.role !== UserRole.SUPER_ADMIN &&
+      user.role !== UserRole.ADMIN &&
+      user.role !== UserRole.MANAGER
+    ) {
+      throw new ForbiddenException(
+        'Only SUPER_ADMIN, ADMIN, or MANAGER can upload final agreements',
+      );
+    }
+
+    const company = await this.db.clientProfile.findUnique({
+      where: { id: companyId },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    await this.onboardingService.assertNotActive(companyId);
+    await this.onboardingService.assertStage(
+      companyId,
+      [OnboardingStage.SIGNED_AGREEMENT_RECEIVED],
+      'Signed agreement required before final document upload',
+    );
+
+    const allowedExts = ['.pdf', '.doc', '.docx'];
+    const ext = (file.originalname || '').toLowerCase().match(/\.[^.]+$/)?.[0];
+    if (!ext || !allowedExts.includes(ext)) {
+      throw new BadRequestException(
+        `Invalid file extension. Allowed: ${allowedExts.join(', ')}`,
+      );
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('File size exceeds maximum of 10MB');
+    }
+
+    const previousFinal = await this.db.document.findFirst({
+      where: {
+        clientProfileId: companyId,
+        documentType: DocumentType.AGREEMENT_FINAL,
+      },
+      orderBy: { version: 'desc' },
+      select: { id: true, version: true },
+    });
+    const version = previousFinal ? previousFinal.version + 1 : 1;
+    const replacesId = previousFinal?.id ?? null;
+
+    const uuid = randomUUID();
+    const sanitizedFileName = (file.originalname || 'document')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 255);
+    const fileKey = this.r2Service.generateFileKey(
+      companyId,
+      DocumentType.AGREEMENT_FINAL,
+      sanitizedFileName,
+      uuid,
+    );
+
+    await this.r2Service.uploadFile(
+      fileKey,
+      file.buffer,
+      file.mimetype || 'application/octet-stream',
+    );
+
+    const document = await this.db.document.create({
+      data: {
+        clientProfileId: companyId,
+        uploadedById: user.id,
+        ownerId: user.id,
+        documentOwner: 'ADMIN',
+        fileName: file.originalname || 'document',
+        fileKey,
+        documentType: DocumentType.AGREEMENT_FINAL,
+        fileSize: file.size,
+        mimeType: file.mimetype || null,
+        status: DocumentStatus.APPROVED,
+        version,
+        replacesId,
+      },
+    });
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      clientProfileId: companyId,
+      documentId: document.id,
+      action: 'ADMIN_AGREEMENT_FINAL_UPLOAD',
+      entityType: 'Document',
+      entityId: document.id,
+      changes: { fileName: file.originalname, fileKey },
+    });
+
+    await this.notifyAgreementFinalShared(document.id, user);
+
+    return { documentId: document.id };
   }
 
   /**

@@ -74,6 +74,30 @@ export class R2Service {
   }
 
   /**
+   * Get file content from R2 (for proxy download). Throws if key not found.
+   * Returns buffer for use with NestJS StreamableFile.
+   */
+  async getFileBuffer(fileKey: string): Promise<{ buffer: Buffer; contentType?: string }> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: fileKey,
+    });
+    const response = await this.s3Client.send(command);
+    if (!response.Body) {
+      throw new Error('Empty response from storage');
+    }
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    return {
+      buffer,
+      contentType: response.ContentType ?? undefined,
+    };
+  }
+
+  /**
    * Generate a presigned URL for downloading a file
    * @param fileKey - The unique key for the file in R2
    * @param expiresIn - URL expiration time in seconds (default: 300 = 5 minutes)
@@ -116,7 +140,10 @@ export class R2Service {
   ): string {
     // Extract file extension from fileName (sanitized)
     const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
-    const extension = ext && ['.pdf', '.jpg', '.jpeg', '.png'].includes(`.${ext}`) ? `.${ext}` : '';
+    const kycExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const agreementExts = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+    const allowedExts = documentType.includes('AGREEMENT') ? agreementExts : kycExts;
+    const extension = ext && allowedExts.includes(`.${ext}`) ? `.${ext}` : '';
     
     // Organize by document type into folders
     let folder = 'kyc';

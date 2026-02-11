@@ -15,7 +15,7 @@ import {
   type AdminDocumentListItem,
   type ComplianceStatus,
 } from '../services/admin';
-import { downloadDocument } from '../services/documents';
+import { downloadDocumentFile } from '../services/documents';
 import Badge from '../components/Badge';
 import OnboardingStepper from '../components/OnboardingStepper';
 
@@ -94,7 +94,7 @@ export default function AdminCompanyDetail() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activateBusy, setActivateBusy] = useState(false);
   const [kycCompleteBusy, setKycCompleteBusy] = useState(false);
-  const [agreementDraftFile, setAgreementDraftFile] = useState<File | null>(null);
+  const [agreementDraftFiles, setAgreementDraftFiles] = useState<File[]>([]);
   const [agreementDraftUploading, setAgreementDraftUploading] = useState(false);
   const [agreementDraftError, setAgreementDraftError] = useState<string | null>(null);
   const [finalAgreementFile, setFinalAgreementFile] = useState<File | null>(null);
@@ -175,20 +175,21 @@ export default function AdminCompanyDetail() {
 
   async function handleDownload(docId: string) {
     try {
-      const { downloadUrl } = await downloadDocument(docId);
-      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+      await downloadDocumentFile(docId);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Download failed');
     }
   }
 
   async function handleUploadAgreementDraft() {
-    if (!companyId || !agreementDraftFile) return;
+    if (!companyId || agreementDraftFiles.length === 0) return;
     setAgreementDraftError(null);
     setAgreementDraftUploading(true);
     try {
-      await uploadAgreementDraft(companyId, agreementDraftFile);
-      setAgreementDraftFile(null);
+      for (const file of agreementDraftFiles) {
+        await uploadAgreementDraft(companyId, file);
+      }
+      setAgreementDraftFiles([]);
       await loadData();
     } catch (err) {
       setAgreementDraftError(err instanceof Error ? err.message : 'Upload failed');
@@ -405,25 +406,31 @@ export default function AdminCompanyDetail() {
           Download any file; use Approve / Reject / Pending with client for documents awaiting review.
         </p>
         <div style={{ marginBottom: '1rem', padding: '1rem', border: '1px solid #ddd', borderRadius: 4 }}>
-          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Upload agreement draft</h3>
+          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Upload agreement draft(s)</h3>
           <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', color: '#666' }}>
-            Upload a draft agreement. The client will be notified by email and the onboarding stage will be set to &quot;Agreement draft shared&quot;.
+            Upload one or more draft agreements. The client will be notified by email. Supports .pdf, .doc, .docx.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <input
               type="file"
               accept=".pdf,.doc,.docx"
-              onChange={(e) => setAgreementDraftFile(e.target.files?.[0] ?? null)}
+              multiple
+              onChange={(e) => setAgreementDraftFiles(Array.from(e.target.files ?? []))}
               disabled={agreementDraftUploading}
             />
             <button
               type="button"
               onClick={handleUploadAgreementDraft}
-              disabled={!agreementDraftFile || agreementDraftUploading}
+              disabled={agreementDraftFiles.length === 0 || agreementDraftUploading}
             >
-              {agreementDraftUploading ? 'Uploading…' : 'Upload and notify client'}
+              {agreementDraftUploading ? 'Uploading…' : (agreementDraftFiles.length > 0 ? `Upload ${agreementDraftFiles.length} file(s)` : 'Upload and notify client')}
             </button>
           </div>
+          {agreementDraftFiles.length > 0 && (
+            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#666' }}>
+              Selected: {agreementDraftFiles.map((f) => f.name).join(', ')}
+            </p>
+          )}
           {agreementDraftError && (
             <p style={{ color: 'crimson', fontSize: '0.875rem', marginTop: '0.5rem' }}>{agreementDraftError}</p>
           )}

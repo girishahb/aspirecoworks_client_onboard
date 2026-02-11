@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './api';
+import { apiGet, apiPatch, apiPost, apiRequest } from './api';
 
 /** Company (client profile) as returned by admin list/get. */
 export interface AdminCompany {
@@ -114,19 +114,27 @@ export async function notifyAgreementDraftShared(documentId: string): Promise<{ 
 }
 
 /**
- * Upload agreement draft file for a company: get URL, PUT file to storage, then notify client and update stage.
+ * Upload agreement draft file for a company via proxy (avoids CORS).
+ * Supports .pdf, .doc, .docx.
  */
 export async function uploadAgreementDraft(companyId: string, file: File): Promise<void> {
-  const { documentId, uploadUrl } = await getAdminAgreementDraftUploadUrl(companyId, file);
-  const putRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('companyId', companyId);
+
+  const res = await apiRequest('/documents/admin/agreement-draft-upload', {
+    method: 'POST',
+    body: formData,
   });
-  if (!putRes.ok) {
-    throw new Error(`Upload failed: ${putRes.status}`);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const message =
+      typeof data === 'object' && data !== null && 'message' in data
+        ? String((data as { message: unknown }).message)
+        : res.statusText;
+    throw new Error(message || `Upload failed (${res.status})`);
   }
-  await notifyAgreementDraftShared(documentId);
 }
 
 /**
@@ -159,19 +167,26 @@ export async function notifyAgreementFinalShared(documentId: string): Promise<{ 
 }
 
 /**
- * Upload final agreement file for a company: get URL, PUT file to storage, then notify client and update stage.
+ * Upload final agreement file for a company via proxy (avoids CORS).
  */
 export async function uploadFinalAgreement(companyId: string, file: File): Promise<void> {
-  const { documentId, uploadUrl } = await getAdminAgreementFinalUploadUrl(companyId, file);
-  const putRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('companyId', companyId);
+
+  const res = await apiRequest('/documents/admin/agreement-final-upload', {
+    method: 'POST',
+    body: formData,
   });
-  if (!putRes.ok) {
-    throw new Error(`Upload failed: ${putRes.status}`);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const message =
+      typeof data === 'object' && data !== null && 'message' in data
+        ? String((data as { message: unknown }).message)
+        : res.statusText;
+    throw new Error(message || `Upload failed (${res.status})`);
   }
-  await notifyAgreementFinalShared(documentId);
 }
 
 export interface ReviewDocumentPayload {

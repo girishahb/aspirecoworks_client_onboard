@@ -11,6 +11,7 @@ import {
   UploadedFile,
   BadRequestException,
   ForbiddenException,
+  StreamableFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
@@ -111,6 +112,45 @@ export class DocumentsController {
     return this.documentsService.generateAdminAgreementDraftUploadUrl(dto, user);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('admin/agreement-draft-upload')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    }),
+  )
+  @ApiOperation({
+    summary: 'Upload agreement draft via proxy (no CORS)',
+    description:
+      'Uploads agreement draft file through backend to R2. Automatically notifies client. Multipart: file, companyId. Supports .pdf, .doc, .docx.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        companyId: { type: 'string', format: 'uuid' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Agreement draft uploaded and client notified' })
+  @ApiResponse({ status: 400, description: 'Invalid file or company' })
+  async uploadAdminAgreementDraft(
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    @Body('companyId') companyId: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    if (!companyId) {
+      throw new BadRequestException('companyId is required');
+    }
+    return this.documentsService.uploadAdminAgreementDraftProxy(file, companyId, user);
+  }
+
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
   @Post('admin/agreement-final-upload-url')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
@@ -127,6 +167,41 @@ export class DocumentsController {
     @CurrentUser() user: any,
   ) {
     return this.documentsService.generateAdminAgreementFinalUploadUrl(dto, user);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('admin/agreement-final-upload')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Upload final agreement via proxy (no CORS)',
+    description:
+      'Uploads final agreement file through backend to R2. Automatically notifies client. Multipart: file, companyId.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        companyId: { type: 'string', format: 'uuid' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Final agreement uploaded and client notified' })
+  @ApiResponse({ status: 400, description: 'Invalid file or company' })
+  async uploadAdminAgreementFinal(
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    @Body('companyId') companyId: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) throw new BadRequestException('File is required');
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.documentsService.uploadAdminAgreementFinalProxy(file, companyId, user);
   }
 
   @Get()
@@ -192,12 +267,35 @@ export class DocumentsController {
     return this.documentsService.findByCompany(companyId, user);
   }
 
+  @Get(':id/file')
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({
+    summary: 'Stream document file for download (proxy)',
+    description:
+      'Streams the document file from storage. Triggers browser download with correct filename. Use instead of presigned URL to avoid CORS and handle missing files gracefully.',
+  })
+  @ApiResponse({ status: 200, description: 'File stream', content: { 'application/octet-stream': {} } })
+  @ApiResponse({ status: 404, description: 'Document or file not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async streamDocumentFile(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ): Promise<StreamableFile> {
+    const { buffer, fileName, contentType } =
+      await this.documentsService.streamDocumentFile(id, user);
+    const disposition = `attachment; filename="${fileName.replace(/"/g, '\\"')}"`;
+    return new StreamableFile(buffer, {
+      type: contentType,
+      disposition,
+    });
+  }
+
   @Get(':id/download')
   @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
     summary: 'Get presigned download URL for a document',
     description:
-      'Returns a presigned download URL. SUPER_ADMIN, ADMIN, MANAGER can download any document. CLIENT/COMPANY_ADMIN can only download documents of their company. URL expires in 5 minutes.',
+      'Returns a presigned download URL. SUPER_ADMIN, ADMIN, MANAGER can download any document. CLIENT/COMPANY_ADMIN can only download documents of their company. URL expires in 5 minutes. Prefer GET :id/file for proxy download.',
   })
   @ApiResponse({ status: 200, description: 'Download URL generated successfully' })
   @ApiResponse({ status: 404, description: 'Document not found' })

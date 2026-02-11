@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   listMyDocuments,
-  downloadDocument,
+  downloadDocumentFile,
   uploadDocument,
   uploadSignedAgreement,
   type DocumentListItem,
@@ -71,8 +71,7 @@ export default function ClientDocuments() {
 
   async function handleDownload(docId: string) {
     try {
-      const { downloadUrl } = await downloadDocument(docId);
-      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+      await downloadDocumentFile(docId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Download failed');
     }
