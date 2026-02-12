@@ -35,7 +35,7 @@ export default function Login() {
   return (
     <div className="max-w-md mx-auto">
       <div className="mb-8 flex justify-center">
-        <Logo to="/" logoSrc="/logo.svg" />
+        <Logo to="/" logoSrc="/logo.png" />
       </div>
       <h1 className="text-2xl font-bold text-text mb-1">Sign in</h1>
       <p className="text-muted text-sm mb-6">Enter your credentials to access your account.</p>

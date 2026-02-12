@@ -7,14 +7,14 @@ interface LogoProps {
   to?: string;
   /** Optional class for the wrapper. */
   className?: string;
-  /** Logo image path (default: /logo.svg). */
+  /** Logo image path (default: /logo.png). */
   logoSrc?: string;
 }
 
 /**
  * Logo + company name for header. Brand: Arial Bold #134b7f.
  */
-export default function Logo({ to = '/', className = '', logoSrc = '/logo.svg' }: LogoProps) {
+export default function Logo({ to = '/', className = '', logoSrc = '/logo.png' }: LogoProps) {
   const content = (
     <>
       <img
