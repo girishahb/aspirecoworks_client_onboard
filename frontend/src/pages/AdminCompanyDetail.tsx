@@ -472,20 +472,46 @@ export default function AdminCompanyDetail() {
           </div>
         )}
         <div style={{ marginTop: '1rem' }}>
-          <button
-            type="button"
-            onClick={handleActivate}
-            disabled={!canActivate || activateBusy}
-          >
-            {activateBusy ? 'Activating…' : 'Activate Company'}
-          </button>
+          {isAlreadyActive ? (
+            <button
+              type="button"
+              disabled
+              style={{
+                padding: '0.6rem 1.25rem',
+                fontSize: '1rem',
+                fontWeight: 700,
+                backgroundColor: '#2e7d32',
+                color: '#fff',
+                border: '2px solid #2e7d32',
+                borderRadius: 6,
+                cursor: 'default',
+              }}
+            >
+              ✓ Company Activated
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleActivate}
+              disabled={!canActivate || activateBusy}
+              style={{
+                padding: '0.6rem 1.25rem',
+                fontSize: '1rem',
+                fontWeight: 700,
+                backgroundColor: canActivate ? (activateBusy ? '#1976d2' : '#1565c0') : '#9e9e9e',
+                color: '#fff',
+                border: `2px solid ${canActivate ? (activateBusy ? '#1976d2' : '#1565c0') : '#9e9e9e'}`,
+                borderRadius: 6,
+                cursor: canActivate && !activateBusy ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {activateBusy ? 'Activating…' : 'Activate Company'}
+            </button>
+          )}
           {!canActivate && !isAlreadyActive && (
             <p style={{ marginTop: '0.5rem', color: '#666', fontSize: '0.875rem' }}>
               Activate only when stage is &quot;Final agreement shared&quot;.
             </p>
-          )}
-          {isAlreadyActive && (
-            <p style={{ marginTop: '0.5rem', color: '#666', fontSize: '0.875rem' }}>Company is already active.</p>
           )}
         </div>
       </section>

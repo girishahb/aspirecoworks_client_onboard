@@ -24,8 +24,9 @@ export default function TimelineView({ stage }: TimelineViewProps) {
       <h3 className="mb-4 text-lg font-semibold text-text">Your Onboarding Timeline</h3>
       <div className="space-y-4">
         {steps.map((step, index) => {
-          const isCompleted = index < safeIndex;
-          const isCurrent = index === safeIndex;
+          const isLastTwoSteps = index >= steps.length - 2;
+          const isCompleted = index < safeIndex || (index === safeIndex && isLastTwoSteps);
+          const isCurrent = index === safeIndex && !isCompleted;
           const isReached = isCompleted || isCurrent;
 
           return (

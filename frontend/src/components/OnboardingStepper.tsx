@@ -41,8 +41,9 @@ export default function OnboardingStepper({
       <div className="hidden md:block">
         <div className="flex items-stretch gap-0">
           {ONBOARDING_STEPS.map((step, index) => {
-            const completed = currentIndex > index;
-            const current = currentIndex === index;
+            const isLastTwoSteps = index >= ONBOARDING_STEPS.length - 2;
+            const completed = currentIndex > index || (currentIndex === index && isLastTwoSteps);
+            const current = currentIndex === index && !completed;
             const stageForLabel =
               completed && step.stages.length > 0
                 ? (step.stages[step.stages.length - 1] as import('../onboardingSteps').OnboardingStage)
@@ -111,8 +112,9 @@ export default function OnboardingStepper({
       {/* Mobile: vertical stack */}
       <div className="md:hidden space-y-3">
         {ONBOARDING_STEPS.map((step, index) => {
-          const completed = currentIndex > index;
-          const current = currentIndex === index;
+          const isLastTwoSteps = index >= ONBOARDING_STEPS.length - 2;
+          const completed = currentIndex > index || (currentIndex === index && isLastTwoSteps);
+          const current = currentIndex === index && !completed;
           const stageForLabel =
             completed && step.stages.length > 0
               ? (step.stages[step.stages.length - 1] as import('../onboardingSteps').OnboardingStage)

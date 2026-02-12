@@ -124,12 +124,10 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Onboarding Stepper */}
-      {stage !== 'ACTIVE' && stage !== 'COMPLETED' && (
-        <section className="mb-6">
-          <OnboardingStepper stage={stage} showPercentage />
-        </section>
-      )}
+      {/* Onboarding Stepper - shown for all stages including ACTIVE (shows full green when activated) */}
+      <section className="mb-6">
+        <OnboardingStepper stage={stage} showPercentage />
+      </section>
 
       {/* Next Action Card */}
       <section className="mb-6">
