@@ -1,32 +1,38 @@
 import { Link } from 'react-router-dom';
 
-const COMPANY_NAME = 'Aspire Coworks';
+const COMPANY_NAME = 'ASPIRE COWORKS';
 
 interface LogoProps {
   /** Link destination (e.g. "/" or "/admin/dashboard"). No link if undefined. */
   to?: string;
   /** Optional class for the wrapper. */
   className?: string;
-  /** Logo image path (default: /logo.svg). Replace with your logo from the PDF export. */
+  /** Logo image path (default: /logo.svg). */
   logoSrc?: string;
 }
 
 /**
- * Logo + company name for header. Responsive sizing.
- * Replace public/logo.svg with your Aspire Coworks logo (export from PDF as SVG or PNG).
+ * Logo + company name for header. Brand: Arial Bold #134b7f.
  */
 export default function Logo({ to = '/', className = '', logoSrc = '/logo.svg' }: LogoProps) {
   const content = (
     <>
       <img
         src={logoSrc}
-        alt=""
-        className="h-8 w-8 shrink-0 object-contain sm:h-9 sm:w-9 md:h-10 md:w-10"
-        width={40}
-        height={40}
+        alt="ASPIRE COWORKS logo"
+        className="h-9 w-9 shrink-0 object-contain sm:h-10 sm:w-10 md:h-11 md:w-11"
+        width={44}
+        height={44}
         loading="eager"
       />
-      <span className="font-semibold text-text text-base sm:text-lg md:text-xl whitespace-nowrap">
+      <span
+        className="font-bold whitespace-nowrap text-base sm:text-lg md:text-xl"
+        style={{
+          fontFamily: 'Arial, "Segoe UI", system-ui, sans-serif',
+          color: '#134b7f',
+          letterSpacing: '0.02em',
+        }}
+      >
         {COMPANY_NAME}
       </span>
     </>

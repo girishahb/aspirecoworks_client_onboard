@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, getCurrentUser } from '../services/auth';
+import Logo from '../components/Logo';
 
 /** Roles that should go to admin dashboard instead of client dashboard. */
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
 
 const inputClass =
-  'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent';
+  'block w-full max-w-md rounded-lg border border-border bg-white px-3 py-2.5 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -32,8 +33,12 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md">
-      <h1 className="text-2xl font-semibold text-text">Login</h1>
+    <div className="max-w-md mx-auto">
+      <div className="mb-8 flex justify-center">
+        <Logo to="/" logoSrc="/logo.svg" />
+      </div>
+      <h1 className="text-2xl font-bold text-text mb-1">Sign in</h1>
+      <p className="text-muted text-sm mb-6">Enter your credentials to access your account.</p>
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div>
           <label htmlFor="email" className="mb-1 block text-sm font-medium text-text">
@@ -75,7 +80,8 @@ export default function Login() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3a66] disabled:opacity-50 transition-colors shadow-sm"
+          style={{ backgroundColor: '#134b7f' }}
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>

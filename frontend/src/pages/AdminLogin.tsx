@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, getCurrentUser, logout } from '../services/auth';
+import Logo from '../components/Logo';
 
 const NON_ADMIN_ERROR = 'Access denied. Admin accounts only.';
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
 
 const inputClass =
-  'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60';
+  'block w-full max-w-md rounded-lg border border-border bg-white px-3 py-2.5 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm disabled:opacity-60';
 
 /**
  * Admin login: email + password form, calls existing login API.
@@ -41,9 +42,12 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="max-w-md">
-      <h1 className="text-2xl font-semibold text-text">Admin Login</h1>
-      <p className="mt-1 text-sm text-muted">Sign in with an admin account.</p>
+    <div className="max-w-md mx-auto">
+      <div className="mb-8 flex justify-center">
+        <Logo to="/" logoSrc="/logo.svg" />
+      </div>
+      <h1 className="text-2xl font-bold text-text">Admin sign in</h1>
+      <p className="mt-1 text-sm text-muted mb-6">Sign in with an admin account.</p>
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div>
           <label htmlFor="admin-email" className="mb-1 block text-sm font-medium text-text">
@@ -85,7 +89,8 @@ export default function AdminLogin() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm"
+          style={{ backgroundColor: '#134b7f' }}
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
