@@ -125,9 +125,6 @@ export default function ClientDocuments() {
   const kycDocuments = documents.filter(
     (d) => !['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(d.documentType),
   );
-  const agreements = documents.filter((d) =>
-    ['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(d.documentType),
-  );
 
   const hasApprovedAadhaar = kycDocuments.some(
     (d) => d.documentType === 'AADHAAR' && d.status === 'VERIFIED',
@@ -390,12 +387,63 @@ export default function ClientDocuments() {
         )}
       </section>
 
-      {/* Agreements Section */}
-      <section>
+      {/* Agreement draft Section */}
+      <section className="mb-8">
+        <h2 className="mb-4 flex items-center gap-2">
+          <FileText className="h-5 w-5" />
+          Agreement draft
+        </h2>
+        {documents.filter((d) => d.documentType === 'AGREEMENT_DRAFT').length === 0 ? (
+          <div className="rounded-lg border border-border bg-white p-6 text-center">
+            <p className="text-muted">No agreement draft shared yet.</p>
+            <p className="mt-1 text-sm text-muted">Your agreement draft will appear here once the admin shares it.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {documents
+              .filter((d) => d.documentType === 'AGREEMENT_DRAFT')
+              .map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-white p-4 shadow-sm"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-muted" />
+                      <span className="font-medium">{doc.fileName}</span>
+                      {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
+                        <span className="text-xs text-muted">v{doc.version}</span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant={documentStatusVariant(doc.status)}>
+                        {documentStatusLabel(doc.status)}
+                      </Badge>
+                      <span className="text-xs text-muted">{formatDate(doc.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(doc.id)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </section>
+
+      {/* Signed agreement Section */}
+      <section className="mb-8">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Agreements
+            Signed agreement
           </h2>
           {canUploadSigned && (
             <button
@@ -416,45 +464,100 @@ export default function ClientDocuments() {
           </div>
         )}
 
-        {agreements.length === 0 ? (
-          <div className="rounded-lg border border-border bg-white p-8 text-center">
-            <FileText className="mx-auto mb-3 h-12 w-12 text-muted" />
-            <p className="text-muted">No agreements available yet.</p>
+        {documents.filter((d) => d.documentType === 'AGREEMENT_SIGNED').length === 0 ? (
+          <div className="rounded-lg border border-border bg-white p-6 text-center">
+            <p className="text-muted">No signed agreement uploaded yet.</p>
+            {canUploadSigned && (
+              <p className="mt-1 text-sm text-muted">Download the draft above, sign it, and upload the signed copy here.</p>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
-            {agreements.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-white p-4 shadow-sm"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-muted" />
-                    <span className="font-medium">{doc.fileName}</span>
-                        {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
-                          <span className="text-xs text-muted">v{doc.version}</span>
-                        ) : null}
+            {documents
+              .filter((d) => d.documentType === 'AGREEMENT_SIGNED')
+              .map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-white p-4 shadow-sm"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-muted" />
+                      <span className="font-medium">{doc.fileName}</span>
+                      {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
+                        <span className="text-xs text-muted">v{doc.version}</span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant={documentStatusVariant(doc.status)}>
+                        {documentStatusLabel(doc.status)}
+                      </Badge>
+                      <span className="text-xs text-muted">{formatDate(doc.createdAt)}</span>
+                    </div>
                   </div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Badge variant={documentStatusVariant(doc.status)}>
-                      {documentStatusLabel(doc.status)}
-                    </Badge>
-                    <span className="text-xs text-muted">{formatDate(doc.createdAt)}</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(doc.id)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download
+                    </button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDownload(doc.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download
-                  </button>
+              ))}
+          </div>
+        )}
+      </section>
+
+      {/* Final agreement Section */}
+      <section>
+        <h2 className="mb-4 flex items-center gap-2">
+          <FileText className="h-5 w-5" />
+          Final agreement
+        </h2>
+        {documents.filter((d) => d.documentType === 'AGREEMENT_FINAL').length === 0 ? (
+          <div className="rounded-lg border border-border bg-white p-6 text-center">
+            <p className="text-muted">No final agreement available yet.</p>
+            <p className="mt-1 text-sm text-muted">Your stamped final agreement will appear here once the admin shares it.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {documents
+              .filter((d) => d.documentType === 'AGREEMENT_FINAL')
+              .map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-white p-4 shadow-sm"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-muted" />
+                      <span className="font-medium">{doc.fileName}</span>
+                      {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
+                        <span className="text-xs text-muted">v{doc.version}</span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant={documentStatusVariant(doc.status)}>
+                        {documentStatusLabel(doc.status)}
+                      </Badge>
+                      <span className="text-xs text-muted">{formatDate(doc.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(doc.id)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </section>

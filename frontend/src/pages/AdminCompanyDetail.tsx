@@ -283,6 +283,96 @@ export default function AdminCompanyDetail() {
 
   const currentStageOrder = getStageOrder(company.onboardingStage);
 
+  function renderDocumentSection(title: string, sectionDocs: AdminDocumentListItem[]) {
+    if (sectionDocs.length === 0) return null;
+    return (
+      <div key={title} style={{ marginBottom: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1rem', fontWeight: 600 }}>{title}</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #333', textAlign: 'left' }}>
+              <th style={{ padding: '0.5rem 0.75rem' }}>Document</th>
+              <th style={{ padding: '0.5rem 0.75rem' }}>Type</th>
+              <th style={{ padding: '0.5rem 0.75rem' }}>Status</th>
+              <th style={{ padding: '0.5rem 0.75rem' }}>Timeline</th>
+              <th style={{ padding: '0.5rem 0.75rem' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sectionDocs.map((doc) => (
+              <tr key={doc.id} style={{ borderBottom: '1px solid #ddd' }}>
+                <td style={{ padding: '0.5rem 0.75rem' }}>
+                  <span style={{ fontWeight: 500 }}>{doc.fileName}</span>
+                  {doc.version != null && doc.version > 1 && (
+                    <span style={{ marginLeft: '0.35rem', fontSize: '0.75rem', color: '#666' }}>v{doc.version}</span>
+                  )}
+                </td>
+                <td style={{ padding: '0.5rem 0.75rem' }}>{doc.documentType}</td>
+                <td style={{ padding: '0.5rem 0.75rem' }}>
+                  <Badge variant={documentStatusVariant(doc.status)}>
+                    {documentStatusLabel(doc.status)}
+                  </Badge>
+                  {doc.rejectionReason && doc.status === 'REJECTED' && (
+                    <div style={{ marginTop: '0.25rem', fontSize: '0.875rem', color: '#666' }}>{doc.rejectionReason}</div>
+                  )}
+                  {doc.adminRemarks && (
+                    <div style={{ marginTop: '0.25rem', fontSize: '0.875rem', color: '#555' }}>Remarks: {doc.adminRemarks}</div>
+                  )}
+                </td>
+                <td style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem' }}>
+                  <div>Uploaded: {formatDate(doc.createdAt)}</div>
+                  {(doc.verifiedAt || ['VERIFIED', 'REJECTED', 'PENDING_WITH_CLIENT'].includes(doc.status)) && (doc.verifiedAt || doc.updatedAt) && (
+                    <div style={{ color: '#555' }}>
+                      Reviewed: {formatDate(doc.verifiedAt ?? doc.updatedAt)}
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: '0.5rem 0.75rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(doc.id)}
+                      style={{ marginRight: 0 }}
+                    >
+                      Download
+                    </button>
+                    {isReviewable(doc.status) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleApprove(doc.id)}
+                          disabled={busyId !== null}
+                          style={{ backgroundColor: '#2e7d32', color: '#fff', border: '1px solid #2e7d32' }}
+                        >
+                          {busyId === doc.id ? '…' : 'Approve'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReject(doc.id)}
+                          disabled={busyId !== null}
+                          style={{ backgroundColor: '#c62828', color: '#fff', border: '1px solid #c62828' }}
+                        >
+                          {busyId === doc.id ? '…' : 'Reject'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMarkPendingWithClient(doc.id)}
+                          disabled={busyId !== null}
+                        >
+                          {busyId === doc.id ? '…' : 'Pending with client'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{ marginBottom: '1rem' }}>
@@ -465,87 +555,12 @@ export default function AdminCompanyDetail() {
         {documents.length === 0 ? (
           <p>No documents.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #333', textAlign: 'left' }}>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Document</th>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Type</th>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Status</th>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Timeline</th>
-                <th style={{ padding: '0.5rem 0.75rem' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((doc) => (
-                <tr key={doc.id} style={{ borderBottom: '1px solid #ddd' }}>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>
-                    <span style={{ fontWeight: 500 }}>{doc.fileName}</span>
-                    {doc.version != null && doc.version > 1 && (
-                      <span style={{ marginLeft: '0.35rem', fontSize: '0.75rem', color: '#666' }}>v{doc.version}</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>{doc.documentType}</td>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>
-                    <Badge variant={documentStatusVariant(doc.status)}>
-                      {documentStatusLabel(doc.status)}
-                    </Badge>
-                    {doc.rejectionReason && doc.status === 'REJECTED' && (
-                      <div style={{ marginTop: '0.25rem', fontSize: '0.875rem', color: '#666' }}>{doc.rejectionReason}</div>
-                    )}
-                    {doc.adminRemarks && (
-                      <div style={{ marginTop: '0.25rem', fontSize: '0.875rem', color: '#555' }}>Remarks: {doc.adminRemarks}</div>
-                    )}
-                  </td>
-                  <td style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem' }}>
-                    <div>Uploaded: {formatDate(doc.createdAt)}</div>
-                    {(doc.verifiedAt || ['VERIFIED', 'REJECTED', 'PENDING_WITH_CLIENT'].includes(doc.status)) && (doc.verifiedAt || doc.updatedAt) && (
-                      <div style={{ color: '#555' }}>
-                        Reviewed: {formatDate(doc.verifiedAt ?? doc.updatedAt)}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: '0.5rem 0.75rem' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleDownload(doc.id)}
-                        style={{ marginRight: 0 }}
-                      >
-                        Download
-                      </button>
-                      {isReviewable(doc.status) && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(doc.id)}
-                            disabled={busyId !== null}
-                            style={{ backgroundColor: '#2e7d32', color: '#fff', border: '1px solid #2e7d32' }}
-                          >
-                            {busyId === doc.id ? '…' : 'Approve'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleReject(doc.id)}
-                            disabled={busyId !== null}
-                            style={{ backgroundColor: '#c62828', color: '#fff', border: '1px solid #c62828' }}
-                          >
-                            {busyId === doc.id ? '…' : 'Reject'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMarkPendingWithClient(doc.id)}
-                            disabled={busyId !== null}
-                          >
-                            {busyId === doc.id ? '…' : 'Pending with client'}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            {renderDocumentSection('KYC Documents', documents.filter((d) => !['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(d.documentType)))}
+            {renderDocumentSection('Agreement draft', documents.filter((d) => d.documentType === 'AGREEMENT_DRAFT'))}
+            {renderDocumentSection('Signed agreement', documents.filter((d) => d.documentType === 'AGREEMENT_SIGNED'))}
+            {renderDocumentSection('Final agreement', documents.filter((d) => d.documentType === 'AGREEMENT_FINAL'))}
+          </>
         )}
       </section>
     </div>

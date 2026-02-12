@@ -48,6 +48,29 @@ export class DocumentsService {
   }
 
   /**
+   * Return file keys to try for download, including alternate formats for legacy documents.
+   * Handles both current (agreements/draft) and legacy (agreement_draft) folder naming.
+   */
+  private getAlternateFileKeys(primaryKey: string): string[] {
+    const keys = new Set<string>([primaryKey]);
+    // Legacy: agreement_draft vs agreements/draft
+    const replacements: [string, string][] = [
+      ['agreements/draft', 'agreement_draft'],
+      ['agreement_draft', 'agreements/draft'],
+      ['agreements/signed', 'agreement_signed'],
+      ['agreement_signed', 'agreements/signed'],
+      ['agreements/final', 'agreement_final'],
+      ['agreement_final', 'agreements/final'],
+    ];
+    for (const [from, to] of replacements) {
+      if (primaryKey.includes(from)) {
+        keys.add(primaryKey.replace(from, to));
+      }
+    }
+    return Array.from(keys);
+  }
+
+  /**
    * POST /documents/upload-url
    * Generate presigned upload URL for COMPANY_ADMIN: KYC or AGREEMENT_SIGNED only.
    * Stage and type enforced: no KYC before payment, no signed agreement before draft shared.
@@ -616,27 +639,38 @@ export class DocumentsService {
       throw new ForbiddenException('Only CLIENT, COMPANY_ADMIN, or admin roles can download documents');
     }
 
-    try {
-      const { buffer, contentType } = await this.r2Service.getFileBuffer(document.fileKey);
-      const safeFileName =
-        document.fileName?.replace(/[^a-zA-Z0-9._-]/g, '_') || 'document';
-      return {
-        buffer,
-        fileName: safeFileName,
-        contentType: contentType || 'application/octet-stream',
-      };
-    } catch (err: any) {
-      const code = err?.Code ?? err?.code ?? err?.name ?? '';
-      if (
-        code === 'NoSuchKey' ||
-        String(err?.message || '').toLowerCase().includes('no such key')
-      ) {
-        throw new NotFoundException(
-          'Document file not found in storage. It may not have been uploaded successfully. Please ask the client to re-upload.',
-        );
+    const keysToTry = this.getAlternateFileKeys(document.fileKey);
+
+    for (let i = 0; i < keysToTry.length; i++) {
+      const key = keysToTry[i];
+      try {
+        const { buffer, contentType } = await this.r2Service.getFileBuffer(key);
+        const safeFileName =
+          document.fileName?.replace(/[^a-zA-Z0-9._-]/g, '_') || 'document';
+        return {
+          buffer,
+          fileName: safeFileName,
+          contentType: contentType || 'application/octet-stream',
+        };
+      } catch (err: any) {
+        const code = err?.Code ?? err?.code ?? err?.name ?? '';
+        const isNoSuchKey =
+          code === 'NoSuchKey' ||
+          String(err?.message || '').toLowerCase().includes('no such key');
+        if (!isNoSuchKey) throw err;
+        if (i === keysToTry.length - 1) {
+          this.logger.warn(
+            `Document ${documentId} not found in R2. Tried keys: ${keysToTry.join(', ')}. ` +
+              'Verify R2_BUCKET_NAME and R2_ENDPOINT, or ask the client to re-upload.',
+          );
+          throw new NotFoundException(
+            `Document file not found in storage (key: ${key}). It may not have been uploaded successfully, or R2 may be misconfigured. Please ask the client to re-upload, or verify R2 bucket settings.`,
+          );
+        }
       }
-      throw err;
     }
+
+    throw new NotFoundException('Document file not found in storage.');
   }
 
   /**
@@ -739,11 +773,30 @@ export class DocumentsService {
     }
 
     await this.onboardingService.assertNotActive(existing.clientProfileId);
-    await this.onboardingService.assertStage(
-      existing.clientProfileId,
-      [OnboardingStage.KYC_IN_PROGRESS, OnboardingStage.KYC_REVIEW],
-      'KYC review is only allowed when stage is KYC in progress or KYC review.',
-    );
+
+    const allowedReviewTypes = [DocumentType.AGREEMENT_SIGNED];
+    const isKycType = !['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(existing.documentType);
+    const isSignedAgreement = existing.documentType === DocumentType.AGREEMENT_SIGNED;
+
+    if (!isKycType && !allowedReviewTypes.includes(existing.documentType as DocumentType)) {
+      throw new BadRequestException(
+        'Only KYC documents (Aadhaar, PAN, Other) and signed agreements can be reviewed.',
+      );
+    }
+
+    if (isSignedAgreement) {
+      await this.onboardingService.assertStage(
+        existing.clientProfileId,
+        [OnboardingStage.SIGNED_AGREEMENT_RECEIVED],
+        'Signed agreement review is only allowed when stage is Signed agreement received.',
+      );
+    } else {
+      await this.onboardingService.assertStage(
+        existing.clientProfileId,
+        [OnboardingStage.KYC_IN_PROGRESS, OnboardingStage.KYC_REVIEW],
+        'KYC review is only allowed when stage is KYC in progress or KYC review.',
+      );
+    }
 
     if (dto.status === DocumentStatus.REJECTED && !dto.rejectionReason?.trim()) {
       throw new BadRequestException('Rejection reason is required when rejecting a document');
@@ -785,8 +838,13 @@ export class DocumentsService {
       },
     });
 
-    const kycDecisionAction =
-      dto.status === DocumentStatus.VERIFIED
+    const decisionAction = isSignedAgreement
+      ? dto.status === DocumentStatus.VERIFIED
+        ? 'SIGNED_AGREEMENT_APPROVED'
+        : dto.status === DocumentStatus.REJECTED
+          ? 'SIGNED_AGREEMENT_REJECTED'
+          : 'SIGNED_AGREEMENT_PENDING_WITH_CLIENT'
+      : dto.status === DocumentStatus.VERIFIED
         ? 'KYC_DOCUMENT_APPROVED'
         : dto.status === DocumentStatus.REJECTED
           ? 'KYC_DOCUMENT_REJECTED'
@@ -796,7 +854,7 @@ export class DocumentsService {
       userId: user.id,
       clientProfileId: existing.clientProfileId,
       documentId: id,
-      action: kycDecisionAction,
+      action: decisionAction,
       entityType: 'Document',
       entityId: id,
       changes: {

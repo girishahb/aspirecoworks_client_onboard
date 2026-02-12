@@ -53,6 +53,15 @@ Replace origins with your actual frontend URL(s).
    - Check for OPTIONS (preflight) or PUT requests that fail
    - If you see CORS errors in the console, confirm the origin in your CORS rule matches exactly (no trailing slash)
 
+## Troubleshooting: "Document file not found in storage"
+
+If downloads fail with this error:
+
+1. **Check R2 configuration** – Verify `R2_BUCKET_NAME` and `R2_ENDPOINT` in your environment. The endpoint should be `https://<account_id>.r2.cloudflarestorage.com`.
+2. **Check the bucket** – In Cloudflare Dashboard → R2 → your bucket, browse objects. Keys follow `company/{companyId}/kyc/` or `company/{companyId}/agreements/draft/`, etc.
+3. **Legacy keys** – The app tries both `agreements/draft` and `agreement_draft` (and similar) formats. If your bucket uses different folder names, the error message shows the key attempted.
+4. **Documents never uploaded** – If uploads used presigned URLs and CORS was not configured, the browser `PUT` may have failed. The document record exists but the file was never stored. Those documents must be re-uploaded (use the proxy upload flow).
+
 ## Related
 
 - `ALLOWED_ORIGINS` controls CORS for your **backend API** (see [RENDER_ALLOWED_ORIGINS.md](./RENDER_ALLOWED_ORIGINS.md))
