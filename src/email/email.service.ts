@@ -2,11 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
 export interface SendEmailOptions {
   to: string | string[];
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface SendEmailResult {
@@ -34,7 +40,7 @@ export class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
-    const { to, subject, html, text } = options;
+    const { to, subject, html, text, attachments } = options;
     const toList = Array.isArray(to) ? to : [to];
 
     if (!this.resend) {
@@ -50,6 +56,11 @@ export class EmailService {
       };
     }
 
+    const resendAttachments = attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+    }));
+
     try {
       const { data, error } = await this.resend.emails.send({
         from: this.from,
@@ -57,6 +68,7 @@ export class EmailService {
         subject,
         html,
         text: text ?? undefined,
+        attachments: resendAttachments,
       });
 
       if (error) {

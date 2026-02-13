@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { InvoicePdfService } from './invoice-pdf.service';
+import { InvoicePdfPuppeteerService } from './invoice-pdf-puppeteer.service';
 import { R2Service } from '../storage/r2.service';
 import { EmailService } from '../email/email.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -23,6 +24,7 @@ export class InvoicesService {
     private prisma: PrismaService,
     private config: ConfigService,
     private pdfService: InvoicePdfService,
+    private pdfPuppeteerService: InvoicePdfPuppeteerService,
     private r2Service: R2Service,
     private emailService: EmailService,
   ) {
@@ -46,14 +48,28 @@ export class InvoicesService {
   }
 
   /**
-   * Generate invoice number in format: AC-YYYY-0001
-   * Resets counter yearly.
+   * Generate invoice number in format: INV/AC{FY}/{runningNumber}
+   * FY: If month >= April: currentYear-nextYear (e.g. 25-26)
+   *     Else: previousYear-currentYear (e.g. 24-25)
    */
   async generateInvoiceNumber(): Promise<string> {
-    const currentYear = new Date().getFullYear();
-    const prefix = `AC-${currentYear}-`;
+    const now = new Date();
+    const month = now.getMonth();
+    const currentYear = now.getFullYear();
 
-    // Find the latest invoice for this year
+    let fyStart: number;
+    let fyEnd: number;
+    if (month >= 3) {
+      // April (3) onward: FY = currentYear - nextYear
+      fyStart = currentYear;
+      fyEnd = currentYear + 1;
+    } else {
+      fyStart = currentYear - 1;
+      fyEnd = currentYear;
+    }
+    const fyLabel = `${fyStart.toString().slice(-2)}-${fyEnd.toString().slice(-2)}`;
+    const prefix = `INV/AC${fyLabel}/`;
+
     const latestInvoice = await this.prisma.invoice.findFirst({
       where: {
         invoiceNumber: {
@@ -67,128 +83,163 @@ export class InvoicesService {
 
     let nextNumber = 1;
     if (latestInvoice) {
-      // Extract number from format AC-YYYY-NNNN
-      const match = latestInvoice.invoiceNumber.match(/-(\d+)$/);
+      const match = latestInvoice.invoiceNumber.match(/\/(\d+)$/);
       if (match) {
         nextNumber = parseInt(match[1], 10) + 1;
       }
     }
 
-    // Format with leading zeros (4 digits)
     const numberStr = nextNumber.toString().padStart(4, '0');
     return `${prefix}${numberStr}`;
   }
 
   /**
-   * Create invoice automatically after payment success.
-   * Prevents duplicate invoices for the same payment.
+   * Generate invoice automatically after payment success.
+   * Prevents duplicate invoices. Applies GST (Karnataka→CGST+SGST, other→IGST),
+   * TDS if configured, creates PDF via Puppeteer, emails with attachment.
    */
-  async createInvoiceForPayment(paymentId: string): Promise<any> {
-    // Check if invoice already exists for this payment
+  async generateInvoiceForPayment(paymentId: string): Promise<any> {
+    // STEP 7: Prevent duplicate invoice
     const existing = await this.prisma.invoice.findFirst({
       where: { paymentId },
     });
-
     if (existing) {
-      this.logger.warn(`Invoice already exists for payment ${paymentId}`);
+      this.logger.log(
+        `Invoice already exists for paymentId=${paymentId}, invoiceNumber=${existing.invoiceNumber}`,
+      );
       return existing;
     }
 
-    // Fetch payment and company details
+    // STEP 1: Fetch payment and company
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: {
-        clientProfile: true,
-      },
+      include: { clientProfile: true },
     });
-
     if (!payment) {
       throw new NotFoundException(`Payment not found: ${paymentId}`);
     }
-
     if (payment.status !== 'PAID') {
       throw new BadRequestException(`Payment status is not PAID: ${payment.status}`);
     }
-
     const company = payment.clientProfile;
 
-    // Get GST configuration
+    // STEP 2-3: Taxable amount and GST logic
+    const taxableAmount = payment.amount;
     const gstRate = parseFloat(this.config.get<string>('GST_RATE') || '18') / 100;
-    const companyGstNumber = this.config.get<string>('COMPANY_GST_NUMBER') || '';
-    const companyName = this.config.get<string>('COMPANY_NAME') || 'Aspire Coworks';
-    const companyAddress = this.config.get<string>('COMPANY_ADDRESS') || '';
+    const isKarnataka = this.isKarnatakaState(company.state, company.gstNumber);
+    let cgstAmount = 0;
+    let sgstAmount = 0;
+    let igstAmount = 0;
+    if (isKarnataka) {
+      cgstAmount = taxableAmount * (gstRate / 2);
+      sgstAmount = taxableAmount * (gstRate / 2);
+    } else {
+      igstAmount = taxableAmount * gstRate;
+    }
+    const gstAmount = cgstAmount + sgstAmount + igstAmount;
 
-    // Calculate GST amounts
-    const baseAmount = payment.amount;
-    const gstAmount = baseAmount * gstRate;
-    const totalAmount = baseAmount + gstAmount;
+    // STEP 5: TDS logic (if applicable)
+    const tdsRate = parseFloat(this.config.get<string>('TDS_RATE') || '0');
+    const tdsApplicable = this.config.get<string>('TDS_APPLICABLE') === 'true' && tdsRate > 0;
+    const tdsAmount = tdsApplicable ? taxableAmount * (tdsRate / 100) : 0;
+    const totalAmount = taxableAmount + gstAmount - tdsAmount;
 
-    // Get billing details from company
     const billingName = company.billingName || company.companyName;
     const billingAddress =
       company.billingAddress ||
-      [
-        company.address,
-        company.city,
-        company.state,
-        company.zipCode,
-        company.country,
-      ]
+      [company.address, company.city, company.state, company.zipCode, company.country]
         .filter(Boolean)
         .join(', ') ||
       'Address not provided';
 
-    // Generate invoice number
+    // STEP 4: Generate invoice number
     const invoiceNumber = await this.generateInvoiceNumber();
 
-    // Create invoice record
+    // STEP 6: Create invoice DB record
     const invoice = await this.prisma.invoice.create({
       data: {
         companyId: company.id,
         paymentId: payment.id,
         invoiceNumber,
-        amount: baseAmount,
+        amount: taxableAmount,
         gstAmount,
         totalAmount,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
         gstNumber: company.gstNumber || null,
         billingName,
         billingAddress,
       },
       include: {
-        company: {
-          select: {
-            id: true,
-            companyName: true,
-            contactEmail: true,
-          },
-        },
+        company: { select: { id: true, companyName: true, contactEmail: true } },
         payment: {
-          select: {
-            id: true,
-            amount: true,
-            currency: true,
-            providerPaymentId: true,
-            paidAt: true,
-          },
+          select: { id: true, amount: true, currency: true, providerPaymentId: true, paidAt: true },
         },
       },
     });
 
-    // Generate PDF asynchronously (don't block invoice creation)
-    this.generateAndStorePdf(invoice.id).catch((err) => {
-      this.logger.error(`Failed to generate PDF for invoice ${invoice.id}`, err);
-    });
+    // STEP 8: Logging
+    this.logger.log(
+      `Invoice created for companyId=${company.id}, invoiceNumber=${invoiceNumber}, paymentId=${paymentId}`,
+    );
 
-    // Send email asynchronously
-    this.sendInvoiceEmail(invoice.id).catch((err) => {
-      this.logger.error(`Failed to send invoice email for invoice ${invoice.id}`, err);
-    });
+    // Generate PDF, upload, send email with attachment (sequential so we can attach PDF)
+    try {
+      const pdfBuffer = await this.pdfPuppeteerService.generateInvoicePdf(invoice as any);
+      const fileKey = `invoices/${invoice.companyId}/${invoice.invoiceNumber}.pdf`;
+      if (!this.s3Client || !this.bucketName) {
+        throw new ServiceUnavailableException(
+          'Storage not configured. Set R2_* env vars for invoice PDFs.',
+        );
+      }
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: fileKey,
+          Body: pdfBuffer,
+          ContentType: 'application/pdf',
+        }),
+      );
+      const downloadUrl = await this.r2Service.generateDownloadUrl(fileKey, 3600 * 24 * 7);
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { pdfUrl: downloadUrl, pdfFileKey: fileKey },
+      });
+      await this.sendInvoiceEmailWithAttachment(invoice.id, pdfBuffer);
+    } catch (err) {
+      this.logger.error(
+        `Invoice PDF/email failed for invoiceId=${invoice.id}, invoiceNumber=${invoiceNumber}`,
+        err,
+      );
+      // Fallback: try legacy PDF + link email
+      try {
+        await this.generateAndStorePdf(invoice.id);
+        await this.sendInvoiceEmail(invoice.id);
+      } catch (fallbackErr) {
+        this.logger.error(`Fallback PDF/email also failed for invoice ${invoice.id}`, fallbackErr);
+      }
+    }
 
     return invoice;
   }
 
+  /** @deprecated Use generateInvoiceForPayment */
+  async createInvoiceForPayment(paymentId: string): Promise<any> {
+    return this.generateInvoiceForPayment(paymentId);
+  }
+
+  private isKarnatakaState(state?: string | null, gstNumber?: string | null): boolean {
+    const s = (state || '').toLowerCase().trim();
+    if (s === 'karnataka' || s === 'ka') return true;
+    const gst = (gstNumber || '').trim();
+    if (gst.length >= 2 && gst.slice(0, 2) === '29') return true; // State code 29 = Karnataka
+    return false;
+  }
+
   /**
    * Generate PDF and store in R2/S3.
+   * Uses Puppeteer (HTML template) when invoice has CGST/SGST/IGST split, else PDFKit.
    */
   async generateAndStorePdf(invoiceId: string): Promise<void> {
     const invoice = await this.prisma.invoice.findUnique({
@@ -216,8 +267,13 @@ export class InvoicesService {
       throw new NotFoundException(`Invoice not found: ${invoiceId}`);
     }
 
-    // Generate PDF
-    const pdfBuffer = await this.pdfService.generateInvoicePdf(invoice);
+    const usePuppeteer =
+      (invoice.cgstAmount != null && invoice.cgstAmount > 0) ||
+      (invoice.sgstAmount != null && invoice.sgstAmount > 0) ||
+      (invoice.igstAmount != null && invoice.igstAmount > 0);
+    const pdfBuffer = usePuppeteer
+      ? await this.pdfPuppeteerService.generateInvoicePdf(invoice as any)
+      : await this.pdfService.generateInvoicePdf(invoice);
 
     // Upload to storage
     const fileKey = `invoices/${invoice.companyId}/${invoice.invoiceNumber}.pdf`;
@@ -254,7 +310,49 @@ export class InvoicesService {
   }
 
   /**
-   * Send invoice email to client.
+   * Send invoice email with PDF attachment.
+   * Subject: Tax Invoice INV/ACxx/xxxx – Aspire Coworks
+   */
+  async sendInvoiceEmailWithAttachment(invoiceId: string, pdfBuffer: Buffer): Promise<void> {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        company: { select: { companyName: true, contactEmail: true } },
+      },
+    });
+    if (!invoice) return;
+    const to = invoice.company?.contactEmail;
+    if (!to) {
+      this.logger.warn(`No contact email for company ${invoice.companyId}`);
+      return;
+    }
+    const subject = `Tax Invoice ${invoice.invoiceNumber} – Aspire Coworks`;
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head>
+<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
+  <p>Hello,</p>
+  <p>Please find your tax invoice <strong>${escapeHtml(invoice.invoiceNumber)}</strong> for <strong>${escapeHtml(invoice.company?.companyName ?? '')}</strong> attached.</p>
+  <p><strong>Amount:</strong> ₹${invoice.totalAmount.toLocaleString('en-IN')}</p>
+  <p>The invoice PDF is attached to this email.</p>
+  <p>If you have any questions, please contact support.</p>
+  <p>— Aspire Coworks</p>
+</body>
+</html>`;
+    const text = `Your tax invoice ${invoice.invoiceNumber} is attached. Amount: ₹${invoice.totalAmount.toLocaleString('en-IN')}. — Aspire Coworks`;
+    await this.emailService.sendEmail({
+      to,
+      subject,
+      html,
+      text,
+      attachments: [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdfBuffer }],
+    });
+    this.logger.log(`Invoice email with attachment sent for ${invoice.invoiceNumber}`);
+  }
+
+  /**
+   * Send invoice email with download link (fallback when PDF attachment fails).
    */
   async sendInvoiceEmail(invoiceId: string): Promise<void> {
     const invoice = await this.prisma.invoice.findUnique({

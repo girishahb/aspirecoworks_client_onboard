@@ -15,7 +15,7 @@ import { OnboardingService } from '../onboarding/onboarding.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import type { Request } from 'express';
 
-const HANDLED_EVENTS = ['payment.captured', 'order.paid'];
+const HANDLED_EVENTS = ['payment.captured', 'order.paid', 'payment_link.paid'];
 
 @ApiTags('Webhooks')
 @Controller('webhooks')
@@ -34,7 +34,7 @@ export class WebhooksController {
   @ApiOperation({
     summary: 'Razorpay webhook',
     description:
-      'Receives payment success events (payment.captured, order.paid). Verifies signature, marks payment PAID, moves company to PAYMENT_CONFIRMED then KYC_IN_PROGRESS, and creates invoice. Requires raw body for signature verification.',
+      'Receives payment success events (payment.captured, order.paid, payment_link.paid). Verifies signature, marks payment PAID, moves company to PAYMENT_CONFIRMED then KYC_IN_PROGRESS, and generates GST invoice. Requires raw body for signature verification.',
   })
   @ApiHeader({
     name: 'x-razorpay-signature',
@@ -89,9 +89,12 @@ export class WebhooksController {
     }
 
     // Extract Razorpay payment ID and optional companyId from notes
+    // payment.captured/order.paid: payload.payment.entity; payment_link.paid: payload.payment.entity
     const paymentEntity = payload.payload?.payment?.entity ?? payload.payload?.payment;
+    const orderEntity = payload.payload?.order?.entity ?? payload.payload?.order;
+    const paymentLinkNotes = payload.payload?.payment_link?.entity?.notes ?? {};
     const razorpayPaymentId = paymentEntity?.id;
-    const notes = paymentEntity?.notes ?? {};
+    const notes = { ...paymentLinkNotes, ...(paymentEntity?.notes ?? {}), ...(orderEntity?.notes ?? {}) };
     const companyId = typeof notes.companyId === 'string' ? notes.companyId : undefined;
 
     if (!razorpayPaymentId) {
@@ -133,11 +136,11 @@ export class WebhooksController {
       // Still return 200 so Razorpay doesn't retry; payment is already marked PAID
     }
 
-    // 8. Invoice generation
+    // 8. Invoice generation (GST-compliant PDF, email with attachment)
     try {
-      await this.invoicesService.createInvoiceForPayment(payment.id);
+      await this.invoicesService.generateInvoiceForPayment(payment.id);
     } catch (err) {
-      this.logger.error(`Razorpay webhook: invoice creation failed for paymentId=${payment.id}`, err);
+      this.logger.error(`Razorpay webhook: invoice generation failed for paymentId=${payment.id}`, err);
       // Don't fail the webhook
     }
 
@@ -145,6 +148,6 @@ export class WebhooksController {
       `Razorpay webhook: payment ${payment.id} marked PAID, companyId=${companyIdForStage}, event=${event}`,
     );
 
-    return { ok: true, message: 'Payment confirmed; stage updated; invoice created' };
+    return { ok: true, message: 'Payment confirmed; stage updated; invoice generated' };
   }
 }

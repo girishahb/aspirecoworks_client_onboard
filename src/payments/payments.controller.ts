@@ -98,7 +98,7 @@ export class PaymentsController {
     // Create invoice if paymentId is available
     if (body.paymentId) {
       try {
-        await this.invoicesService.createInvoiceForPayment(body.paymentId);
+        await this.invoicesService.generateInvoiceForPayment(body.paymentId);
       } catch (err) {
         // Log but don't fail webhook if invoice creation fails
         console.error('Failed to create invoice:', err);
