@@ -104,13 +104,30 @@ export async function downloadDocument(
 
 /**
  * Get a view URL for inline document preview (PDF, images).
- * Use with DocumentViewer. URL expires in 5 minutes.
+ * Uses proxy (same as download) so alternate R2 keys are tried - fixes KYC "NoSuchKey" errors.
+ * Returns blob URL - caller must call URL.revokeObjectURL when done to avoid memory leaks.
  */
 export async function getDocumentViewUrl(
   documentId: string
 ): Promise<{ fileUrl: string; fileName: string }> {
-  const { downloadUrl, fileName } = await downloadDocument(documentId);
-  return { fileUrl: downloadUrl, fileName };
+  const { apiUrl } = await import('../api/url');
+  const { getAuthHeaders } = await import('./auth');
+  const res = await fetch(apiUrl(`/documents/${documentId}/file`), {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(
+      (err as { message?: string }).message ?? `Failed to load document (${res.status})`
+    );
+  }
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get('Content-Disposition');
+  let fileName = 'document';
+  const match = contentDisposition?.match(/filename="?([^";\n]+)"?/);
+  if (match) fileName = match[1].replace(/\\"/g, '"');
+  const fileUrl = URL.createObjectURL(blob);
+  return { fileUrl, fileName };
 }
 
 /**

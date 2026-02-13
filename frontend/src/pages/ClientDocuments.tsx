@@ -620,11 +620,20 @@ export default function ClientDocuments() {
         fileUrl={viewerFileUrl}
         fileName={viewerFileName}
         isOpen={viewerOpen}
-        onClose={() => setViewerOpen(false)}
+        onClose={() => {
+          if (viewerFileUrl?.startsWith('blob:')) URL.revokeObjectURL(viewerFileUrl);
+          setViewerOpen(false);
+          setViewerFileUrl(null);
+        }}
         loadingUrl={viewerLoading}
         onDownload={
           viewerFileUrl
-            ? () => window.open(viewerFileUrl, '_blank', 'noopener,noreferrer')
+            ? () => {
+                const a = document.createElement('a');
+                a.href = viewerFileUrl;
+                a.download = viewerFileName || 'document';
+                a.click();
+              }
             : undefined
         }
       />

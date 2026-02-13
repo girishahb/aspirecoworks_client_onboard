@@ -53,14 +53,27 @@ export class DocumentsService {
    */
   private getAlternateFileKeys(primaryKey: string): string[] {
     const keys = new Set<string>([primaryKey]);
-    // Legacy: agreement_draft vs agreements/draft
+    // Legacy and alternate path formats for agreements and KYC
     const replacements: [string, string][] = [
       ['agreements/draft', 'agreement_draft'],
       ['agreement_draft', 'agreements/draft'],
+      ['agreements/draft', 'agreements_draft'],
+      ['agreements_draft', 'agreements/draft'],
+      ['agreements/draft', 'draft'],
       ['agreements/signed', 'agreement_signed'],
       ['agreement_signed', 'agreements/signed'],
+      ['agreements/signed', 'agreements_signed'],
+      ['agreements_signed', 'agreements/signed'],
+      ['agreements/signed', 'signed'],
       ['agreements/final', 'agreement_final'],
       ['agreement_final', 'agreements/final'],
+      ['agreements/final', 'agreements_final'],
+      ['agreements_final', 'agreements/final'],
+      ['agreements/final', 'final'],
+      ['/kyc/', '/documents/kyc/'],
+      ['/documents/kyc/', '/kyc/'],
+      ['/kyc/', '/documents/'],
+      ['/documents/', '/kyc/'],
     ];
     for (const [from, to] of replacements) {
       if (primaryKey.includes(from)) {
