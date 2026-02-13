@@ -62,7 +62,9 @@ export class PaymentsService {
         currency,
         companyId: company.id,
         companyName: company.companyName,
+        description: `Onboarding Fee - ${company.companyName}`,
         customer: {
+          name: company.companyName,
           email: company.contactEmail || undefined,
           contact: company.contactPhone || undefined,
         },

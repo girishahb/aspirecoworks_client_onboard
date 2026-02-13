@@ -93,7 +93,7 @@ export class RazorpayService {
     const options: any = {
       amount: params.amount * 100, // Razorpay expects amount in paise
       currency: params.currency || 'INR',
-      description: params.description || `Payment for ${params.companyName}`,
+      description: params.description || `Onboarding Fee - ${params.companyName}`,
       customer: params.customer,
       notify: {
         sms: true,

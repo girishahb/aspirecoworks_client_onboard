@@ -11,9 +11,13 @@ import {
   activateCompany,
   getComplianceStatus,
   updateCompanyStage,
+  getCompanyPaymentHistory,
+  createPayment,
+  resendPaymentLink,
   type AdminCompany,
   type AdminDocumentListItem,
   type ComplianceStatus,
+  type CompanyPaymentHistory,
 } from '../services/admin';
 import { downloadDocumentFile, getDocumentViewUrl } from '../services/documents';
 import Badge from '../components/Badge';
@@ -50,6 +54,7 @@ function onboardingStageLabel(stage: string | null | undefined): string {
   if (!stage) return '—';
   const labels: Record<string, string> = {
     ADMIN_CREATED: 'Admin created',
+    PAYMENT_PENDING: 'Payment pending',
     PENDING_DOCUMENTS: 'Pending documents',
     DOCUMENTS_SUBMITTED: 'Documents submitted',
     UNDER_REVIEW: 'Under review',
@@ -105,24 +110,31 @@ export default function AdminCompanyDetail() {
   const [viewerFileUrl, setViewerFileUrl] = useState<string | null>(null);
   const [viewerFileName, setViewerFileName] = useState('');
   const [viewerLoading, setViewerLoading] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<CompanyPaymentHistory | null>(null);
+  const [paymentCreating, setPaymentCreating] = useState(false);
+  const [paymentResending, setPaymentResending] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string>('50000'); // Default ₹50,000
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
     setError(null);
     try {
-      const [companyData, docsData, complianceData] = await Promise.all([
+      const [companyData, docsData, complianceData, paymentData] = await Promise.all([
         getCompany(companyId),
         listCompanyDocuments(companyId),
         getComplianceStatus(companyId).catch(() => null),
+        getCompanyPaymentHistory(companyId).catch(() => null),
       ]);
       setCompany(companyData);
       setDocuments(Array.isArray(docsData) ? docsData : []);
       setCompliance(complianceData);
+      setPaymentHistory(paymentData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load company');
       setCompany(null);
       setDocuments([]);
       setCompliance(null);
+      setPaymentHistory(null);
     } finally {
       setLoading(false);
     }
@@ -234,11 +246,57 @@ export default function AdminCompanyDetail() {
     }
   }
 
+  async function handleGeneratePaymentLink() {
+    if (!companyId) return;
+    const amount = Number.parseFloat(paymentAmount, 10);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setActionError('Please enter a valid amount (e.g. 50000 for ₹50,000)');
+      return;
+    }
+    setActionError(null);
+    setPaymentCreating(true);
+    try {
+      await createPayment({ companyId, amount, currency: 'INR' });
+      await loadData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to create payment link');
+    } finally {
+      setPaymentCreating(false);
+    }
+  }
+
+  async function handleCopyPaymentLink(link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setActionError(null);
+    } catch (err) {
+      setActionError('Failed to copy to clipboard');
+    }
+  }
+
+  async function handleResendPaymentLink(paymentId: string) {
+    setActionError(null);
+    setPaymentResending(paymentId);
+    try {
+      await resendPaymentLink(paymentId);
+      await loadData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to resend payment link');
+    } finally {
+      setPaymentResending(null);
+    }
+  }
+
   const isAlreadyActive =
     company?.onboardingStage === 'ACTIVE' || company?.onboardingStage === 'COMPLETED';
   const canActivate = company?.onboardingStage === 'FINAL_AGREEMENT_SHARED';
   const isKycReviewStage = company?.onboardingStage === 'KYC_REVIEW';
   const canMarkKycComplete = isKycReviewStage && compliance?.isCompliant === true;
+  const showPaymentSection =
+    company?.onboardingStage === 'ADMIN_CREATED' || company?.onboardingStage === 'PAYMENT_PENDING';
+  const pendingPayment = paymentHistory?.payments?.find((p) => p.status === 'CREATED');
+  const paidPayment = paymentHistory?.payments?.find((p) => p.status === 'PAID');
+  const latestPayment = paymentHistory?.payments?.[0]; // Most recent first
 
   async function handleMarkKycComplete() {
     if (!companyId || !canMarkKycComplete) return;
@@ -543,6 +601,105 @@ export default function AdminCompanyDetail() {
           )}
         </div>
       </section>
+
+      {showPaymentSection && (
+        <section
+          style={{
+            marginTop: '1.5rem',
+            padding: '1.25rem',
+            borderRadius: 8,
+            border: '1px solid #1565c0',
+            backgroundColor: '#e3f2fd',
+          }}
+        >
+          <h2 style={{ marginTop: 0, marginBottom: '0.75rem' }}>Payment</h2>
+          {!pendingPayment && !paidPayment && (
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="payment-amount" style={{ display: 'block', marginBottom: '0.35rem', fontSize: '0.875rem' }}>
+                Amount (₹)
+              </label>
+              <input
+                id="payment-amount"
+                type="number"
+                min={1}
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                disabled={paymentCreating}
+                style={{ padding: '0.5rem', width: '12rem', marginRight: '0.5rem' }}
+              />
+              <button
+                type="button"
+                onClick={handleGeneratePaymentLink}
+                disabled={paymentCreating}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#1565c0',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontWeight: 600,
+                  cursor: paymentCreating ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {paymentCreating ? 'Generating…' : 'Generate Payment Link'}
+              </button>
+            </div>
+          )}
+          {latestPayment && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem 1rem', marginBottom: '0.5rem' }}>
+              <Badge
+                variant={
+                  latestPayment.status === 'PAID'
+                    ? 'approved'
+                    : latestPayment.status === 'FAILED'
+                      ? 'rejected'
+                      : 'pending'
+                }
+              >
+                {latestPayment.status === 'CREATED' ? 'Link created' : latestPayment.status === 'PAID' ? 'Paid' : 'Failed'}
+              </Badge>
+              {latestPayment.paidAt && (
+                <span style={{ fontSize: '0.875rem', color: '#555' }}>
+                  Paid on {formatDate(latestPayment.paidAt)}
+                </span>
+              )}
+              <span style={{ fontSize: '0.875rem' }}>
+                ₹{latestPayment.amount.toLocaleString('en-IN')} {latestPayment.currency}
+              </span>
+            </div>
+          )}
+          {pendingPayment?.paymentLink && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem' }}>Payment link</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={pendingPayment.paymentLink}
+                  style={{
+                    flex: 1,
+                    minWidth: '200px',
+                    padding: '0.5rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid #bbb',
+                    borderRadius: 4,
+                  }}
+                />
+                <button type="button" onClick={() => handleCopyPaymentLink(pendingPayment.paymentLink!)}>
+                  Copy link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleResendPaymentLink(pendingPayment.id)}
+                  disabled={paymentResending === pendingPayment.id}
+                >
+                  {paymentResending === pendingPayment.id ? 'Sending…' : 'Send to client'}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section style={{ marginTop: '1.5rem' }}>
         <h2>Documents</h2>

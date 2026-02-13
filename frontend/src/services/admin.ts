@@ -421,6 +421,39 @@ export async function getCompanyPaymentHistory(companyId: string): Promise<Compa
 }
 
 /**
+ * Create payment link for a company.
+ * Backend: POST /admin/payments (SUPER_ADMIN, ADMIN, MANAGER).
+ * Creates Razorpay link, saves in DB, sends email to client.
+ */
+export async function createPayment(params: {
+  companyId: string;
+  amount: number;
+  currency?: string;
+}): Promise<{
+  id: string;
+  clientProfileId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  paymentLink: string | null;
+  createdAt: string;
+}> {
+  return apiPost<{
+    id: string;
+    clientProfileId: string;
+    amount: number;
+    currency: string;
+    status: string;
+    paymentLink: string | null;
+    createdAt: string;
+  }>('/admin/payments', {
+    companyId: params.companyId,
+    amount: params.amount,
+    currency: params.currency ?? 'INR',
+  });
+}
+
+/**
  * Resend payment link to company.
  * Backend: POST /admin/payments/:paymentId/resend-link (SUPER_ADMIN, ADMIN, MANAGER).
  */
