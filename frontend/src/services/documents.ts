@@ -103,6 +103,17 @@ export async function downloadDocument(
 }
 
 /**
+ * Get a view URL for inline document preview (PDF, images).
+ * Use with DocumentViewer. URL expires in 5 minutes.
+ */
+export async function getDocumentViewUrl(
+  documentId: string
+): Promise<{ fileUrl: string; fileName: string }> {
+  const { downloadUrl, fileName } = await downloadDocument(documentId);
+  return { fileUrl: downloadUrl, fileName };
+}
+
+/**
  * Download document via proxy (streams through backend).
  * Triggers browser download with correct filename. Handles missing files with a clear error.
  */

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   listMyDocuments,
   downloadDocumentFile,
+  getDocumentViewUrl,
   uploadDocument,
   uploadSignedAgreement,
   type DocumentListItem,
@@ -10,7 +11,8 @@ import {
 } from '../services/documents';
 import { getMyCompany } from '../services/company';
 import Badge from '../components/Badge';
-import { Download, Upload, FileText, FileCheck, AlertCircle } from 'lucide-react';
+import DocumentViewer from '../components/DocumentViewer';
+import { Download, Upload, FileText, FileCheck, AlertCircle, Eye } from 'lucide-react';
 
 /** KYC document types: Aadhaar, PAN, and Other for additional documents. */
 const KYC_DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
@@ -50,6 +52,10 @@ export default function ClientDocuments() {
   const [documentType, setDocumentType] = useState<DocumentType>('AADHAAR');
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerFileUrl, setViewerFileUrl] = useState<string | null>(null);
+  const [viewerFileName, setViewerFileName] = useState('');
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -74,6 +80,22 @@ export default function ClientDocuments() {
       await downloadDocumentFile(docId);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Download failed');
+    }
+  }
+
+  async function handleView(docId: string, fileName: string) {
+    setViewerLoading(true);
+    setViewerOpen(true);
+    setViewerFileUrl(null);
+    setViewerFileName(fileName);
+    try {
+      const { fileUrl } = await getDocumentViewUrl(docId);
+      setViewerFileUrl(fileUrl);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to load document');
+      setViewerOpen(false);
+    } finally {
+      setViewerLoading(false);
     }
   }
 
@@ -346,6 +368,14 @@ export default function ClientDocuments() {
                     <td className="px-4 py-3 text-sm text-muted">{formatDate(doc.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleView(doc.id, doc.fileName)}
+                          className="inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-xs hover:bg-background"
+                        >
+                          <Eye className="h-3 w-3" />
+                          View
+                        </button>
                         {doc.status === 'VERIFIED' && (
                           <button
                             type="button"
@@ -425,6 +455,14 @@ export default function ClientDocuments() {
                   <div className="flex gap-2">
                     <button
                       type="button"
+                      onClick={() => handleView(doc.id, doc.fileName)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleDownload(doc.id)}
                       className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
                     >
@@ -498,6 +536,14 @@ export default function ClientDocuments() {
                   <div className="flex gap-2">
                     <button
                       type="button"
+                      onClick={() => handleView(doc.id, doc.fileName)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleDownload(doc.id)}
                       className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
                     >
@@ -549,6 +595,14 @@ export default function ClientDocuments() {
                   <div className="flex gap-2">
                     <button
                       type="button"
+                      onClick={() => handleView(doc.id, doc.fileName)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleDownload(doc.id)}
                       className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
                     >
@@ -561,6 +615,19 @@ export default function ClientDocuments() {
           </div>
         )}
       </section>
+
+      <DocumentViewer
+        fileUrl={viewerFileUrl}
+        fileName={viewerFileName}
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        loadingUrl={viewerLoading}
+        onDownload={
+          viewerFileUrl
+            ? () => window.open(viewerFileUrl, '_blank', 'noopener,noreferrer')
+            : undefined
+        }
+      />
     </div>
   );
 }

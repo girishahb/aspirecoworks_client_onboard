@@ -15,8 +15,9 @@ import {
   type AdminDocumentListItem,
   type ComplianceStatus,
 } from '../services/admin';
-import { downloadDocumentFile } from '../services/documents';
+import { downloadDocumentFile, getDocumentViewUrl } from '../services/documents';
 import Badge from '../components/Badge';
+import DocumentViewer from '../components/DocumentViewer';
 import OnboardingStepper from '../components/OnboardingStepper';
 
 function formatDate(iso: string | null | undefined): string {
@@ -100,6 +101,10 @@ export default function AdminCompanyDetail() {
   const [finalAgreementFile, setFinalAgreementFile] = useState<File | null>(null);
   const [finalAgreementUploading, setFinalAgreementUploading] = useState(false);
   const [finalAgreementError, setFinalAgreementError] = useState<string | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerFileUrl, setViewerFileUrl] = useState<string | null>(null);
+  const [viewerFileName, setViewerFileName] = useState('');
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -178,6 +183,22 @@ export default function AdminCompanyDetail() {
       await downloadDocumentFile(docId);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Download failed');
+    }
+  }
+
+  async function handleView(docId: string, fileName: string) {
+    setViewerOpen(true);
+    setViewerFileUrl(null);
+    setViewerFileName(fileName);
+    setViewerLoading(true);
+    try {
+      const { fileUrl } = await getDocumentViewUrl(docId);
+      setViewerFileUrl(fileUrl);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to load document');
+      setViewerOpen(false);
+    } finally {
+      setViewerLoading(false);
     }
   }
 
@@ -329,6 +350,13 @@ export default function AdminCompanyDetail() {
                 </td>
                 <td style={{ padding: '0.5rem 0.75rem' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleView(doc.id, doc.fileName)}
+                      style={{ marginRight: 0 }}
+                    >
+                      View
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleDownload(doc.id)}
@@ -589,6 +617,19 @@ export default function AdminCompanyDetail() {
           </>
         )}
       </section>
+
+      <DocumentViewer
+        fileUrl={viewerFileUrl}
+        fileName={viewerFileName}
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        loadingUrl={viewerLoading}
+        onDownload={
+          viewerFileUrl
+            ? () => window.open(viewerFileUrl, '_blank', 'noopener,noreferrer')
+            : undefined
+        }
+      />
     </div>
   );
 }
