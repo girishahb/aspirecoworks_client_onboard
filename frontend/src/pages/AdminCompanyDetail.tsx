@@ -248,7 +248,7 @@ export default function AdminCompanyDetail() {
 
   async function handleGeneratePaymentLink() {
     if (!companyId) return;
-    const amount = Number.parseFloat(paymentAmount, 10);
+    const amount = Number.parseFloat(paymentAmount);
     if (Number.isNaN(amount) || amount <= 0) {
       setActionError('Please enter a valid amount (e.g. 50000 for ₹50,000)');
       return;
