@@ -27,30 +27,14 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // Rate limiting: More lenient in development, stricter in production
-    ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const isDevelopment = configService.get<string>('NODE_ENV') !== 'production';
-        return [
-          {
-            name: 'default',
-            ttl: 60000, // 1 minute
-            limit: isDevelopment ? 1000 : 100, // 1000 requests/min in dev, 100 in prod
-          },
-          {
-            name: 'auth',
-            ttl: 60000, // 1 minute
-            limit: isDevelopment ? 50 : 5, // 50 login attempts/min in dev, 5 in prod
-          },
-          {
-            name: 'upload',
-            ttl: 60000, // 1 minute
-            limit: isDevelopment ? 100 : 10, // 100 uploads/min in dev, 10 in prod
-          },
-        ];
+    // Rate limiting: Production-friendly (300 req/min per IP). Critical endpoints use @SkipThrottle().
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000, // 1 minute
+        limit: 300, // 300 requests per minute per IP
       },
-    }),
+    ]),
     ScheduleModule.forRoot(),
     PrismaModule,
     MailerModule,

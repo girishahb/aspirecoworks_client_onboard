@@ -1,4 +1,5 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { InvoicesService } from './invoices.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -9,6 +10,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 @ApiTags('Admin Invoices')
 @ApiBearerAuth()
 @Controller('admin/invoices')
+@Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 export class AdminInvoicesController {

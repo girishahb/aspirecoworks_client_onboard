@@ -1,4 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ClientProfilesService } from './client-profiles.service';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
@@ -10,6 +11,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 @ApiTags('Admin Dashboard')
 @ApiBearerAuth()
 @Controller('admin/dashboard')
+@Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 export class AdminDashboardController {

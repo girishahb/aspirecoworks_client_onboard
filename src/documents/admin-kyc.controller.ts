@@ -1,4 +1,5 @@
 import { Body, Controller, Param, Patch, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
 import {
@@ -16,6 +17,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 @ApiTags('Admin KYC Review')
 @ApiBearerAuth()
 @Controller('admin/kyc')
+@Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 export class AdminKycController {

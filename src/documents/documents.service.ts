@@ -70,10 +70,14 @@ export class DocumentsService {
       ['agreements/final', 'agreements_final'],
       ['agreements_final', 'agreements/final'],
       ['agreements/final', 'final'],
+      // Legacy: many documents use company/{id}/documents/ - try type-specific paths
+      ['/documents/', '/kyc/'],
+      ['/documents/', '/agreements/draft/'],
+      ['/documents/', '/agreements/signed/'],
+      ['/documents/', '/agreements/final/'],
       ['/kyc/', '/documents/kyc/'],
       ['/documents/kyc/', '/kyc/'],
       ['/kyc/', '/documents/'],
-      ['/documents/', '/kyc/'],
     ];
     for (const [from, to] of replacements) {
       if (primaryKey.includes(from)) {

@@ -9,7 +9,7 @@ import {
   UsePipes,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -27,7 +27,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Throttle({ default: { limit: 50, ttl: 60000 } }) // 50 requests per minute (lenient for dev)
+  @SkipThrottle()
   @UsePipes(new ZodValidationPipe(loginSchema))
   @UseGuards(LocalAuthGuard)
   @Post('login')
@@ -40,7 +40,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 50, ttl: 60000 } }) // 50 requests per minute (lenient for dev)
+  @SkipThrottle()
   @Post('request-login')
   @ApiOperation({ summary: 'Request magic-link (passwordless) sign-in' })
   @ApiResponse({ status: 201, description: 'If account exists, sign-in link sent' })

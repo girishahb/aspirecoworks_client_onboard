@@ -14,7 +14,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
@@ -34,7 +34,7 @@ import { DocumentType } from '../common/enums/document-type.enum';
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
+  @SkipThrottle()
   @Post('upload')
   @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
   @UseInterceptors(
@@ -77,7 +77,7 @@ export class DocumentsController {
     );
   }
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
+  @SkipThrottle()
   @Post('upload-url')
   @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
   @ApiOperation({
@@ -94,7 +94,7 @@ export class DocumentsController {
     return this.documentsService.generateUploadUrl(generateUploadUrlDto, user);
   }
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
+  @SkipThrottle()
   @Post('admin/agreement-draft-upload-url')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
@@ -112,7 +112,7 @@ export class DocumentsController {
     return this.documentsService.generateAdminAgreementDraftUploadUrl(dto, user);
   }
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @SkipThrottle()
   @Post('admin/agreement-draft-upload')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @UseInterceptors(
@@ -151,7 +151,7 @@ export class DocumentsController {
     return this.documentsService.uploadAdminAgreementDraftProxy(file, companyId, user);
   }
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
+  @SkipThrottle()
   @Post('admin/agreement-final-upload-url')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
@@ -169,7 +169,7 @@ export class DocumentsController {
     return this.documentsService.generateAdminAgreementFinalUploadUrl(dto, user);
   }
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @SkipThrottle()
   @Post('admin/agreement-final-upload')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @UseInterceptors(

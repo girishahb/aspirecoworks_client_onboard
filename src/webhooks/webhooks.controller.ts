@@ -7,6 +7,7 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { RazorpayService } from '../payments/razorpay.service';
@@ -31,6 +32,7 @@ export class WebhooksController {
 
   @Post('razorpay')
   @Public()
+  @SkipThrottle()
   @ApiOperation({
     summary: 'Razorpay webhook',
     description:
