@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login, getCurrentUser } from '../services/auth';
+import { login, getCurrentUser, clearSessionExpired } from '../services/auth';
 import Logo from '../components/Logo';
 
 /** Roles that should go to admin dashboard instead of client dashboard. */
@@ -15,6 +15,13 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpiredState] = useState(false);
+
+  useEffect(() => {
+    if (clearSessionExpired()) {
+      setSessionExpiredState(true);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +46,14 @@ export default function Login() {
       </div>
       <h1 className="text-2xl font-bold text-text mb-1">Sign in</h1>
       <p className="text-muted text-sm mb-6">Enter your credentials to access your account.</p>
+      {sessionExpired && (
+        <div
+          role="alert"
+          className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm"
+        >
+          <strong>Session expired.</strong> Please sign in again to continue.
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div>
           <label htmlFor="email" className="mb-1 block text-sm font-medium text-text">

@@ -18,6 +18,7 @@ import AdminCompanyDetail from './pages/AdminCompanyDetail';
 import AdminCreateCompany from './pages/AdminCreateCompany';
 import AdminAuditLog from './pages/AdminAuditLog';
 import AdminPayments from './pages/AdminPayments';
+import NotFound from './pages/NotFound';
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="invoices" element={<AdminInvoices />} />
           </Route>
         </Route>
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );

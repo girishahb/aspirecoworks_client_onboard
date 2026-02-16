@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login, getCurrentUser, logout } from '../services/auth';
+import { login, getCurrentUser, logout, clearSessionExpired } from '../services/auth';
 import Logo from '../components/Logo';
 
 const NON_ADMIN_ERROR = 'Access denied. Admin accounts only.';
@@ -20,6 +20,13 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpiredState] = useState(false);
+
+  useEffect(() => {
+    if (clearSessionExpired()) {
+      setSessionExpiredState(true);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +55,14 @@ export default function AdminLogin() {
       </div>
       <h1 className="text-2xl font-bold text-text">Admin sign in</h1>
       <p className="mt-1 text-sm text-muted mb-6">Sign in with an admin account.</p>
+      {sessionExpired && (
+        <div
+          role="alert"
+          className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm"
+        >
+          <strong>Session expired.</strong> Please sign in again to continue.
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div>
           <label htmlFor="admin-email" className="mb-1 block text-sm font-medium text-text">

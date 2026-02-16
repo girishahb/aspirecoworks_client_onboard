@@ -41,12 +41,39 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return data;
 }
 
+const SESSION_EXPIRED_KEY = 'session_expired';
+
 /**
  * Remove stored token and user (logout).
  */
 export function logout(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+}
+
+/**
+ * Mark that the user was logged out due to session expiry (401).
+ * Used by login pages to show "Session expired" message.
+ */
+export function setSessionExpired(): void {
+  try {
+    sessionStorage.setItem(SESSION_EXPIRED_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Check and clear the session-expired flag. Returns true if it was set.
+ */
+export function clearSessionExpired(): boolean {
+  try {
+    const wasSet = sessionStorage.getItem(SESSION_EXPIRED_KEY) === '1';
+    sessionStorage.removeItem(SESSION_EXPIRED_KEY);
+    return !!wasSet;
+  } catch {
+    return false;
+  }
 }
 
 /**

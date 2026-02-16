@@ -1,5 +1,5 @@
 import { apiUrl } from '../api/url';
-import { getAuthHeaders, logout } from './auth';
+import { getAuthHeaders, logout, setSessionExpired } from './auth';
 
 export interface ApiRequestInit extends Omit<RequestInit, 'body'> {
   body?: unknown;
@@ -45,8 +45,13 @@ async function request(path: string, init: ApiRequestInit = {}): Promise<Respons
   const res = await fetch(url, { ...init, headers, body });
 
   if (res.status === 401) {
+    setSessionExpired();
     logout();
-    console.warn('[API] 401 Unauthorized – user logged out');
+    const isAdminPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+    const loginUrl = isAdminPath ? '/admin/login' : '/login';
+    if (typeof window !== 'undefined') {
+      window.location.href = loginUrl;
+    }
   }
 
   return res;
