@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import SetPassword from './pages/SetPassword';
 import Dashboard from './pages/Dashboard';
 import ClientDocuments from './pages/ClientDocuments';
 import ClientPayments from './pages/ClientPayments';
@@ -27,6 +28,7 @@ export default function App() {
         <Route index element={<Navigate to="/login" replace />} />
         <Route path="login" element={<Login />} />
         <Route path="signup" element={<Signup />} />
+        <Route path="set-password" element={<SetPassword />} />
         <Route path="privacy-policy" element={<PrivacyPolicy />} />
         <Route path="terms-of-service" element={<TermsOfService />} />
         <Route element={<ProtectedRoute />}>

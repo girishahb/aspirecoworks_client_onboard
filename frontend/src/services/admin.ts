@@ -76,6 +76,14 @@ export async function createCompany(data: {
 }
 
 /**
+ * Resend set-password invite to client.
+ * Backend: POST /client-profiles/:companyId/resend-invite (SUPER_ADMIN, ADMIN, MANAGER).
+ */
+export async function resendInvite(companyId: string): Promise<{ sent: boolean; message: string }> {
+  return apiPost<{ sent: boolean; message: string }>(`/client-profiles/${companyId}/resend-invite`);
+}
+
+/**
  * List documents for a company.
  * Backend: GET /documents/company/:companyId (SUPER_ADMIN).
  */

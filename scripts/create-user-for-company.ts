@@ -68,6 +68,7 @@ async function main() {
       role: ROLE,
       companyId: company.id,
       isActive: true,
+      isActivated: true,
     },
   });
 

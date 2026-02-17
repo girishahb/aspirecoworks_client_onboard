@@ -41,6 +41,32 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return data;
 }
 
+/**
+ * Set password for invited client (from email link).
+ * Returns same shape as login (access_token, user). Stores in localStorage and returns.
+ */
+export async function setPassword(token: string, newPassword: string): Promise<LoginResponse> {
+  const res = await fetch(apiUrl('/auth/set-password'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error((err as { message?: string }).message ?? 'Failed to set password');
+  }
+
+  const data = (await res.json()) as LoginResponse;
+  if (data.access_token) {
+    localStorage.setItem(TOKEN_KEY, data.access_token);
+  }
+  if (data.user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  }
+  return data;
+}
+
 const SESSION_EXPIRED_KEY = 'session_expired';
 
 /**

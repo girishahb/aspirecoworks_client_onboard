@@ -79,16 +79,20 @@ enum RenewalStatus {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  role         UserRole @default(USER)
-  companyId    String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String?   // Nullable for invited clients who haven't set password yet
+  firstName         String
+  lastName          String
+  role              UserRole  @default(USER)
+  companyId         String?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  // Invite flow for admin-created clients
+  inviteToken       String?   @unique
+  inviteTokenExpiry DateTime?
+  isActivated       Boolean   @default(false) // True after set-password or legacy users
 
   // Relations
   company        ClientProfile?  @relation("CompanyUsers", fields: [companyId], references: [id])

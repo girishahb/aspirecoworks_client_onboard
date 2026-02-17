@@ -50,7 +50,7 @@ export default function AdminCreateCompany() {
 
       console.log('Submitting company data:', data);
       const company = await createCompany(data);
-      navigate(`/admin/companies/${company.id}`, { replace: true });
+      navigate(`/admin/companies/${company.id}`, { replace: true, state: { inviteSent: true } });
     } catch (err: any) {
       // Extract error message - it should already include details from apiPost
       let errorMessage = 'Failed to create company';

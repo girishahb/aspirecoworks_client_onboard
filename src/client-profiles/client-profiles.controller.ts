@@ -132,6 +132,15 @@ export class ClientProfilesController {
     return this.clientProfilesService.activateCompany(id, user.id, user.role);
   }
 
+  @Post(':id/resend-invite')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Resend set-password invite to client' })
+  @ApiResponse({ status: 200, description: 'Invite sent or already activated' })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  async resendInvite(@Param('id') id: string) {
+    return this.clientProfilesService.resendInvite(id);
+  }
+
   @Delete(':id')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Delete client profile (Admin only)' })

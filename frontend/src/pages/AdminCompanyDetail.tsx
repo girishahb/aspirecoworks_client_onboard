@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   getCompany,
   listCompanyDocuments,
@@ -15,6 +15,7 @@ import {
   createPayment,
   resendPaymentLink,
   markPaymentAsPaid,
+  resendInvite,
   type AdminCompany,
   type AdminDocumentListItem,
   type ComplianceStatus,
@@ -92,6 +93,8 @@ function getStageOrder(stage: string | null | undefined): number {
 export default function AdminCompanyDetail() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const inviteSentFromCreate = (location.state as { inviteSent?: boolean })?.inviteSent === true;
   const [company, setCompany] = useState<AdminCompany | null>(null);
   const [documents, setDocuments] = useState<AdminDocumentListItem[]>([]);
   const [compliance, setCompliance] = useState<ComplianceStatus | null>(null);
@@ -115,6 +118,8 @@ export default function AdminCompanyDetail() {
   const [paymentCreating, setPaymentCreating] = useState(false);
   const [paymentResending, setPaymentResending] = useState<string | null>(null);
   const [markPaidBusy, setMarkPaidBusy] = useState<string | null>(null);
+  const [inviteSentBanner, setInviteSentBanner] = useState(inviteSentFromCreate);
+  const [resendInviteBusy, setResendInviteBusy] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<string>('50000'); // Default ₹50,000
 
   const loadData = useCallback(async () => {
@@ -286,6 +291,23 @@ export default function AdminCompanyDetail() {
       setActionError(err instanceof Error ? err.message : 'Failed to resend payment link');
     } finally {
       setPaymentResending(null);
+    }
+  }
+
+  async function handleResendInvite() {
+    if (!companyId) return;
+    setActionError(null);
+    setResendInviteBusy(true);
+    try {
+      const result = await resendInvite(companyId);
+      setInviteSentBanner(result.sent);
+      if (!result.sent) {
+        setActionError(result.message);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to resend invite');
+    } finally {
+      setResendInviteBusy(false);
     }
   }
 
@@ -545,10 +567,59 @@ export default function AdminCompanyDetail() {
         </div>
       </section>
 
+      {(inviteSentBanner || inviteSentFromCreate) && (
+        <div
+          style={{
+            marginTop: '1.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: '#e8f5e9',
+            border: '1px solid #81c784',
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+          }}
+        >
+          <span style={{ fontWeight: 500 }}>Invite email sent to client. They can set their password and log in.</span>
+          <button
+            type="button"
+            onClick={() => {
+              setInviteSentBanner(false);
+              navigate(location.pathname, { replace: true }); // Clear location state
+            }}
+            style={{ fontSize: '0.875rem', color: '#666', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <section style={{ marginTop: '1.5rem' }}>
         <h2>Company profile</h2>
         <p><strong>Company name:</strong> {company.companyName}</p>
         <p><strong>Contact email:</strong> {company.contactEmail}</p>
+        {(company.onboardingStage === 'ADMIN_CREATED' || company.onboardingStage === 'PAYMENT_PENDING') && (
+          <p style={{ marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleResendInvite}
+              disabled={resendInviteBusy}
+              style={{
+                padding: '0.35rem 0.75rem',
+                fontSize: '0.875rem',
+                backgroundColor: '#1565c0',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 4,
+                cursor: resendInviteBusy ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {resendInviteBusy ? 'Sending…' : 'Resend Invite'}
+            </button>
+          </p>
+        )}
         {company.contactPhone && <p><strong>Contact phone:</strong> {company.contactPhone}</p>}
         <p><strong>Renewal date:</strong> {formatDate(company.renewalDate)}</p>
         <p><strong>Renewal status:</strong> {company.renewalStatus ?? '—'}</p>

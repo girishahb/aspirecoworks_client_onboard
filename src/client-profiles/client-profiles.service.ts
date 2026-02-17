@@ -6,6 +6,8 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClientProfileDto } from './dto/create-client-profile.dto';
 import { UpdateClientProfileDto } from './dto/update-client-profile.dto';
@@ -17,7 +19,10 @@ import { EmailService } from '../email/email.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { companyActivated } from '../email/templates/company-activated';
 import { onboardingStageChanged } from '../email/templates/onboarding-stage-changed';
+import { clientInviteSetPassword } from '../email/templates/client-invite-set-password';
 import { assertValidTransition } from './onboarding-stage.helper';
+
+const INVITE_TOKEN_EXPIRY_HOURS = 48;
 
 @Injectable()
 export class ClientProfilesService {
@@ -28,6 +33,7 @@ export class ClientProfilesService {
     private auditLogsService: AuditLogsService,
     private emailService: EmailService,
     private onboardingService: OnboardingService,
+    private config: ConfigService,
   ) {}
 
   async create(createClientProfileDto: CreateClientProfileDto, userId: string) {
@@ -67,7 +73,126 @@ export class ClientProfilesService {
       changes: createClientProfileDto,
     });
 
+    // Create User for client login + send invite email
+    await this.createClientUserAndSendInvite(clientProfile);
+
     return clientProfile;
+  }
+
+  /**
+   * Create a User linked to the client profile and send "Set Password" invite email.
+   * If a User with contactEmail already exists, skip creation (e.g. they signed up or were invited before).
+   */
+  private async createClientUserAndSendInvite(clientProfile: {
+    id: string;
+    companyName: string;
+    contactEmail: string;
+  }) {
+    const email = clientProfile.contactEmail.trim().toLowerCase();
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      // User exists - if not activated and no companyId, we could send invite to link. For now, skip.
+      this.logger.log(
+        `Client user not created: email ${email} already exists (userId=${existingUser.id}). Consider using Resend Invite.`,
+      );
+      return;
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const inviteTokenExpiry = new Date(Date.now() + INVITE_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+
+    await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash: null,
+        firstName: clientProfile.companyName,
+        lastName: '',
+        role: UserRole.CLIENT,
+        companyId: clientProfile.id,
+        isActive: true,
+        inviteToken: token,
+        inviteTokenExpiry,
+        isActivated: false,
+      },
+    });
+
+    const baseUrl = (this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.com').replace(/\/$/, '');
+    const setPasswordUrl = `${baseUrl}/set-password?token=${encodeURIComponent(token)}`;
+
+    const { subject, html, text } = clientInviteSetPassword({
+      companyName: clientProfile.companyName,
+      setPasswordUrl,
+      expiryHours: INVITE_TOKEN_EXPIRY_HOURS,
+    });
+
+    try {
+      await this.emailService.sendEmail({
+        to: email,
+        subject,
+        html,
+        text,
+      });
+      this.logger.log(`Invite email sent to ${email} for company ${clientProfile.companyName}`);
+    } catch (err) {
+      this.logger.warn(`Failed to send invite email to ${email}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  /**
+   * Resend invite email for a company. Creates User if missing, or regenerates token if not yet activated.
+   */
+  async resendInvite(companyId: string): Promise<{ sent: boolean; message: string }> {
+    const company = await this.prisma.clientProfile.findUnique({
+      where: { id: companyId },
+      select: { id: true, companyName: true, contactEmail: true },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    const email = company.contactEmail.trim().toLowerCase();
+    const existingUser = await this.prisma.user.findFirst({
+      where: { companyId, role: UserRole.CLIENT },
+    });
+
+    if (existingUser?.isActivated) {
+      return { sent: false, message: 'Client has already set their password and can log in.' };
+    }
+
+    if (existingUser) {
+      // Regenerate token and resend
+      const token = randomBytes(32).toString('hex');
+      const inviteTokenExpiry = new Date(Date.now() + INVITE_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+      await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: { inviteToken: token, inviteTokenExpiry },
+      });
+
+      const baseUrl = (this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.com').replace(/\/$/, '');
+      const setPasswordUrl = `${baseUrl}/set-password?token=${encodeURIComponent(token)}`;
+
+      const { subject, html, text } = clientInviteSetPassword({
+        companyName: company.companyName,
+        setPasswordUrl,
+        expiryHours: INVITE_TOKEN_EXPIRY_HOURS,
+      });
+
+      try {
+        await this.emailService.sendEmail({ to: email, subject, html, text });
+        this.logger.log(`Resend invite email sent to ${email} for company ${company.companyName}`);
+        return { sent: true, message: 'Invite email sent.' };
+      } catch (err) {
+        this.logger.warn(`Failed to resend invite to ${email}: ${err instanceof Error ? err.message : err}`);
+        throw new BadRequestException('Failed to send invite email');
+      }
+    }
+
+    // No user exists - create and send (e.g. was skipped during create due to duplicate email)
+    await this.createClientUserAndSendInvite(company);
+    return { sent: true, message: 'Invite email sent.' };
   }
 
   async findAll(userRole: UserRole, userId?: string) {

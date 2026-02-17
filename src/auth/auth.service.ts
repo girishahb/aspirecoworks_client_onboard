@@ -23,11 +23,13 @@ export class AuthService {
 
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
-    if (user && (await bcrypt.compare(password, user.passwordHash))) {
-      const { passwordHash, ...result } = user;
-      return result;
-    }
-    return null;
+    if (!user) return null;
+    // Must be activated (set password complete or legacy user)
+    if (!user.isActivated) return null;
+    if (!user.passwordHash) return null;
+    if (!(await bcrypt.compare(password, user.passwordHash))) return null;
+    const { passwordHash, ...result } = user;
+    return result;
   }
 
   async validateUserById(id: string): Promise<any> {
@@ -63,6 +65,7 @@ export class AuthService {
       lastName: registerDto.lastName,
       role: registerDto.role,
       isActive: true,
+      isActivated: true, // Self-signup: they set password during registration
     });
     return user;
   }
@@ -137,6 +140,37 @@ export class AuthService {
     return this.login(user);
   }
 
+  /**
+   * POST /auth/set-password
+   * For invited clients: set password using invite token. Validates token, hashes password, marks activated.
+   */
+  async setPassword(token: string, newPassword: string): Promise<{ access_token: string; user: any }> {
+    if (!token?.trim()) {
+      throw new UnauthorizedException('Invalid or expired link');
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { inviteToken: token },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired link');
+    }
+    if (user.inviteTokenExpiry && user.inviteTokenExpiry < new Date()) {
+      throw new UnauthorizedException('This link has expired. Please request a new invite.');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        inviteToken: null,
+        inviteTokenExpiry: null,
+        isActivated: true,
+      },
+    });
+    const updated = await this.usersService.findOne(user.id);
+    return this.login(updated);
+  }
+
   // DEV ONLY – REMOVE BEFORE PRODUCTION. No password; find or create user by email; issue JWT.
   async devLogin(email: string): Promise<{ accessToken: string; user: { id: string; email: string; role: string } }> {
     const env = this.config.get<string>('NODE_ENV');
@@ -164,6 +198,7 @@ export class AuthService {
           lastName: 'User',
           role: UserRole.ADMIN,
           isActive: true,
+          isActivated: true,
         },
         select: { id: true, email: true, role: true, isActive: true },
       });

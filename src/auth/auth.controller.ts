@@ -16,6 +16,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RequestLoginDto } from './dto/request-login.dto';
 import { DevLoginDto } from './dto/dev-login.dto';
 import { loginSchema } from './dto/login.dto';
+import { setPasswordSchema } from './dto/set-password.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { DevOnlyGuard } from '../common/guards/dev-only.guard';
@@ -65,6 +66,17 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
+  }
+
+  @Public()
+  @SkipThrottle()
+  @UsePipes(new ZodValidationPipe(setPasswordSchema))
+  @Post('set-password')
+  @ApiOperation({ summary: 'Set password for invited client (from email link)' })
+  @ApiResponse({ status: 200, description: 'Password set; JWT issued' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  async setPassword(@Body() body: { token: string; newPassword: string }) {
+    return this.authService.setPassword(body.token, body.newPassword);
   }
 
   // DEV ONLY – REMOVE BEFORE PRODUCTION

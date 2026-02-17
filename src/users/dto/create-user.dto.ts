@@ -9,6 +9,7 @@ export const createUserSchema = z.object({
   lastName: z.string().min(1, 'Last name is required'),
   role: z.nativeEnum(UserRole).default(UserRole.USER),
   isActive: z.boolean().default(true),
+  isActivated: z.boolean().optional(),
 });
 
 export class CreateUserDto extends createZodDto(createUserSchema) {}
