@@ -68,6 +68,18 @@ export class RazorpayService {
    * Create a payment link for a company.
    * Logs companyId, amount, and environment mode for safety.
    */
+  /**
+   * Get diagnostics for troubleshooting (e.g. which env vars are missing).
+   * Do not log keySecret or webhookSecret.
+   */
+  getConfigStatus(): { keyIdSet: boolean; keySecretSet: boolean; mode: string } {
+    return {
+      keyIdSet: !!this.keyId,
+      keySecretSet: !!this.keySecret,
+      mode: this.mode,
+    };
+  }
+
   async createPaymentLink(params: {
     amount: number;
     currency?: string;
@@ -81,7 +93,11 @@ export class RazorpayService {
     };
   }): Promise<{ id: string; short_url: string }> {
     if (!this.isConfigured()) {
-      throw new BadRequestException('Razorpay is not configured. Please check environment variables.');
+      const status = this.getConfigStatus();
+      throw new BadRequestException(
+        'Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on your backend service. ' +
+          `(keyId: ${status.keyIdSet ? 'set' : 'missing'}, keySecret: ${status.keySecretSet ? 'set' : 'missing'})`,
+      );
     }
 
     // Safety logging before creating payment link

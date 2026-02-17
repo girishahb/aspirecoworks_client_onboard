@@ -22,6 +22,7 @@ export class HealthService {
       database: { status: string; message?: string };
       storage: { status: string; message?: string };
       email: { status: string; message?: string };
+      razorpay: { status: string; configured: boolean; message?: string };
     };
     razorpayMode?: 'test' | 'live';
   }> {
@@ -29,6 +30,7 @@ export class HealthService {
       database: await this.checkDatabase(),
       storage: await this.checkStorage(),
       email: await this.checkEmail(),
+      razorpay: this.checkRazorpay(),
     };
 
     const allHealthy = Object.values(checks).every((c) => c.status === 'ok');
@@ -40,6 +42,19 @@ export class HealthService {
       checks,
       razorpayMode: this.razorpayService.getMode(),
     };
+  }
+
+  private checkRazorpay(): { status: string; configured: boolean; message?: string } {
+    const configured = this.razorpayService.isConfigured();
+    if (!configured) {
+      return {
+        status: 'warning',
+        configured: false,
+        message:
+          'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set on the backend service (e.g. Render Web Service env vars)',
+      };
+    }
+    return { status: 'ok', configured: true };
   }
 
   private async checkDatabase(): Promise<{ status: string; message?: string }> {

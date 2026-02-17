@@ -105,6 +105,16 @@ async function bootstrap() {
   console.log(`🚀 Server running on ${baseUrl} (listening on 0.0.0.0:${port})`);
   console.log(`Swagger documentation: ${baseUrl}/api`);
 
+  // Razorpay config check (for Render/deployment debugging)
+  const rzKeyId = process.env.RAZORPAY_KEY_ID;
+  const rzKeySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!rzKeyId || !rzKeySecret) {
+    console.warn(
+      '⚠️  Razorpay not configured: RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set in environment. ' +
+        `(KEY_ID: ${rzKeyId ? 'set' : 'MISSING'}, KEY_SECRET: ${rzKeySecret ? 'set' : 'MISSING'})`,
+    );
+  }
+
   // Handle graceful shutdown
   process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down gracefully...');
