@@ -93,6 +93,9 @@ model User {
   inviteToken       String?   @unique
   inviteTokenExpiry DateTime?
   isActivated       Boolean   @default(false) // True after set-password or legacy users
+  // Forgot password flow
+  resetToken        String?   @unique
+  resetTokenExpiry  DateTime?
 
   // Relations
   company        ClientProfile?  @relation("CompanyUsers", fields: [companyId], references: [id])

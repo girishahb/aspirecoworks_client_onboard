@@ -74,7 +74,7 @@ export function onboardingStageChanged(params: OnboardingStageChangedParams): {
   ${ctaButton(dashboardUrl, ctaLabel)}
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, `Onboarding: ${label}`);
 
   const textBody = body.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
   const text = `Hello,\n\n${textBody}\n\n${ctaLabel}: ${dashboardUrl}\n\n— Aspire Coworks`;

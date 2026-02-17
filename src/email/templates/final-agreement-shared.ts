@@ -23,7 +23,7 @@ export function finalAgreementShared(params: FinalAgreementSharedParams): {
   ${ctaButton(dashboardUrl, 'Download final agreement')}
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, 'Final Agreement Available');
   const text = `Hello,\n\nThe final stamped agreement is available for ${companyName}.\n\nDownload your copy from the dashboard. We'll activate your account shortly.\n\nDashboard: ${dashboardUrl}\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

@@ -23,7 +23,7 @@ export function signedAgreementReceived(params: SignedAgreementReceivedParams): 
   ${ctaButton(dashboardUrl, 'View dashboard')}
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, 'Signed Agreement Received');
   const text = `Hello,\n\nWe've received your signed agreement for ${companyName}.\n\nWe're preparing your final agreement and will notify you when it's ready.\n\nView dashboard: ${dashboardUrl}\n\n— Aspire Coworks`;
 
   return { subject, html, text };

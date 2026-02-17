@@ -42,6 +42,42 @@ export async function login(email: string, password: string): Promise<LoginRespo
 }
 
 /**
+ * Request password reset link. Always returns success to avoid email enumeration.
+ */
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const res = await fetch(apiUrl('/auth/forgot-password'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error((err as { message?: string }).message ?? 'Failed to send reset link');
+  }
+
+  return res.json();
+}
+
+/**
+ * Reset password using token from email link.
+ */
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  const res = await fetch(apiUrl('/auth/reset-password'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error((err as { message?: string }).message ?? 'Failed to reset password');
+  }
+
+  return res.json();
+}
+
+/**
  * Set password for invited client (from email link).
  * Returns same shape as login (access_token, user). Stores in localStorage and returns.
  */

@@ -22,7 +22,7 @@ export function clientInviteSetPassword(params: ClientInviteSetPasswordParams): 
   <p>If you didn't expect this email, you can ignore it.</p>
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, 'Set Your Password');
   const text = `Hello,\n\nYou have been onboarded to Aspire Coworks for ${companyName}.\n\nSet your password: ${setPasswordUrl}\n\nThis link expires in ${expiryHours} hours.\n\nIf you didn't expect this email, you can ignore it.\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

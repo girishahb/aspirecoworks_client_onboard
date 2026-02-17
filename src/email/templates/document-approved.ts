@@ -21,7 +21,7 @@ export function documentApproved(params: DocumentApprovedParams): {
   ${ctaButton(statusUrl, 'View dashboard')}
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, 'Document Approved');
   const text = `Hello,\n\nYour document (${documentType}) for ${companyName} has been approved.\n\nView your onboarding status: ${statusUrl}\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { login, getCurrentUser, logout, clearSessionExpired } from '../services/auth';
 import Logo from '../components/Logo';
 
@@ -95,6 +95,11 @@ export default function AdminLogin() {
             disabled={loading}
           />
           <p className="mt-1 text-xs text-muted">Your password.</p>
+          <p className="mt-2">
+            <Link to="/forgot-password" className="text-sm text-primary hover:underline" style={{ color: '#134b7f' }}>
+              Forgot password?
+            </Link>
+          </p>
         </div>
         {error && (
           <p className="text-sm text-error" role="alert">

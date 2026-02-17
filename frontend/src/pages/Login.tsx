@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { login, getCurrentUser, clearSessionExpired } from '../services/auth';
 import Logo from '../components/Logo';
 
@@ -11,6 +11,8 @@ const inputClass =
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const passwordReset = (location.state as { passwordReset?: boolean })?.passwordReset === true;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +48,14 @@ export default function Login() {
       </div>
       <h1 className="text-2xl font-bold text-text mb-1">Sign in</h1>
       <p className="text-muted text-sm mb-6">Enter your credentials to access your account.</p>
+      {passwordReset && (
+        <div
+          role="alert"
+          className="mb-6 p-4 rounded-lg border border-green-200 bg-green-50 text-green-800 text-sm"
+        >
+          Password reset successfully. You can now sign in.
+        </div>
+      )}
       {sessionExpired && (
         <div
           role="alert"
@@ -86,6 +96,11 @@ export default function Login() {
             disabled={loading}
           />
           <p className="mt-1 text-xs text-muted">Enter your password.</p>
+          <p className="mt-2">
+            <Link to="/forgot-password" className="text-sm text-primary hover:underline" style={{ color: '#134b7f' }}>
+              Forgot password?
+            </Link>
+          </p>
         </div>
         {error && (
           <p className="text-sm text-error" role="alert">

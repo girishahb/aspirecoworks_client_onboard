@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -6,10 +6,13 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailerService } from '../mailer/mailer.service';
+import { EmailService } from '../email/email.service';
 import { RegisterDto } from './dto/register.dto';
 import { UserRole } from '../common/enums/user-role.enum';
+import { resetPasswordEmail } from '../email/templates/reset-password';
 
 const MAGIC_LINK_EXPIRY_MINUTES = 15;
+const RESET_TOKEN_EXPIRY_MINUTES = 30;
 
 @Injectable()
 export class AuthService {
@@ -18,6 +21,7 @@ export class AuthService {
     private jwtService: JwtService,
     private prisma: PrismaService,
     private mailer: MailerService,
+    private emailService: EmailService,
     private config: ConfigService,
   ) {}
 
@@ -169,6 +173,84 @@ export class AuthService {
     });
     const updated = await this.usersService.findOne(user.id);
     return this.login(updated);
+  }
+
+  /**
+   * POST /auth/forgot-password
+   * Request password reset. Always returns success to avoid email enumeration.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const user = await this.usersService.findByEmail(email?.trim()?.toLowerCase());
+    if (!user) {
+      return {
+        message: 'If an account exists with this email, a reset link has been sent. Check your inbox.',
+      };
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date(Date.now() + RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { resetToken: token, resetTokenExpiry },
+    });
+
+    const baseUrl = (this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+    const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
+    const { subject, html, text } = resetPasswordEmail({
+      resetUrl,
+      expiryMinutes: RESET_TOKEN_EXPIRY_MINUTES,
+    });
+
+    const result = await this.emailService.sendEmail({
+      to: user.email,
+      subject,
+      html,
+      text,
+    });
+
+    if (!result.success) {
+      // Still return success - don't leak info
+    }
+
+    return {
+      message: 'If an account exists with this email, a reset link has been sent. Check your inbox.',
+    };
+  }
+
+  /**
+   * POST /auth/reset-password
+   * Reset password using token from email link.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    if (!token?.trim()) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        resetToken: null,
+        resetTokenExpiry: null,
+        isActivated: true, // In case they hadn't set password yet (invite flow)
+      },
+    });
+
+    return { message: 'Password reset successfully. You can now log in.' };
   }
 
   // DEV ONLY – REMOVE BEFORE PRODUCTION. No password; find or create user by email; issue JWT.

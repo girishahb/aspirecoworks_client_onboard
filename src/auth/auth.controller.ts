@@ -17,6 +17,8 @@ import { RequestLoginDto } from './dto/request-login.dto';
 import { DevLoginDto } from './dto/dev-login.dto';
 import { loginSchema } from './dto/login.dto';
 import { setPasswordSchema } from './dto/set-password.dto';
+import { forgotPasswordSchema } from './dto/forgot-password.dto';
+import { resetPasswordSchema } from './dto/reset-password.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { DevOnlyGuard } from '../common/guards/dev-only.guard';
@@ -77,6 +79,27 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid or expired token' })
   async setPassword(@Body() body: { token: string; newPassword: string }) {
     return this.authService.setPassword(body.token, body.newPassword);
+  }
+
+  @Public()
+  @SkipThrottle()
+  @UsePipes(new ZodValidationPipe(forgotPasswordSchema))
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request password reset link' })
+  @ApiResponse({ status: 200, description: 'If account exists, reset link sent' })
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Public()
+  @SkipThrottle()
+  @UsePipes(new ZodValidationPipe(resetPasswordSchema))
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using token from email' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async resetPassword(@Body() body: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(body.token, body.newPassword);
   }
 
   // DEV ONLY – REMOVE BEFORE PRODUCTION

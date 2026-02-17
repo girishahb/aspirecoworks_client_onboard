@@ -34,7 +34,7 @@ export function companyActivated(params: CompanyActivatedParams): {
   ${ctaButton(dashboardUrl, 'Go to dashboard')}
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, 'Account Activated');
   const text = `Hello,\n\nWelcome to Aspire Coworks. Your account for ${companyName} is now activated.\n\nConfirmation: Your onboarding is complete and access is enabled.\nStart date: ${startDate}\n\nSign in to your dashboard: ${dashboardUrl}\nFor support: ${supportEmail}\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

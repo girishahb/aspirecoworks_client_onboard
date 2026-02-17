@@ -23,7 +23,7 @@ export function documentRejected(params: DocumentRejectedParams): {
   ${ctaButton(uploadUrl, 'Upload new document')}
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, 'Document Needs Attention');
   const text = `Hello,\n\nYour document (${documentType}) for ${companyName} was not approved.\n\nReason: ${rejectionReason}\n\nPlease upload a new version: ${uploadUrl}\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

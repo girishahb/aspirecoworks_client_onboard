@@ -12,6 +12,7 @@ import { InvoicePdfPuppeteerService } from './invoice-pdf-puppeteer.service';
 import { R2Service } from '../storage/r2.service';
 import { EmailService } from '../email/email.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { invoiceEmail } from '../email/templates/invoice-email';
 
 @Injectable()
 export class InvoicesService {
@@ -326,21 +327,12 @@ export class InvoicesService {
       this.logger.warn(`No contact email for company ${invoice.companyId}`);
       return;
     }
-    const subject = `Tax Invoice ${invoice.invoiceNumber} – Aspire Coworks`;
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
-  <p>Hello,</p>
-  <p>Please find your tax invoice <strong>${escapeHtml(invoice.invoiceNumber)}</strong> for <strong>${escapeHtml(invoice.company?.companyName ?? '')}</strong> attached.</p>
-  <p><strong>Amount:</strong> ₹${invoice.totalAmount.toLocaleString('en-IN')}</p>
-  <p>The invoice PDF is attached to this email.</p>
-  <p>If you have any questions, please contact support.</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
-    const text = `Your tax invoice ${invoice.invoiceNumber} is attached. Amount: ₹${invoice.totalAmount.toLocaleString('en-IN')}. — Aspire Coworks`;
+    const { subject, html, text } = invoiceEmail({
+      invoiceNumber: invoice.invoiceNumber,
+      companyName: invoice.company?.companyName ?? '',
+      totalAmount: invoice.totalAmount.toLocaleString('en-IN'),
+      hasAttachment: true,
+    });
     await this.emailService.sendEmail({
       to,
       subject,
@@ -378,22 +370,12 @@ export class InvoicesService {
       return;
     }
 
-    const subject = `Your Invoice from Aspire Coworks - ${invoice.invoiceNumber}`;
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${subject}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
-  <p>Hello,</p>
-  <p>Your invoice <strong>${escapeHtml(invoice.invoiceNumber)}</strong> for <strong>${escapeHtml(invoice.company.companyName)}</strong> is ready.</p>
-  <p><strong>Amount:</strong> ₹${invoice.totalAmount.toLocaleString('en-IN')}</p>
-  <p><a href="${escapeHtml(invoice.pdfUrl)}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin: 16px 0;">Download Invoice PDF</a></p>
-  <p>If you have any questions, please contact support.</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
-
-    const text = `Hello,\n\nYour invoice ${invoice.invoiceNumber} for ${invoice.company.companyName} is ready.\n\nAmount: ₹${invoice.totalAmount.toLocaleString('en-IN')}\n\nDownload: ${invoice.pdfUrl}\n\n— Aspire Coworks`;
+    const { subject, html, text } = invoiceEmail({
+      invoiceNumber: invoice.invoiceNumber,
+      companyName: invoice.company.companyName,
+      totalAmount: invoice.totalAmount.toLocaleString('en-IN'),
+      pdfUrl: invoice.pdfUrl ?? undefined,
+    });
 
     await this.emailService.sendEmail({
       to,
@@ -544,13 +526,4 @@ export class InvoicesService {
       );
     }
   }
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }

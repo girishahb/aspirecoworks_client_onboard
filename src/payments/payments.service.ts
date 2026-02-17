@@ -4,15 +4,7 @@ import { EmailService } from '../email/email.service';
 import { RazorpayService } from './razorpay.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { OnboardingStage } from '../common/enums/onboarding-stage.enum';
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+import { paymentLinkEmail } from '../email/templates/payment-link';
 
 @Injectable()
 export class PaymentsService {
@@ -112,23 +104,12 @@ export class PaymentsService {
     // Send payment link email
     if (company.contactEmail) {
       try {
-        const subject = `Payment Link for ${company.companyName}`;
-        const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${subject}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
-  <p>Hello,</p>
-  <p>Please use the link below to complete payment for <strong>${escapeHtml(company.companyName)}</strong>.</p>
-  <p><strong>Amount:</strong> ${currency} ${amount.toLocaleString('en-IN')}</p>
-  <p><a href="${escapeHtml(paymentLinkData.short_url)}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin: 16px 0;">Pay Now</a></p>
-  <p>If you have any questions, please contact support.</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
-
-        const text = `Hello,\n\nPlease use the link below to complete payment for ${company.companyName}.\n\nAmount: ${currency} ${amount.toLocaleString('en-IN')}\n\nPayment Link: ${paymentLinkData.short_url}\n\nIf you have any questions, please contact support.\n\n— Aspire Coworks`;
-
+        const { subject, html, text } = paymentLinkEmail({
+          companyName: company.companyName,
+          amount: amount.toLocaleString('en-IN'),
+          currency,
+          paymentLink: paymentLinkData.short_url,
+        });
         await this.emailService.sendEmail({
           to: company.contactEmail,
           subject,
@@ -391,22 +372,12 @@ export class PaymentsService {
       throw new BadRequestException('Company does not have a contact email');
     }
 
-    const subject = `Payment Link for ${payment.clientProfile.companyName}`;
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${subject}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
-  <p>Hello,</p>
-  <p>Please use the link below to complete payment for <strong>${escapeHtml(payment.clientProfile.companyName)}</strong>.</p>
-  <p><strong>Amount:</strong> ${payment.currency} ${payment.amount.toLocaleString('en-IN')}</p>
-  <p><a href="${escapeHtml(payment.paymentLink)}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin: 16px 0;">Pay Now</a></p>
-  <p>If you have any questions, please contact support.</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
-
-    const text = `Hello,\n\nPlease use the link below to complete payment for ${payment.clientProfile.companyName}.\n\nAmount: ${payment.currency} ${payment.amount.toLocaleString('en-IN')}\n\nPayment Link: ${payment.paymentLink}\n\nIf you have any questions, please contact support.\n\n— Aspire Coworks`;
+    const { subject, html, text } = paymentLinkEmail({
+      companyName: payment.clientProfile.companyName,
+      amount: payment.amount.toLocaleString('en-IN'),
+      currency: payment.currency,
+      paymentLink: payment.paymentLink,
+    });
 
     const result = await this.emailService.sendEmail({
       to,

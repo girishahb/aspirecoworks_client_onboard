@@ -23,7 +23,7 @@ export function agreementDraftShared(params: AgreementDraftSharedParams): {
   ${ctaButton(dashboardUrl, 'View dashboard & upload signed agreement')}
   `;
 
-  const html = wrapBrandedEmail(content);
+  const html = wrapBrandedEmail(content, 'Agreement Draft Ready');
   const text = `Hello,\n\nAn agreement draft has been shared with you for ${companyName}.\n\nPlease sign in to your dashboard to view and download the document, then upload your signed copy when ready.\n\nView dashboard: ${dashboardUrl}\n\n— Aspire Coworks`;
   return { subject, html, text };
 }

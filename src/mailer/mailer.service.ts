@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import { buildEmailTemplate, escapeHtml, ctaButton } from '../common/email/email-template';
 
 /** Company shape expected by sendRenewalReminder (ClientProfile subset). */
 export interface RenewalReminderCompany {
@@ -66,21 +67,16 @@ export class MailerService {
     const dashboardUrl = `${this.baseUrl.replace(/\/$/, '')}/dashboard`;
     const billingUrl = `${this.baseUrl.replace(/\/$/, '')}/billing`;
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${subject}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
+    const content = `
   <p>Hello,</p>
   <p>This is a reminder that your Aspire Coworks membership for <strong>${escapeHtml(company.companyName)}</strong> will expire in <strong>${daysBefore} day${daysBefore === 1 ? '' : 's'}</strong>.</p>
   <p>Renewal date: <strong>${escapeHtml(renewalDateStr)}</strong>.</p>
-  <p>To renew or update your billing, please visit:</p>
-  <p><a href="${escapeHtml(dashboardUrl)}" style="color: #2563eb;">${escapeHtml(dashboardUrl)}</a></p>
-  <p><a href="${escapeHtml(billingUrl)}" style="color: #2563eb;">${escapeHtml(billingUrl)}</a></p>
+  <p>To renew or update your billing, please visit your dashboard.</p>
+  ${ctaButton(dashboardUrl, 'Go to Dashboard')}
+  <p>Billing: <a href="${escapeHtml(billingUrl)}" style="color: #2563eb;">${escapeHtml(billingUrl)}</a></p>
   <p>If you have any questions, please contact support.</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
+  `;
+    const html = buildEmailTemplate('Membership Renewal Reminder', content);
 
     try {
       const { data, error } = await this.resend.emails.send({
@@ -127,18 +123,13 @@ export class MailerService {
     }
 
     const subject = 'Sign in to Aspire Coworks';
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${subject}</title></head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #333; max-width: 560px;">
+    const content = `
   <p>Hello,</p>
   <p>Use the link below to sign in to your Aspire Coworks account. This link expires in 15 minutes.</p>
-  <p><a href="${escapeHtml(magicLink)}" style="color: #2563eb;">Sign in</a></p>
+  ${ctaButton(magicLink, 'Sign in')}
   <p>If you didn't request this email, you can ignore it.</p>
-  <p>— Aspire Coworks</p>
-</body>
-</html>`;
+  `;
+    const html = buildEmailTemplate('Sign in to Aspire Coworks', content);
 
     try {
       const { data, error } = await this.resend.emails.send({
@@ -165,12 +156,4 @@ export class MailerService {
       // Do not rethrow: caller returns generic success
     }
   }
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
