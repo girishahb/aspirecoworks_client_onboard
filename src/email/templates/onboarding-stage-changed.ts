@@ -62,7 +62,7 @@ export function onboardingStageChanged(params: OnboardingStageChangedParams): {
   const {
     companyName,
     stage,
-    dashboardUrl = 'https://app.aspirecoworks.com/dashboard',
+    dashboardUrl = 'https://app.aspirecoworks.in/dashboard',
   } = params;
   const label = STAGE_LABELS[stage] ?? stage;
   const subject = `Onboarding update: ${label} – ${companyName}`;

@@ -15,7 +15,7 @@ export function companyActivated(params: CompanyActivatedParams): {
   const {
     companyName,
     activationDate = new Date(),
-    dashboardUrl = 'https://app.aspirecoworks.com/dashboard',
+    dashboardUrl = 'https://app.aspirecoworks.in/dashboard',
     supportEmail = 'support@aspirecoworks.com',
   } = params;
   const subject = 'Welcome to Aspire Coworks – Account Activated';

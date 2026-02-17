@@ -119,8 +119,8 @@ export class ClientProfilesService {
       },
     });
 
-    const baseUrl = (this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.com').replace(/\/$/, '');
-    const setPasswordUrl = `${baseUrl}/set-password?token=${encodeURIComponent(token)}`;
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+    const setPasswordUrl = `${frontendUrl}/set-password?token=${encodeURIComponent(token)}`;
 
     const { subject, html, text } = clientInviteSetPassword({
       companyName: clientProfile.companyName,
@@ -171,8 +171,8 @@ export class ClientProfilesService {
         data: { inviteToken: token, inviteTokenExpiry },
       });
 
-      const baseUrl = (this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.com').replace(/\/$/, '');
-      const setPasswordUrl = `${baseUrl}/set-password?token=${encodeURIComponent(token)}`;
+      const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+      const setPasswordUrl = `${frontendUrl}/set-password?token=${encodeURIComponent(token)}`;
 
       const { subject, html, text } = clientInviteSetPassword({
         companyName: company.companyName,
@@ -377,9 +377,12 @@ export class ClientProfilesService {
     const to = updated.contactEmail?.trim();
     if (to) {
       try {
+        const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+        const dashboardUrl = `${frontendUrl}/dashboard`;
         if (stage === OnboardingStage.ACTIVE) {
           const { subject, html, text } = companyActivated({
             companyName: updated.companyName,
+            dashboardUrl,
           });
           await this.emailService.sendEmail({ to, subject, html, text });
         } else if (
@@ -389,6 +392,7 @@ export class ClientProfilesService {
           const { subject, html, text } = onboardingStageChanged({
             companyName: updated.companyName,
             stage,
+            dashboardUrl,
           });
           await this.emailService.sendEmail({ to, subject, html, text });
         }
@@ -490,9 +494,11 @@ export class ClientProfilesService {
     const to = updated.contactEmail?.trim();
     if (to) {
       try {
+        const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
         const { subject, html, text } = companyActivated({
           companyName: updated.companyName,
           activationDate: updated.activationDate ?? undefined,
+          dashboardUrl: `${frontendUrl}/dashboard`,
         });
         await this.emailService.sendEmail({ to, subject, html, text });
       } catch (emailErr) {

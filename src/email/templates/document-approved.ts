@@ -11,7 +11,7 @@ export function documentApproved(params: DocumentApprovedParams): {
   html: string;
   text: string;
 } {
-  const { companyName, documentType, statusUrl = 'https://app.aspirecoworks.com/dashboard' } = params;
+  const { companyName, documentType, statusUrl = 'https://app.aspirecoworks.in/dashboard' } = params;
   const subject = `Document approved – ${companyName}`;
 
   const content = `

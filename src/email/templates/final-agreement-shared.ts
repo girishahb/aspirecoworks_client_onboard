@@ -12,7 +12,7 @@ export function finalAgreementShared(params: FinalAgreementSharedParams): {
 } {
   const {
     companyName,
-    dashboardUrl = 'https://app.aspirecoworks.com/dashboard',
+    dashboardUrl = 'https://app.aspirecoworks.in/dashboard',
   } = params;
   const subject = `Final stamped agreement available – ${companyName}`;
 

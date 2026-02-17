@@ -12,7 +12,7 @@ export function signedAgreementReceived(params: SignedAgreementReceivedParams): 
 } {
   const {
     companyName,
-    dashboardUrl = 'https://app.aspirecoworks.com/dashboard',
+    dashboardUrl = 'https://app.aspirecoworks.in/dashboard',
   } = params;
   const subject = `We've received your signed agreement – ${companyName}`;
 

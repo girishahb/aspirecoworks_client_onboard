@@ -98,11 +98,8 @@ export class AuthService {
       },
     });
 
-    const baseUrl = (this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.com').replace(
-      /\/$/,
-      '',
-    );
-    const magicLink = `${baseUrl}/auth/verify?token=${encodeURIComponent(token)}`;
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+    const magicLink = `${frontendUrl}/auth/verify?token=${encodeURIComponent(token)}`;
 
     await this.mailer.sendMagicLink(user.email, magicLink);
 
@@ -195,8 +192,8 @@ export class AuthService {
       data: { resetToken: token, resetTokenExpiry },
     });
 
-    const baseUrl = (this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
-    const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+    const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
     const { subject, html, text } = resetPasswordEmail({
       resetUrl,

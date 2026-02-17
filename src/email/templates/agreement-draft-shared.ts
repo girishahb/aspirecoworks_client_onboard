@@ -12,7 +12,7 @@ export function agreementDraftShared(params: AgreementDraftSharedParams): {
 } {
   const {
     companyName,
-    dashboardUrl = 'https://app.aspirecoworks.com/dashboard',
+    dashboardUrl = 'https://app.aspirecoworks.in/dashboard',
   } = params;
   const subject = `Agreement draft ready – ${companyName}`;
 

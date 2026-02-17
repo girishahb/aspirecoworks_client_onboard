@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { PrismaClient } from '.prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../storage/r2.service';
@@ -40,11 +41,17 @@ export class DocumentsService {
     private emailService: EmailService,
     private clientProfilesService: ClientProfilesService,
     private onboardingService: OnboardingService,
+    private config: ConfigService,
   ) {}
 
   /** Typed Prisma client delegate access (PrismaService extends PrismaClient) */
   private get db(): PrismaClient {
     return this.prisma as unknown as PrismaClient;
+  }
+
+  private getDashboardUrl(): string {
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+    return `${frontendUrl}/dashboard`;
   }
 
   /**
@@ -471,6 +478,7 @@ export class DocumentsService {
       try {
         const { subject, html, text } = signedAgreementReceived({
           companyName: (company as { companyName: string }).companyName,
+          dashboardUrl: this.getDashboardUrl(),
         });
         await this.emailService.sendEmail({ to, subject, html, text });
       } catch (emailErr) {
@@ -884,10 +892,12 @@ export class DocumentsService {
     const to = updated.clientProfile?.contactEmail?.trim();
     if (to) {
       try {
+        const dashboardUrl = this.getDashboardUrl();
         if (dto.status === DocumentStatus.VERIFIED) {
           const { subject, html, text } = documentApproved({
             companyName: updated.clientProfile!.companyName,
             documentType: updated.documentType,
+            statusUrl: dashboardUrl,
           });
           await this.emailService.sendEmail({ to, subject, html, text });
         } else if (dto.status === DocumentStatus.REJECTED && dto.rejectionReason) {
@@ -895,6 +905,7 @@ export class DocumentsService {
             companyName: updated.clientProfile!.companyName,
             documentType: updated.documentType,
             rejectionReason: dto.rejectionReason,
+            uploadUrl: dashboardUrl,
           });
           await this.emailService.sendEmail({ to, subject, html, text });
         }
@@ -1445,6 +1456,7 @@ export class DocumentsService {
       try {
         const { subject, html, text } = agreementDraftShared({
           companyName: company.companyName,
+          dashboardUrl: this.getDashboardUrl(),
         });
         await this.emailService.sendEmail({ to, subject, html, text });
       } catch (emailErr) {
@@ -1735,6 +1747,7 @@ export class DocumentsService {
       try {
         const { subject, html, text } = finalAgreementShared({
           companyName: company.companyName,
+          dashboardUrl: this.getDashboardUrl(),
         });
         await this.emailService.sendEmail({ to, subject, html, text });
       } catch (emailErr) {

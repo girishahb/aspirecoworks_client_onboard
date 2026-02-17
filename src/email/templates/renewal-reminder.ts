@@ -12,7 +12,7 @@ export function renewalReminder(params: RenewalReminderParams): {
   html: string;
   text: string;
 } {
-  const { companyName, daysBefore, renewalDateStr, dashboardUrl = 'https://app.aspirecoworks.com/dashboard' } = params;
+  const { companyName, daysBefore, renewalDateStr, dashboardUrl = 'https://app.aspirecoworks.in/dashboard' } = params;
   const subject = `Your Aspire Coworks membership expires in ${daysBefore} day${daysBefore === 1 ? '' : 's'}`;
   const content = `
   <p>Hello,</p>

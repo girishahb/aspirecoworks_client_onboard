@@ -29,7 +29,7 @@ export class MailerService {
       this.config.get<string>('EMAIL_FROM') ??
       'Aspire Coworks <noreply@aspirecoworks.com>';
     this.baseUrl =
-      this.config.get<string>('APP_BASE_URL') ?? 'https://app.aspirecoworks.com';
+      (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
   }
 
   /**
@@ -64,8 +64,8 @@ export class MailerService {
       : 'your renewal date';
 
     const subject = `Your Aspire Coworks membership expires in ${daysBefore} day${daysBefore === 1 ? '' : 's'}`;
-    const dashboardUrl = `${this.baseUrl.replace(/\/$/, '')}/dashboard`;
-    const billingUrl = `${this.baseUrl.replace(/\/$/, '')}/billing`;
+    const dashboardUrl = `${this.baseUrl}/dashboard`;
+    const billingUrl = `${this.baseUrl}/billing`;
 
     const content = `
   <p>Hello,</p>

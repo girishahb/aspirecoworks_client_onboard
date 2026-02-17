@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import type { PrismaClient } from '.prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,6 +26,7 @@ export class RenewalsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   private get db(): PrismaClient {
@@ -82,11 +84,13 @@ export class RenewalsService {
         const to = company.contactEmail?.trim();
         if (to) {
           try {
-            const { subject, html, text } = renewalReminder({
-              companyName: company.companyName,
-              daysBefore: 0,
-              renewalDateStr: formatRenewalDate(company.renewalDate),
-            });
+        const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+        const { subject, html, text } = renewalReminder({
+          companyName: company.companyName,
+          daysBefore: 0,
+          renewalDateStr: formatRenewalDate(company.renewalDate),
+          dashboardUrl: `${frontendUrl}/dashboard`,
+        });
             await this.email.sendEmail({ to, subject, html, text });
           } catch (emailErr) {
             this.logger.warn(
@@ -181,10 +185,12 @@ export class RenewalsService {
         continue;
       }
       try {
+        const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
         const { subject, html, text } = renewalReminder({
           companyName: company.companyName,
           daysBefore,
           renewalDateStr: formatRenewalDate(company.renewalDate),
+          dashboardUrl: `${frontendUrl}/dashboard`,
         });
         await this.email.sendEmail({ to, subject, html, text });
         this.logger.log(

@@ -32,7 +32,7 @@ R2_BUCKET_NAME=aspirecoworks-prod
 # Email
 RESEND_API_KEY=...
 EMAIL_FROM=Aspire Coworks <noreply@aspirecoworks.com>
-APP_BASE_URL=https://app.aspirecoworks.com
+FRONTEND_URL=https://app.aspirecoworks.in
 
 # Payment Gateway (if applicable)
 PAYMENT_GATEWAY_API_KEY=...

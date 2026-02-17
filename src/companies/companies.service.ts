@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { companyActivated } from '../email/templates/company-activated';
@@ -25,6 +26,7 @@ export class CompaniesService {
     private readonly prisma: PrismaService,
     private readonly auditLogsService: AuditLogsService,
     private readonly emailService: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   async create(createCompanyDto: CreateCompanyDto, userId: string) {
@@ -222,8 +224,10 @@ export class CompaniesService {
       const to = updated.contactEmail?.trim();
       if (to) {
         try {
+          const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
           const { subject, html, text } = companyActivated({
             companyName: updated.companyName,
+            dashboardUrl: `${frontendUrl}/dashboard`,
           });
           await this.emailService.sendEmail({ to, subject, html, text });
         } catch (emailErr) {

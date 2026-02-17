@@ -12,7 +12,7 @@ export function documentRejected(params: DocumentRejectedParams): {
   html: string;
   text: string;
 } {
-  const { companyName, documentType, rejectionReason, uploadUrl = 'https://app.aspirecoworks.com/dashboard' } = params;
+  const { companyName, documentType, rejectionReason, uploadUrl = 'https://app.aspirecoworks.in/dashboard' } = params;
   const subject = `Document needs attention – ${companyName}`;
 
   const content = `
