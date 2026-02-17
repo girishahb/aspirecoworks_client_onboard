@@ -6,8 +6,7 @@ import {
   Body,
   Query,
   UseGuards,
-  ParseEnumPipe,
-  ParseIntPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
@@ -17,6 +16,8 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { OnboardingService } from '../onboarding/onboarding.service';
+import { InvoicesService } from '../invoices/invoices.service';
 
 @ApiTags('Admin Payments')
 @ApiBearerAuth()
@@ -25,7 +26,11 @@ import { UserRole } from '../common/enums/user-role.enum';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 export class AdminPaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly onboardingService: OnboardingService,
+    private readonly invoicesService: InvoicesService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -89,6 +94,41 @@ export class AdminPaymentsController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async getCompanyPayments(@Param('companyId') companyId: string) {
     return this.paymentsService.findByCompanyId(companyId);
+  }
+
+  @Post(':paymentId/mark-paid')
+  @ApiOperation({
+    summary: 'Manually mark payment as paid',
+    description:
+      'Use when webhook did not fire (e.g. payment_link.paid not subscribed). Marks payment PAID, updates company stage to KYC_IN_PROGRESS, and generates invoice.',
+  })
+  @ApiResponse({ status: 200, description: 'Payment marked as paid' })
+  @ApiResponse({ status: 400, description: 'Payment already paid or invalid' })
+  @ApiResponse({ status: 404, description: 'Payment not found' })
+  async markAsPaid(@Param('paymentId') paymentId: string) {
+    const payment = await this.paymentsService.findById(paymentId);
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (payment.status === 'PAID') {
+      return { success: true, message: 'Payment already marked as PAID' };
+    }
+    if (payment.status !== 'CREATED') {
+      return { success: false, message: `Cannot mark as paid: payment status is ${payment.status}` };
+    }
+    await this.paymentsService.markAsPaid(paymentId);
+    const companyId = payment.clientProfileId;
+    try {
+      await this.onboardingService.onPaymentConfirmed(companyId);
+    } catch (err) {
+      // Log but don't fail - payment is already marked
+    }
+    try {
+      await this.invoicesService.generateInvoiceForPayment(paymentId);
+    } catch (err) {
+      // Log but don't fail
+    }
+    return { success: true, message: 'Payment marked as PAID; stage updated; invoice generated' };
   }
 
   @Post(':paymentId/resend-link')

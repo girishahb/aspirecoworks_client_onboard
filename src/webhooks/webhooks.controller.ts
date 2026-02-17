@@ -90,17 +90,38 @@ export class WebhooksController {
       return { ok: true, message: 'Event ignored' };
     }
 
-    // Extract Razorpay payment ID and optional companyId from notes
-    // payment.captured/order.paid: payload.payment.entity; payment_link.paid: payload.payment.entity
+    // Extract Razorpay payment ID (pay_xxx) and companyId from notes
+    // payment.captured/order.paid: payload.payment.entity
+    // payment_link.paid: payload.payment_link.entity has notes; payment may be in payload.payment.entity or payload.payment_link.entity.payments
     const paymentEntity = payload.payload?.payment?.entity ?? payload.payload?.payment;
     const orderEntity = payload.payload?.order?.entity ?? payload.payload?.order;
-    const paymentLinkNotes = payload.payload?.payment_link?.entity?.notes ?? {};
-    const razorpayPaymentId = paymentEntity?.id;
-    const notes = { ...paymentLinkNotes, ...(paymentEntity?.notes ?? {}), ...(orderEntity?.notes ?? {}) };
+    const paymentLinkEntity = payload.payload?.payment_link?.entity ?? payload.payload?.payment_link;
+    const paymentLinkNotes = paymentLinkEntity?.notes ?? {};
+    const paymentEntityNotes = paymentEntity?.notes ?? {};
+    const orderEntityNotes = orderEntity?.notes ?? {};
+    const notes = { ...paymentLinkNotes, ...paymentEntityNotes, ...orderEntityNotes };
     const companyId = typeof notes.companyId === 'string' ? notes.companyId : undefined;
 
+    let razorpayPaymentId = paymentEntity?.id;
+    // payment_link.paid: payment may be nested in payment_link.entity.payments (array)
+    if (!razorpayPaymentId && paymentLinkEntity?.payments) {
+      const payments = paymentLinkEntity.payments;
+      const first = Array.isArray(payments) ? payments[0] : payments;
+      razorpayPaymentId = typeof first === 'object' && first?.id ? first.id : typeof first === 'string' ? first : undefined;
+    }
+    // Alternative: payment_link.entity may have payment_id
+    if (!razorpayPaymentId && paymentLinkEntity?.payment_id) {
+      razorpayPaymentId = paymentLinkEntity.payment_id;
+    }
+
+    this.logger.log(
+      `Razorpay webhook: event=${event} razorpayPaymentId=${razorpayPaymentId ?? 'n/a'} companyId=${companyId ?? 'n/a'}`,
+    );
+
     if (!razorpayPaymentId) {
-      this.logger.warn('Razorpay webhook: could not extract payment id from payload');
+      this.logger.warn(
+        'Razorpay webhook: could not extract payment id. Ensure Razorpay webhook is subscribed to payment_link.paid and payload has payment info.',
+      );
       throw new BadRequestException('Missing payment id in payload');
     }
 

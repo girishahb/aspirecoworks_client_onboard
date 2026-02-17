@@ -300,6 +300,19 @@ export class PaymentsService {
   }
 
   /**
+   * Find payment by ID. Returns null if not found.
+   */
+  async findById(
+    paymentId: string,
+  ): Promise<{ id: string; clientProfileId: string; status: string } | null> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { id: true, clientProfileId: true, status: true },
+    });
+    return payment;
+  }
+
+  /**
    * Find payment by Razorpay payment ID (providerPaymentId) across all companies.
    * Used by webhook to resolve payment from event payload.
    */

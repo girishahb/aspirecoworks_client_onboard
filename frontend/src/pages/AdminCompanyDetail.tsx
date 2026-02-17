@@ -14,6 +14,7 @@ import {
   getCompanyPaymentHistory,
   createPayment,
   resendPaymentLink,
+  markPaymentAsPaid,
   type AdminCompany,
   type AdminDocumentListItem,
   type ComplianceStatus,
@@ -113,6 +114,7 @@ export default function AdminCompanyDetail() {
   const [paymentHistory, setPaymentHistory] = useState<CompanyPaymentHistory | null>(null);
   const [paymentCreating, setPaymentCreating] = useState(false);
   const [paymentResending, setPaymentResending] = useState<string | null>(null);
+  const [markPaidBusy, setMarkPaidBusy] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>('50000'); // Default ₹50,000
 
   const loadData = useCallback(async () => {
@@ -284,6 +286,21 @@ export default function AdminCompanyDetail() {
       setActionError(err instanceof Error ? err.message : 'Failed to resend payment link');
     } finally {
       setPaymentResending(null);
+    }
+  }
+
+  async function handleMarkAsPaid(paymentId: string) {
+    if (!window.confirm('Mark this payment as paid? This will update the company stage and generate an invoice.'))
+      return;
+    setActionError(null);
+    setMarkPaidBusy(paymentId);
+    try {
+      await markPaymentAsPaid(paymentId);
+      await loadData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to mark payment as paid');
+    } finally {
+      setMarkPaidBusy(null);
     }
   }
 
@@ -694,6 +711,21 @@ export default function AdminCompanyDetail() {
                   disabled={paymentResending === pendingPayment.id}
                 >
                   {paymentResending === pendingPayment.id ? 'Sending…' : 'Send to client'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMarkAsPaid(pendingPayment.id)}
+                  disabled={markPaidBusy === pendingPayment.id}
+                  style={{
+                    backgroundColor: '#2e7d32',
+                    color: '#fff',
+                    border: '1px solid #2e7d32',
+                    padding: '0.35rem 0.6rem',
+                    borderRadius: 4,
+                    cursor: markPaidBusy === pendingPayment.id ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {markPaidBusy === pendingPayment.id ? 'Updating…' : 'Mark as paid'}
                 </button>
               </div>
             </div>

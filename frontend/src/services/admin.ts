@@ -461,6 +461,16 @@ export async function resendPaymentLink(paymentId: string): Promise<{ success: b
   return apiPost<{ success: boolean; message: string }>(`/admin/payments/${paymentId}/resend-link`);
 }
 
+/**
+ * Manually mark payment as paid (when webhook did not fire).
+ * Backend: POST /admin/payments/:paymentId/mark-paid (SUPER_ADMIN, ADMIN, MANAGER).
+ */
+export async function markPaymentAsPaid(
+  paymentId: string,
+): Promise<{ success: boolean; message: string }> {
+  return apiPost<{ success: boolean; message: string }>(`/admin/payments/${paymentId}/mark-paid`);
+}
+
 /** Invoice as returned by admin invoices list. */
 export interface AdminInvoice {
   id: string;

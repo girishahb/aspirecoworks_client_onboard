@@ -50,7 +50,7 @@ RAZORPAY_MODE=test
 
 1. Go to **Settings** → **Webhooks**
 2. Create a webhook URL pointing to: `https://yourdomain.com/webhooks/razorpay`
-3. Select events: **payment.captured**, **order.paid**
+3. Select events: **payment.captured**, **order.paid**, **payment_link.paid** (required when using Payment Links)
 4. Copy the **Webhook Secret** (shown only once)
 5. Set `RAZORPAY_WEBHOOK_SECRET` in your environment
 
