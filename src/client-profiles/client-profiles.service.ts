@@ -17,6 +17,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmailService } from '../email/email.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
+import { R2Service } from '../storage/r2.service';
 import { companyActivated } from '../email/templates/company-activated';
 import { onboardingStageChanged } from '../email/templates/onboarding-stage-changed';
 import { clientInviteSetPassword } from '../email/templates/client-invite-set-password';
@@ -34,6 +35,7 @@ export class ClientProfilesService {
     private emailService: EmailService,
     private onboardingService: OnboardingService,
     private config: ConfigService,
+    private r2Service: R2Service,
   ) {}
 
   async create(createClientProfileDto: CreateClientProfileDto, userId: string) {
@@ -519,13 +521,72 @@ export class ClientProfilesService {
       throw new ForbiddenException('You do not have permission to delete client profiles');
     }
 
+    // 1. Fetch user IDs linked to this company (before disconnecting)
+    const linkedUsers = await this.prisma.user.findMany({
+      where: { companyId: id },
+      select: { id: true },
+    });
+    const linkedUserIds = linkedUsers.map((u) => u.id);
+
+    // 2. Disconnect Users (severs FK so ClientProfile can be deleted)
+    await this.prisma.user.updateMany({
+      where: { companyId: id },
+      data: { companyId: null },
+    });
+
+    // 3. Clear AuditLog references
+    await this.prisma.auditLog.updateMany({
+      where: { clientProfileId: id },
+      data: { clientProfileId: null },
+    });
+
+    // 4. Delete R2 files (best-effort; do not fail overall delete if R2 fails)
+    const documents = await this.prisma.document.findMany({
+      where: { clientProfileId: id },
+      select: { fileKey: true },
+    });
+    for (const doc of documents) {
+      try {
+        await this.r2Service.deleteFile(doc.fileKey);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to delete R2 document file key=${doc.fileKey}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { companyId: id },
+      select: { pdfFileKey: true },
+    });
+    for (const inv of invoices) {
+      if (inv.pdfFileKey) {
+        try {
+          await this.r2Service.deleteFile(inv.pdfFileKey);
+        } catch (err) {
+          this.logger.warn(
+            `Failed to delete R2 invoice PDF key=${inv.pdfFileKey}: ${err instanceof Error ? err.message : err}`,
+          );
+        }
+      }
+    }
+
+    // 5. Delete ClientProfile (cascades: Documents, Payments, Invoices, RenewalReminders)
     await this.prisma.clientProfile.delete({
       where: { id },
     });
 
+    // 6. Delete client users that were linked to this company
+    if (linkedUserIds.length > 0) {
+      await this.prisma.user.deleteMany({
+        where: { id: { in: linkedUserIds } },
+      });
+    }
+
+    // Audit log: use null for clientProfileId since profile is deleted
     await this.auditLogsService.create({
       userId,
-      clientProfileId: id,
+      clientProfileId: null,
       action: 'DELETE',
       entityType: 'ClientProfile',
       entityId: id,
