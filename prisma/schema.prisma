@@ -217,17 +217,18 @@ model Document {
 }
 
 model Payment {
-  id                String        @id @default(uuid())
-  clientProfileId   String
-  amount            Float
-  currency          String        @default("INR")
-  status            PaymentStatus @default(CREATED)
-  provider          String // e.g. Razorpay
-  providerPaymentId String?
-  paymentLink       String?
-  paidAt            DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                     String        @id @default(uuid())
+  clientProfileId        String
+  amount                 Float
+  currency               String        @default("INR")
+  status                 PaymentStatus @default(CREATED)
+  provider               String // e.g. Razorpay
+  providerPaymentId      String?
+  razorpayPaymentLinkId  String? // plink_xxx - for webhook matching when payment.captured has no notes
+  paymentLink            String?
+  paidAt                 DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   // Relations (company = ClientProfile)
   clientProfile ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
@@ -235,6 +236,7 @@ model Payment {
 
   @@index([clientProfileId])
   @@index([status])
+  @@index([razorpayPaymentLinkId])
   @@map("payments")
 }
 

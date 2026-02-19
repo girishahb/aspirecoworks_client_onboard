@@ -228,4 +228,42 @@ export class RazorpayService {
       );
     }
   }
+
+  /**
+   * Get payment link details from Razorpay (includes notes with companyId).
+   */
+  async getPaymentLink(paymentLinkId: string): Promise<any> {
+    if (!this.isConfigured()) {
+      throw new BadRequestException('Razorpay is not configured.');
+    }
+
+    try {
+      const pl = await this.razorpayClient.paymentLink.fetch(paymentLinkId);
+      return pl;
+    } catch (error) {
+      this.logger.error(`Failed to fetch payment link ${paymentLinkId}`, error);
+      throw new BadRequestException(
+        `Failed to fetch payment link: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Get order details from Razorpay. Orders created from payment links include payment_link_id.
+   */
+  async getOrder(orderId: string): Promise<any> {
+    if (!this.isConfigured()) {
+      throw new BadRequestException('Razorpay is not configured.');
+    }
+
+    try {
+      const order = await this.razorpayClient.orders.fetch(orderId);
+      return order;
+    } catch (error) {
+      this.logger.error(`Failed to fetch order ${orderId}`, error);
+      throw new BadRequestException(
+        `Failed to fetch order: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
 }

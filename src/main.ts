@@ -108,10 +108,16 @@ async function bootstrap() {
   // Razorpay config check (for Render/deployment debugging)
   const rzKeyId = process.env.RAZORPAY_KEY_ID;
   const rzKeySecret = process.env.RAZORPAY_KEY_SECRET;
+  const rzWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!rzKeyId || !rzKeySecret) {
     console.warn(
       '⚠️  Razorpay not configured: RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set in environment. ' +
         `(KEY_ID: ${rzKeyId ? 'set' : 'MISSING'}, KEY_SECRET: ${rzKeySecret ? 'set' : 'MISSING'})`,
+    );
+  } else if (!rzWebhookSecret) {
+    console.warn(
+      '⚠️  RAZORPAY_WEBHOOK_SECRET not set. Webhooks will fail signature verification (401). ' +
+        'Get the secret from Razorpay Dashboard → Webhooks → your webhook.',
     );
   }
 

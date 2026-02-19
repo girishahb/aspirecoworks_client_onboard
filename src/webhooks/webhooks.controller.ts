@@ -114,8 +114,11 @@ export class WebhooksController {
       razorpayPaymentId = paymentLinkEntity.payment_id;
     }
 
+    const razorpayPaymentLinkId =
+      paymentLinkEntity?.id ?? payload.payload?.payment_link?.id ?? orderEntity?.payment_link_id;
+
     this.logger.log(
-      `Razorpay webhook: event=${event} razorpayPaymentId=${razorpayPaymentId ?? 'n/a'} companyId=${companyId ?? 'n/a'}`,
+      `Razorpay webhook: event=${event} razorpayPaymentId=${razorpayPaymentId ?? 'n/a'} companyId=${companyId ?? 'n/a'} plinkId=${razorpayPaymentLinkId ?? 'n/a'}`,
     );
 
     if (!razorpayPaymentId) {
@@ -125,15 +128,55 @@ export class WebhooksController {
       throw new BadRequestException('Missing payment id in payload');
     }
 
-    // 5. Find payment by razorpayPaymentId (or by companyId + CREATED as fallback)
+    // 5. Find payment: by providerPaymentId, companyId, plinkId, or Razorpay API fallback (payment.captured)
     let payment = await this.paymentsService.findByProviderPaymentId(razorpayPaymentId);
     if (!payment && companyId) {
       payment = await this.paymentsService.findFirstCreatedByCompanyId(companyId);
     }
+    if (!payment && razorpayPaymentLinkId) {
+      payment = await this.paymentsService.findByRazorpayPaymentLinkId(razorpayPaymentLinkId);
+    }
+    // Fallback for payment.captured: payment.entity.notes is often empty; fetch order → payment_link_id → match our Payment
+    // Also fetch payment link to get companyId (for older payments created before we stored plinkId)
+    if (
+      !payment &&
+      razorpayPaymentId &&
+      this.razorpayService.isConfigured() &&
+      (event === 'payment.captured' || event === 'order.paid')
+    ) {
+      try {
+        const rzPayment = await this.razorpayService.getPayment(razorpayPaymentId);
+        const orderId = rzPayment?.order_id;
+        if (orderId) {
+          const rzOrder = await this.razorpayService.getOrder(orderId);
+          const plinkId = rzOrder?.payment_link_id ?? rzOrder?.paymentLinkId;
+          if (plinkId) {
+            payment = await this.paymentsService.findByRazorpayPaymentLinkId(plinkId);
+            if (!payment) {
+              // Older payments: we don't have plinkId stored; fetch payment link to get companyId from notes
+              const rzPlink = await this.razorpayService.getPaymentLink(plinkId);
+              const plinkCompanyId = rzPlink?.notes?.companyId;
+              if (plinkCompanyId) {
+                payment = await this.paymentsService.findFirstCreatedByCompanyId(plinkCompanyId);
+              }
+            }
+            if (payment) {
+              this.logger.log(
+                `Razorpay webhook: resolved payment via API (order=${orderId} plinkId=${plinkId})`,
+              );
+            }
+          }
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Razorpay webhook: API fallback failed for payId=${razorpayPaymentId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
 
     if (!payment) {
       this.logger.warn(
-        `Razorpay webhook: no matching payment for razorpayPaymentId=${razorpayPaymentId}, companyId=${companyId ?? 'n/a'}`,
+        `Razorpay webhook: no matching payment for razorpayPaymentId=${razorpayPaymentId}, companyId=${companyId ?? 'n/a'}, plinkId=${razorpayPaymentLinkId ?? 'n/a'}`,
       );
       throw new BadRequestException('No matching payment found');
     }

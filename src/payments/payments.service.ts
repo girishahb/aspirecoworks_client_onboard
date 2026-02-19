@@ -68,7 +68,7 @@ export class PaymentsService {
       );
     }
 
-    // Create payment record
+    // Create payment record (store razorpayPaymentLinkId for webhook matching)
     const payment = await this.prisma.payment.create({
       data: {
         clientProfileId: companyId,
@@ -77,6 +77,7 @@ export class PaymentsService {
         status: 'CREATED',
         provider: 'Razorpay',
         providerPaymentId: null, // Will be set when payment is captured
+        razorpayPaymentLinkId: paymentLinkData.id ?? undefined, // plink_xxx
         paymentLink: paymentLinkData.short_url,
       },
       include: {
@@ -307,6 +308,29 @@ export class PaymentsService {
 
     return this.prisma.payment.findFirst({
       where: { providerPaymentId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        clientProfileId: true,
+        status: true,
+        providerPaymentId: true,
+      },
+    });
+  }
+
+  /**
+   * Find first CREATED payment by Razorpay payment link ID (plink_xxx).
+   * Used when webhook has payment_link_id but payment.entity.notes is empty (e.g. payment.captured).
+   */
+  async findByRazorpayPaymentLinkId(razorpayPaymentLinkId: string): Promise<{
+    id: string;
+    clientProfileId: string;
+    status: string;
+    providerPaymentId: string | null;
+  } | null> {
+    if (!razorpayPaymentLinkId) return null;
+    return this.prisma.payment.findFirst({
+      where: { razorpayPaymentLinkId, status: 'CREATED' },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
