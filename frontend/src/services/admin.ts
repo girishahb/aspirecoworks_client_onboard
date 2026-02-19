@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost, apiRequest } from './api';
+import { apiDelete, apiGet, apiPatch, apiPost, apiRequest } from './api';
 
 /** Company (client profile) as returned by admin list/get. */
 export interface AdminCompany {
@@ -81,6 +81,14 @@ export async function createCompany(data: {
  */
 export async function resendInvite(companyId: string): Promise<{ sent: boolean; message: string }> {
   return apiPost<{ sent: boolean; message: string }>(`/client-profiles/${companyId}/resend-invite`);
+}
+
+/**
+ * Delete a client profile (company). Removes associated users, documents, invoices, R2 files, etc.
+ * Backend: DELETE /client-profiles/:id (ADMIN only).
+ */
+export async function deleteCompany(companyId: string): Promise<{ message: string }> {
+  return apiDelete<{ message: string }>(`/client-profiles/${companyId}`);
 }
 
 /**

@@ -16,11 +16,13 @@ import {
   resendPaymentLink,
   markPaymentAsPaid,
   resendInvite,
+  deleteCompany,
   type AdminCompany,
   type AdminDocumentListItem,
   type ComplianceStatus,
   type CompanyPaymentHistory,
 } from '../services/admin';
+import { getCurrentUser } from '../services/auth';
 import { downloadDocumentFile, getDocumentViewUrl } from '../services/documents';
 import Badge from '../components/Badge';
 import DocumentViewer from '../components/DocumentViewer';
@@ -121,6 +123,10 @@ export default function AdminCompanyDetail() {
   const [inviteSentBanner, setInviteSentBanner] = useState(inviteSentFromCreate);
   const [resendInviteBusy, setResendInviteBusy] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<string>('50000'); // Default ₹50,000
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const currentUser = getCurrentUser();
+  const canDeleteCompany = currentUser?.role === 'ADMIN';
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -367,6 +373,26 @@ export default function AdminCompanyDetail() {
     }
   }
 
+  async function handleDeleteCompany() {
+    if (!companyId || !company) return;
+    if (
+      !window.confirm(
+        `Delete "${company.companyName}"? This will permanently remove the company, its users, documents, invoices, and all associated data. This cannot be undone.`,
+      )
+    )
+      return;
+    setActionError(null);
+    setDeleteBusy(true);
+    try {
+      await deleteCompany(companyId);
+      navigate('/admin/dashboard');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to delete company');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   if (!companyId) {
     return (
       <div>
@@ -500,10 +526,27 @@ export default function AdminCompanyDetail() {
 
   return (
     <div>
-      <div style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <button type="button" onClick={() => navigate('/admin/dashboard')}>
           ← Back to dashboard
         </button>
+        {canDeleteCompany && (
+          <button
+            type="button"
+            onClick={handleDeleteCompany}
+            disabled={deleteBusy}
+            style={{
+              backgroundColor: '#c62828',
+              color: '#fff',
+              border: '1px solid #c62828',
+              padding: '0.5rem 1rem',
+              borderRadius: 6,
+              cursor: deleteBusy ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {deleteBusy ? 'Deleting…' : 'Delete company'}
+          </button>
+        )}
       </div>
 
       <h1>Company review</h1>
