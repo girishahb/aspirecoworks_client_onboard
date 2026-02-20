@@ -11,9 +11,20 @@ export class InvoicePdfService {
    */
   async generateInvoicePdf(invoice: any): Promise<Buffer> {
     const companyName = this.config.get<string>('COMPANY_NAME') || 'Aspire Coworks';
+    const companyLogoUrl = this.config.get<string>('COMPANY_LOGO_URL') || '';
     const companyGstNumber = this.config.get<string>('COMPANY_GST_NUMBER') || '';
     const companyAddress = this.config.get<string>('COMPANY_ADDRESS') || '';
     const gstRate = parseFloat(this.config.get<string>('GST_RATE') || '18');
+
+    let logoBuffer: Buffer | null = null;
+    if (companyLogoUrl) {
+      try {
+        const res = await fetch(companyLogoUrl);
+        if (res.ok) logoBuffer = Buffer.from(await res.arrayBuffer());
+      } catch {
+        /* fallback to text-only */
+      }
+    }
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -29,10 +40,15 @@ export class InvoicePdfService {
       doc.on('error', reject);
 
       // Header
+      const headerY = 50;
+      if (logoBuffer) {
+        doc.image(logoBuffer, 50, headerY, { fit: [120, 48] });
+        doc.y = headerY + 48 + 8;
+      }
       doc
         .fontSize(20)
         .font('Helvetica-Bold')
-        .text(companyName, { align: 'left' })
+        .text(companyName, 50, doc.y, { width: pageContentWidth, align: 'left' })
         .moveDown(0.5);
 
       if (companyGstNumber) {

@@ -78,6 +78,7 @@ export class InvoicePdfPuppeteerService {
    */
   async generateInvoicePdf(invoice: InvoiceForPdf): Promise<Buffer> {
     const companyName = this.config.get<string>('COMPANY_NAME') || 'Aspire Coworks';
+    const companyLogoUrl = this.config.get<string>('COMPANY_LOGO_URL') || '';
     const companyGstNumber = this.config.get<string>('COMPANY_GST_NUMBER') || '';
     const companyAddress = (this.config.get<string>('COMPANY_ADDRESS') || '')
       .split('\n')
@@ -94,6 +95,14 @@ export class InvoicePdfPuppeteerService {
 
     const billingLines = invoice.billingAddress.split(',').map((s) => s.trim()).filter(Boolean);
 
+    const companyHeaderLogo = companyLogoUrl ? `<img src="${escapeHtml(companyLogoUrl)}" class="logo" alt="${escapeHtml(companyName)}" />` : '';
+    const companyHeaderSvg = !companyLogoUrl
+      ? (() => {
+          const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 40' preserveAspectRatio='xMinYMid meet'><text x='0' y='28' font-family='Arial' font-weight='bold' font-size='18' fill='%23134b7f'>${escapeHtml(companyName)}</text></svg>`;
+          return `<img src="data:image/svg+xml,${encodeURIComponent(svg)}" class="logo" alt="${escapeHtml(companyName)}" />`;
+        })()
+      : '';
+
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,7 +114,7 @@ export class InvoicePdfPuppeteerService {
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 2px solid #134b7f; padding-bottom: 16px; }
     .logo { max-height: 48px; }
     .company { text-align: left; }
-    .company h1 { margin: 0 0 4px 0; font-size: 20px; color: #134b7f; font-weight: bold; }
+    .company h1 { margin: 0 0 4px 0; font-size: 20px; color: #134b7f; font-weight: bold; max-width: 100%; word-wrap: break-word; }
     .company .gstin { font-size: 10px; color: #666; }
     .company .address { font-size: 9px; line-height: 1.4; color: #444; margin-top: 4px; }
     .title { font-size: 22px; font-weight: bold; color: #134b7f; text-align: right; }
@@ -134,7 +143,8 @@ export class InvoicePdfPuppeteerService {
 <body>
   <div class="header">
     <div class="company">
-      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Ctext x='0' y='28' font-family='Arial' font-weight='bold' font-size='18' fill='%23134b7f'%3EASPIRE COWORKS%3C/text%3E%3C/svg%3E" alt="Aspire Coworks" class="logo" />
+      ${companyHeaderLogo || companyHeaderSvg}
+      <h1 class="company-name">${escapeHtml(companyName)}</h1>
       ${companyGstNumber ? `<div class="gstin">GSTIN: ${escapeHtml(companyGstNumber)}</div>` : ''}
       ${companyAddress ? `<div class="address">${companyAddress}</div>` : ''}
     </div>
