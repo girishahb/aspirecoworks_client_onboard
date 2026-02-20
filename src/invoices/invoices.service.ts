@@ -272,9 +272,20 @@ export class InvoicesService {
       (invoice.cgstAmount != null && invoice.cgstAmount > 0) ||
       (invoice.sgstAmount != null && invoice.sgstAmount > 0) ||
       (invoice.igstAmount != null && invoice.igstAmount > 0);
-    const pdfBuffer = usePuppeteer
-      ? await this.pdfPuppeteerService.generateInvoicePdf(invoice as any)
-      : await this.pdfService.generateInvoicePdf(invoice);
+
+    let pdfBuffer: Buffer;
+    if (usePuppeteer) {
+      try {
+        pdfBuffer = await this.pdfPuppeteerService.generateInvoicePdf(invoice as any);
+      } catch (puppeteerErr) {
+        this.logger.warn(
+          `Puppeteer PDF failed, falling back to PDFKit: ${puppeteerErr instanceof Error ? puppeteerErr.message : puppeteerErr}`,
+        );
+        pdfBuffer = await this.pdfService.generateInvoicePdf(invoice);
+      }
+    } else {
+      pdfBuffer = await this.pdfService.generateInvoicePdf(invoice);
+    }
 
     // Upload to storage
     const fileKey = `invoices/${invoice.companyId}/${invoice.invoiceNumber}.pdf`;

@@ -39,24 +39,34 @@ export class InvoicePdfPuppeteerService {
     const explicitPath = process.env.PUPPETEER_EXECUTABLE_PATH;
     if (explicitPath && fs.existsSync(explicitPath)) return explicitPath;
 
-    const cacheDir =
-      process.env.PUPPETEER_CACHE_DIR ||
-      path.join(process.cwd(), 'puppeteer-cache');
-    const chromeDir = path.join(cacheDir, 'chrome');
-    if (!fs.existsSync(chromeDir)) return undefined;
+    // Try multiple base paths: env, cwd, and __dirname (bundled app runs from dist/)
+    const projectRoot = process.cwd();
+    const candidates = [
+      process.env.PUPPETEER_CACHE_DIR,
+      path.join(projectRoot, 'puppeteer-cache'),
+      path.resolve(projectRoot, 'puppeteer-cache'),
+      // When bundled, __dirname points to dist/; project root is parent
+      path.resolve(__dirname, '..', 'puppeteer-cache'),
+      path.resolve(__dirname, '..', '..', 'puppeteer-cache'),
+      '/opt/render/project/src/puppeteer-cache', // Render default project path
+    ].filter(Boolean) as string[];
 
-    try {
-      const entries = fs.readdirSync(chromeDir, { withFileTypes: true });
-      for (const ent of entries) {
-        if (!ent.isDirectory() || !ent.name.startsWith('linux-')) continue;
-        const versionDir = path.join(chromeDir, ent.name);
-        const chrome64 = path.join(versionDir, 'chrome-linux64', 'chrome');
-        const chromeDirAlt = path.join(versionDir, 'chrome-linux', 'chrome');
-        if (fs.existsSync(chrome64)) return chrome64;
-        if (fs.existsSync(chromeDirAlt)) return chromeDirAlt;
+    for (const cacheDir of candidates) {
+      const chromeDir = path.join(cacheDir, 'chrome');
+      if (!fs.existsSync(chromeDir)) continue;
+      try {
+        const entries = fs.readdirSync(chromeDir, { withFileTypes: true });
+        for (const ent of entries) {
+          if (!ent.isDirectory() || !ent.name.startsWith('linux-')) continue;
+          const versionDir = path.join(chromeDir, ent.name);
+          const chrome64 = path.join(versionDir, 'chrome-linux64', 'chrome');
+          const chromeDirAlt = path.join(versionDir, 'chrome-linux', 'chrome');
+          if (fs.existsSync(chrome64)) return chrome64;
+          if (fs.existsSync(chromeDirAlt)) return chromeDirAlt;
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
     }
     return undefined;
   }
