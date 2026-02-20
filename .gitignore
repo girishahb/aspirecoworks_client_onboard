@@ -41,3 +41,6 @@ lerna-debug.log*
 
 # Prisma
 prisma/migrations/*.sql
+
+# Puppeteer Chrome (installed during build on Render)
+puppeteer-cache/

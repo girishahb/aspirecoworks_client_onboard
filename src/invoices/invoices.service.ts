@@ -483,6 +483,12 @@ export class InvoicesService {
       const invoice = await this.findOne(invoiceId);
 
       if (!invoice.pdfFileKey) {
+        // Ensure R2/storage is configured before attempting PDF generation
+        if (!this.s3Client || !this.bucketName) {
+          throw new ServiceUnavailableException(
+            'Storage is not configured. Set R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME to generate invoice PDFs.',
+          );
+        }
         // Generate PDF if not exists
         await this.generateAndStorePdf(invoiceId);
         const updated = await this.findOne(invoiceId);
@@ -515,11 +521,14 @@ export class InvoicesService {
         throw err;
       }
       const rawMessage = err?.message ?? String(err);
-      this.logger.warn(`Invoice download failed for ${invoiceId}: ${rawMessage}`, err?.stack);
-      // Surface the actual error so user can fix config (e.g. bucket name, permissions)
+      this.logger.error(`Invoice download failed for ${invoiceId}: ${rawMessage}`, err?.stack);
+      // Surface truncated error to help diagnose (e.g. Puppeteer, S3, R2 issues)
+      const maxLen = 180;
       const safeMessage =
-        typeof rawMessage === 'string' && rawMessage.length < 200
-          ? rawMessage
+        typeof rawMessage === 'string' && rawMessage.length > 0
+          ? rawMessage.length <= maxLen
+            ? rawMessage
+            : `${rawMessage.slice(0, maxLen).trim()}... (check server logs for full error)`
           : 'Storage or PDF generation failed. Check server logs.';
       throw new ServiceUnavailableException(
         `Unable to generate download link: ${safeMessage}`,
