@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, StreamableFile } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { InvoicesService } from './invoices.service';
@@ -35,6 +35,25 @@ export class AdminInvoicesController {
       companyId,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get(':invoiceId/file')
+  @ApiOperation({
+    summary: 'Stream invoice PDF for view/download (proxy)',
+    description: 'Streams the invoice PDF from storage. Use for in-page view to avoid pop-up blockers.',
+  })
+  @ApiResponse({ status: 200, description: 'File stream' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async streamInvoiceFile(@Param('invoiceId') invoiceId: string): Promise<StreamableFile> {
+    const { buffer, fileName, contentType } = await this.invoicesService.streamInvoiceFile(
+      invoiceId,
+    );
+    const disposition = `inline; filename="${fileName.replace(/"/g, '\\"')}"`;
+    return new StreamableFile(buffer, {
+      type: contentType,
+      disposition,
     });
   }
 

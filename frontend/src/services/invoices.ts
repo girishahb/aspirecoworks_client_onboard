@@ -53,3 +53,26 @@ export async function getMyInvoices(params?: {
 export async function downloadMyInvoice(invoiceId: string): Promise<{ downloadUrl: string; fileName: string }> {
   return apiGet<{ downloadUrl: string; fileName: string }>(`/client/invoices/${invoiceId}/download`);
 }
+
+/**
+ * Fetch invoice PDF for in-page view (proxy, no pop-up).
+ * Returns blob URL - caller must revoke when done.
+ */
+export async function getInvoiceFile(invoiceId: string): Promise<{ fileUrl: string; fileName: string }> {
+  const { apiUrl } = await import('../api/url');
+  const { getAuthHeaders } = await import('./auth');
+  const res = await fetch(apiUrl(`/client/invoices/${invoiceId}/file`), {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error((err as { message?: string }).message ?? `Failed to load invoice (${res.status})`);
+  }
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get('Content-Disposition');
+  let fileName = 'invoice.pdf';
+  const match = contentDisposition?.match(/filename="?([^";\n]+)"?/);
+  if (match) fileName = match[1].replace(/\\"/g, '"');
+  const fileUrl = URL.createObjectURL(blob);
+  return { fileUrl, fileName };
+}

@@ -487,6 +487,47 @@ export class InvoicesService {
   }
 
   /**
+   * Stream invoice PDF file from R2 (proxy). Use for in-page view/download to avoid pop-up blockers.
+   */
+  async streamInvoiceFile(
+    invoiceId: string,
+    user?: { companyId?: string | null },
+  ): Promise<{ buffer: Buffer; fileName: string; contentType: string }> {
+    const invoice = await this.findOne(invoiceId);
+
+    if (user?.companyId && invoice.companyId !== user.companyId) {
+      throw new NotFoundException(`Invoice not found: ${invoiceId}`);
+    }
+
+    if (!invoice.pdfFileKey) {
+      if (!this.s3Client || !this.bucketName) {
+        throw new ServiceUnavailableException('Storage is not configured.');
+      }
+      await this.generateAndStorePdf(invoiceId);
+      const updated = await this.findOne(invoiceId);
+      if (!updated.pdfFileKey) {
+        throw new BadRequestException('PDF generation in progress. Please try again later.');
+      }
+    }
+
+    const invoiceWithKey = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { pdfFileKey: true, invoiceNumber: true },
+    });
+    if (!invoiceWithKey?.pdfFileKey) {
+      throw new NotFoundException('Invoice PDF not found');
+    }
+
+    const { buffer, contentType } = await this.r2Service.getFileBuffer(invoiceWithKey.pdfFileKey);
+    const fileName = `${invoiceWithKey.invoiceNumber}.pdf`;
+    return {
+      buffer,
+      fileName,
+      contentType: contentType || 'application/pdf',
+    };
+  }
+
+  /**
    * Get download URL for invoice PDF.
    */
   async getDownloadUrl(invoiceId: string): Promise<{ downloadUrl: string; fileName: string }> {

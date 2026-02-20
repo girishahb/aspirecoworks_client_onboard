@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getMyInvoices, downloadMyInvoice, type ClientInvoice } from '../services/invoices';
-import { Download, FileText } from 'lucide-react';
+import { getMyInvoices, getInvoiceFile, type ClientInvoice } from '../services/invoices';
+import DocumentViewer from '../components/DocumentViewer';
+import { Download, FileText, Eye } from 'lucide-react';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -23,6 +24,10 @@ export default function ClientInvoices() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerFileUrl, setViewerFileUrl] = useState<string | null>(null);
+  const [viewerFileName, setViewerFileName] = useState('');
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   useEffect(() => {
     loadInvoices();
@@ -46,10 +51,31 @@ export default function ClientInvoices() {
     }
   }
 
-  async function handleDownload(invoiceId: string) {
+  async function handleView(invoiceId: string, invoiceNumber: string) {
+    setViewerLoading(true);
+    setViewerOpen(true);
+    setViewerFileUrl(null);
+    setViewerFileName(`${invoiceNumber}.pdf`);
     try {
-      const { downloadUrl } = await downloadMyInvoice(invoiceId);
-      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+      const { fileUrl, fileName } = await getInvoiceFile(invoiceId);
+      setViewerFileUrl(fileUrl);
+      setViewerFileName(fileName);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to load invoice');
+      setViewerOpen(false);
+    } finally {
+      setViewerLoading(false);
+    }
+  }
+
+  async function handleDownload(invoiceId: string, invoiceNumber: string) {
+    try {
+      const { fileUrl, fileName } = await getInvoiceFile(invoiceId);
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(fileUrl);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to download invoice');
     }
@@ -113,14 +139,24 @@ export default function ClientInvoices() {
                     )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleDownload(invoice.id)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
-                >
-                  <Download className="h-4 w-4" />
-                  Download PDF
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleView(invoice.id, invoice.invoiceNumber)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-primary px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(invoice.id, invoice.invoiceNumber)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -153,6 +189,28 @@ export default function ClientInvoices() {
           )}
         </>
       )}
+
+      <DocumentViewer
+        fileUrl={viewerFileUrl}
+        fileName={viewerFileName}
+        isOpen={viewerOpen}
+        onClose={() => {
+          if (viewerFileUrl?.startsWith('blob:')) URL.revokeObjectURL(viewerFileUrl);
+          setViewerOpen(false);
+          setViewerFileUrl(null);
+        }}
+        loadingUrl={viewerLoading}
+        onDownload={
+          viewerFileUrl
+            ? () => {
+                const a = document.createElement('a');
+                a.href = viewerFileUrl;
+                a.download = viewerFileName || 'invoice.pdf';
+                a.click();
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }
