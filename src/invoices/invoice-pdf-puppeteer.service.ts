@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as puppeteer from 'puppeteer';
 
 export interface InvoiceForPdf {
@@ -27,6 +29,37 @@ export interface InvoiceForPdf {
 @Injectable()
 export class InvoicePdfPuppeteerService {
   constructor(private config: ConfigService) {}
+
+  /**
+   * Resolve Chrome executable path for Render/production where Puppeteer's default
+   * cache (/opt/render/.cache/puppeteer) may not contain the browser from build.
+   * We install to ./puppeteer-cache during build; find it here.
+   */
+  private resolveChromeExecutablePath(): string | undefined {
+    const explicitPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (explicitPath && fs.existsSync(explicitPath)) return explicitPath;
+
+    const cacheDir =
+      process.env.PUPPETEER_CACHE_DIR ||
+      path.join(process.cwd(), 'puppeteer-cache');
+    const chromeDir = path.join(cacheDir, 'chrome');
+    if (!fs.existsSync(chromeDir)) return undefined;
+
+    try {
+      const entries = fs.readdirSync(chromeDir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory() || !ent.name.startsWith('linux-')) continue;
+        const versionDir = path.join(chromeDir, ent.name);
+        const chrome64 = path.join(versionDir, 'chrome-linux64', 'chrome');
+        const chromeDirAlt = path.join(versionDir, 'chrome-linux', 'chrome');
+        if (fs.existsSync(chrome64)) return chrome64;
+        if (fs.existsSync(chromeDirAlt)) return chromeDirAlt;
+      }
+    } catch {
+      /* ignore */
+    }
+    return undefined;
+  }
 
   /**
    * Generate GST-compliant invoice PDF using Puppeteer + HTML template.
@@ -168,10 +201,15 @@ export class InvoicePdfPuppeteerService {
 </body>
 </html>`;
 
-    const browser = await puppeteer.launch({
+    const executablePath = this.resolveChromeExecutablePath();
+    const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    };
+    if (executablePath) {
+      launchOptions.executablePath = executablePath;
+    }
+    const browser = await puppeteer.launch(launchOptions);
 
     try {
       const page = await browser.newPage();
