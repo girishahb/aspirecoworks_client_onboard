@@ -318,7 +318,10 @@ export class DocumentsService {
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .slice(0, 255);
     const ext = sanitizedFileName.toLowerCase().match(/\.[^.]+$/)?.[0];
-    const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const allowedExts =
+      documentType === DocumentType.AGREEMENT_SIGNED
+        ? ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']
+        : ['.pdf', '.jpg', '.jpeg', '.png'];
     if (!ext || !allowedExts.includes(ext)) {
       throw new BadRequestException(
         `Invalid file extension. Allowed: ${allowedExts.join(', ')}`,

@@ -171,7 +171,11 @@ export default function ClientDocuments() {
     company?.onboardingStage === 'KYC_IN_PROGRESS' ||
     company?.onboardingStage === 'KYC_REVIEW' ||
     company?.onboardingStage === 'PAYMENT_CONFIRMED';
-  const canUploadSigned = company?.onboardingStage === 'AGREEMENT_DRAFT_SHARED';
+  const agreementDraft = documents.find((d) => d.documentType === 'AGREEMENT_DRAFT');
+  const hasSignedAgreement = documents.some((d) => d.documentType === 'AGREEMENT_SIGNED');
+  const canUploadSigned =
+    !hasSignedAgreement &&
+    (company?.onboardingStage === 'AGREEMENT_DRAFT_SHARED' || !!agreementDraft);
 
   function openUploadForType(type: DocumentType) {
     const input = document.createElement('input');
