@@ -13,6 +13,10 @@ export type DocumentType =
   | 'AGREEMENT_DRAFT'
   | 'AGREEMENT_SIGNED'
   | 'AGREEMENT_FINAL'
+  | 'NOC_ASPIRE_COWORKS'
+  | 'NOC_LANDLORD'
+  | 'ELECTRICITY_BILL'
+  | 'WIFI_BILL'
   | 'OTHER';
 
 export interface DocumentListItem {

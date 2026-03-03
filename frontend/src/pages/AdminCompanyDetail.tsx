@@ -8,6 +8,7 @@ import {
   markDocumentPendingWithClient,
   uploadAgreementDraft,
   uploadFinalAgreement,
+  type AdminPostAgreementDocumentType,
   activateCompany,
   getComplianceStatus,
   updateCompanyStage,
@@ -22,11 +23,21 @@ import {
   type ComplianceStatus,
   type CompanyPaymentHistory,
 } from '../services/admin';
+
+/** Post-agreement document types admin can upload; only Final Agreement triggers notify + stage change. */
+const POST_AGREEMENT_DOC_TYPES: { value: AdminPostAgreementDocumentType; label: string }[] = [
+  { value: 'AGREEMENT_FINAL', label: 'Final Agreement' },
+  { value: 'NOC_ASPIRE_COWORKS', label: 'NOC from Aspire Coworks' },
+  { value: 'NOC_LANDLORD', label: 'NOC from Landlord' },
+  { value: 'ELECTRICITY_BILL', label: 'Electricity Bill' },
+  { value: 'WIFI_BILL', label: 'Wifi Bill' },
+];
 import { getCurrentUser } from '../services/auth';
 import { downloadDocumentFile, getDocumentViewUrl } from '../services/documents';
 import Badge from '../components/Badge';
 import DocumentViewer from '../components/DocumentViewer';
 import OnboardingStepper from '../components/OnboardingStepper';
+import { Eye, Download } from 'lucide-react';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -110,6 +121,7 @@ export default function AdminCompanyDetail() {
   const [agreementDraftUploading, setAgreementDraftUploading] = useState(false);
   const [agreementDraftError, setAgreementDraftError] = useState<string | null>(null);
   const [finalAgreementFile, setFinalAgreementFile] = useState<File | null>(null);
+  const [selectedFinalDocType, setSelectedFinalDocType] = useState<AdminPostAgreementDocumentType>('AGREEMENT_FINAL');
   const [finalAgreementUploading, setFinalAgreementUploading] = useState(false);
   const [finalAgreementError, setFinalAgreementError] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -249,7 +261,7 @@ export default function AdminCompanyDetail() {
     setFinalAgreementError(null);
     setFinalAgreementUploading(true);
     try {
-      await uploadFinalAgreement(companyId, finalAgreementFile);
+      await uploadFinalAgreement(companyId, finalAgreementFile, selectedFinalDocType);
       setFinalAgreementFile(null);
       await loadData();
     } catch (err) {
@@ -472,19 +484,21 @@ export default function AdminCompanyDetail() {
                   )}
                 </td>
                 <td style={{ padding: '0.5rem 0.75rem' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                  <div className="flex flex-wrap gap-2 items-center">
                     <button
                       type="button"
                       onClick={() => handleView(doc.id, doc.fileName)}
-                      style={{ marginRight: 0 }}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-xs hover:bg-background"
                     >
+                      <Eye className="h-3 w-3" />
                       View
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDownload(doc.id)}
-                      style={{ marginRight: 0 }}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-xs hover:bg-background"
                     >
+                      <Download className="h-3 w-3" />
                       Download
                     </button>
                     {isReviewable(doc.status) && (
@@ -883,11 +897,20 @@ export default function AdminCompanyDetail() {
           )}
         </div>
         <div style={{ marginBottom: '1rem', padding: '1rem', border: '1px solid #1565c0', borderRadius: 4, backgroundColor: '#e3f2fd' }}>
-          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Upload final agreement</h3>
+          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Upload post-agreement documents</h3>
           <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', color: '#666' }}>
-            Upload the final agreement. The client will be notified by email and the onboarding stage will be set to &quot;Final agreement shared&quot;.
+            Choose document type, then select a file. Only &quot;Final Agreement&quot; triggers client email and stage change to &quot;Final agreement shared&quot;.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <select
+              value={selectedFinalDocType}
+              onChange={(e) => setSelectedFinalDocType(e.target.value as AdminPostAgreementDocumentType)}
+              style={{ padding: '0.35rem 0.5rem', minWidth: 180 }}
+            >
+              {POST_AGREEMENT_DOC_TYPES.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
             <input
               type="file"
               accept=".pdf,.doc,.docx"
@@ -899,7 +922,7 @@ export default function AdminCompanyDetail() {
               onClick={handleUploadFinalAgreement}
               disabled={!finalAgreementFile || finalAgreementUploading}
             >
-              {finalAgreementUploading ? 'Uploading…' : 'Upload and notify client'}
+              {finalAgreementUploading ? 'Uploading…' : selectedFinalDocType === 'AGREEMENT_FINAL' ? 'Upload and notify client' : 'Upload'}
             </button>
           </div>
           {finalAgreementError && (
@@ -913,10 +936,14 @@ export default function AdminCompanyDetail() {
           <p>No documents.</p>
         ) : (
           <>
-            {renderDocumentSection('KYC Documents', documents.filter((d) => !['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(d.documentType)))}
+            {renderDocumentSection('KYC Documents', documents.filter((d) => !['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL', 'NOC_ASPIRE_COWORKS', 'NOC_LANDLORD', 'ELECTRICITY_BILL', 'WIFI_BILL'].includes(d.documentType)))}
             {renderDocumentSection('Agreement draft', documents.filter((d) => d.documentType === 'AGREEMENT_DRAFT'))}
             {renderDocumentSection('Signed agreement', documents.filter((d) => d.documentType === 'AGREEMENT_SIGNED'))}
-            {renderDocumentSection('Final agreement', documents.filter((d) => d.documentType === 'AGREEMENT_FINAL'))}
+            {renderDocumentSection('Final Agreement', documents.filter((d) => d.documentType === 'AGREEMENT_FINAL'))}
+            {renderDocumentSection('NOC from Aspire Coworks', documents.filter((d) => d.documentType === 'NOC_ASPIRE_COWORKS'))}
+            {renderDocumentSection('NOC from Landlord', documents.filter((d) => d.documentType === 'NOC_LANDLORD'))}
+            {renderDocumentSection('Electricity Bill', documents.filter((d) => d.documentType === 'ELECTRICITY_BILL'))}
+            {renderDocumentSection('Wifi Bill', documents.filter((d) => d.documentType === 'WIFI_BILL'))}
           </>
         )}
       </section>

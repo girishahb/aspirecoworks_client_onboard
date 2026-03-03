@@ -153,6 +153,14 @@ export class R2Service {
       folder = 'agreements/signed';
     } else if (documentType.includes('AGREEMENT_FINAL')) {
       folder = 'agreements/final';
+    } else if (documentType.includes('NOC_ASPIRE_COWORKS')) {
+      folder = 'agreements/noc-aspire';
+    } else if (documentType.includes('NOC_LANDLORD')) {
+      folder = 'agreements/noc-landlord';
+    } else if (documentType.includes('ELECTRICITY_BILL')) {
+      folder = 'agreements/electricity-bill';
+    } else if (documentType.includes('WIFI_BILL')) {
+      folder = 'agreements/wifi-bill';
     }
     
     // Format: company/{companyId}/{folder}/{uuid}.{ext}

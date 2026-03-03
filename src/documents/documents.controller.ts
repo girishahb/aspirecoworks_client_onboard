@@ -19,6 +19,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody
 import { DocumentsService } from './documents.service';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { AdminAgreementDraftUploadDto } from './dto/admin-agreement-draft-upload.dto';
+import { AdminAgreementFinalUploadDto } from './dto/admin-agreement-final-upload.dto';
 import { ReviewDocumentDto } from './dto/review-document.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -163,7 +164,7 @@ export class DocumentsController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Company not found' })
   generateAdminAgreementFinalUploadUrl(
-    @Body() dto: AdminAgreementDraftUploadDto,
+    @Body() dto: AdminAgreementFinalUploadDto,
     @CurrentUser() user: any,
   ) {
     return this.documentsService.generateAdminAgreementFinalUploadUrl(dto, user);
@@ -189,19 +190,30 @@ export class DocumentsController {
       properties: {
         file: { type: 'string', format: 'binary' },
         companyId: { type: 'string', format: 'uuid' },
+        documentType: {
+          type: 'string',
+          enum: ['AGREEMENT_FINAL', 'NOC_ASPIRE_COWORKS', 'NOC_LANDLORD', 'ELECTRICITY_BILL', 'WIFI_BILL'],
+          description: 'Optional; defaults to AGREEMENT_FINAL. Only AGREEMENT_FINAL triggers notify + stage change.',
+        },
       },
     },
   })
-  @ApiResponse({ status: 201, description: 'Final agreement uploaded and client notified' })
+  @ApiResponse({ status: 201, description: 'Document uploaded; client notified only when documentType is AGREEMENT_FINAL' })
   @ApiResponse({ status: 400, description: 'Invalid file or company' })
   async uploadAdminAgreementFinal(
     @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     @Body('companyId') companyId: string,
+    @Body('documentType') documentType: string | undefined,
     @CurrentUser() user: any,
   ) {
     if (!file) throw new BadRequestException('File is required');
     if (!companyId) throw new BadRequestException('companyId is required');
-    return this.documentsService.uploadAdminAgreementFinalProxy(file, companyId, user);
+    return this.documentsService.uploadAdminAgreementFinalProxy(
+      file,
+      companyId,
+      user,
+      documentType ?? 'AGREEMENT_FINAL',
+    );
   }
 
   @Get()

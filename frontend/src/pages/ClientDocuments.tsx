@@ -145,8 +145,26 @@ export default function ClientDocuments() {
   }
 
   const kycDocuments = documents.filter(
-    (d) => !['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(d.documentType),
+    (d) =>
+      ![
+        'AGREEMENT_DRAFT',
+        'AGREEMENT_SIGNED',
+        'AGREEMENT_FINAL',
+        'NOC_ASPIRE_COWORKS',
+        'NOC_LANDLORD',
+        'ELECTRICITY_BILL',
+        'WIFI_BILL',
+      ].includes(d.documentType),
   );
+
+  /** Post-agreement document types (admin uploads; client can view/download). */
+  const POST_AGREEMENT_DOC_TYPES: { type: string; label: string; emptyMessage: string }[] = [
+    { type: 'AGREEMENT_FINAL', label: 'Final Agreement', emptyMessage: 'Your stamped final agreement will appear here once the admin shares it.' },
+    { type: 'NOC_ASPIRE_COWORKS', label: 'NOC from Aspire Coworks', emptyMessage: 'No document uploaded yet.' },
+    { type: 'NOC_LANDLORD', label: 'NOC from Landlord', emptyMessage: 'No document uploaded yet.' },
+    { type: 'ELECTRICITY_BILL', label: 'Electricity Bill', emptyMessage: 'No document uploaded yet.' },
+    { type: 'WIFI_BILL', label: 'Wifi Bill', emptyMessage: 'No document uploaded yet.' },
+  ];
 
   const hasApprovedAadhaar = kycDocuments.some(
     (d) => d.documentType === 'AADHAAR' && d.status === 'VERIFIED',
@@ -561,64 +579,67 @@ export default function ClientDocuments() {
         )}
       </section>
 
-      {/* Final agreement Section */}
-      <section>
-        <h2 className="mb-4 flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Final agreement
-        </h2>
-        {documents.filter((d) => d.documentType === 'AGREEMENT_FINAL').length === 0 ? (
-          <div className="rounded-lg border border-border bg-white p-6 text-center">
-            <p className="text-muted">No final agreement available yet.</p>
-            <p className="mt-1 text-sm text-muted">Your stamped final agreement will appear here once the admin shares it.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {documents
-              .filter((d) => d.documentType === 'AGREEMENT_FINAL')
-              .map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-lg border border-border bg-white p-4 shadow-sm"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-muted" />
-                      <span className="font-medium">{doc.fileName}</span>
-                      {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
-                        <span className="text-xs text-muted">v{doc.version}</span>
-                      ) : null}
+      {/* Post-agreement documents (Final Agreement, NOCs, Bills) */}
+      {POST_AGREEMENT_DOC_TYPES.map(({ type, label, emptyMessage }) => {
+        const docsOfType = documents.filter((d) => d.documentType === type);
+        return (
+          <section key={type} className="mb-8">
+            <h2 className="mb-4 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {label}
+            </h2>
+            {docsOfType.length === 0 ? (
+              <div className="rounded-lg border border-border bg-white p-6 text-center">
+                <p className="text-muted">No {label.toLowerCase()} available yet.</p>
+                <p className="mt-1 text-sm text-muted">{emptyMessage}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {docsOfType.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between rounded-lg border border-border bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-muted" />
+                        <span className="font-medium">{doc.fileName}</span>
+                        {doc.version && typeof doc.version === 'number' && doc.version > 1 ? (
+                          <span className="text-xs text-muted">v{doc.version}</span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge variant={documentStatusVariant(doc.status)}>
+                          {documentStatusLabel(doc.status)}
+                        </Badge>
+                        <span className="text-xs text-muted">{formatDate(doc.createdAt)}</span>
+                      </div>
                     </div>
-                    <div className="mt-1 flex items-center gap-2">
-                      <Badge variant={documentStatusVariant(doc.status)}>
-                        {documentStatusLabel(doc.status)}
-                      </Badge>
-                      <span className="text-xs text-muted">{formatDate(doc.createdAt)}</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleView(doc.id, doc.fileName)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(doc.id)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleView(doc.id, doc.fileName)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(doc.id)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-2 text-sm hover:bg-background"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
-        )}
-      </section>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
 
       <DocumentViewer
         fileUrl={viewerFileUrl}

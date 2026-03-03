@@ -17,11 +17,13 @@ import { finalAgreementShared } from '../email/templates/final-agreement-shared'
 import { signedAgreementReceived } from '../email/templates/signed-agreement-received';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { AdminAgreementDraftUploadDto } from './dto/admin-agreement-draft-upload.dto';
+import { AdminAgreementFinalUploadDto } from './dto/admin-agreement-final-upload.dto';
 import { ReviewDocumentDto } from './dto/review-document.dto';
 import { DocumentStatus } from '../common/enums/document-status.enum';
 import {
   DocumentType,
   CLIENT_UPLOAD_DOCUMENT_TYPES,
+  ADMIN_POST_AGREEMENT_DOC_TYPES,
 } from '../common/enums/document-type.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 import { OnboardingStage } from '../common/enums/onboarding-stage.enum';
@@ -803,7 +805,15 @@ export class DocumentsService {
     await this.onboardingService.assertNotActive(existing.clientProfileId);
 
     const allowedReviewTypes = [DocumentType.AGREEMENT_SIGNED];
-    const isKycType = !['AGREEMENT_DRAFT', 'AGREEMENT_SIGNED', 'AGREEMENT_FINAL'].includes(existing.documentType);
+    const isKycType = ![
+      'AGREEMENT_DRAFT',
+      'AGREEMENT_SIGNED',
+      'AGREEMENT_FINAL',
+      'NOC_ASPIRE_COWORKS',
+      'NOC_LANDLORD',
+      'ELECTRICITY_BILL',
+      'WIFI_BILL',
+    ].includes(existing.documentType);
     const isSignedAgreement = existing.documentType === DocumentType.AGREEMENT_SIGNED;
 
     if (!isKycType && !allowedReviewTypes.includes(existing.documentType as DocumentType)) {
@@ -1500,11 +1510,11 @@ export class DocumentsService {
 
   /**
    * POST /documents/admin/agreement-final-upload-url
-   * Admin uploads AGREEMENT_FINAL after client has uploaded signed agreement.
-   * Allowed only when stage is SIGNED_AGREEMENT_RECEIVED. type = AGREEMENT_FINAL, owner = ADMIN, status = APPROVED. Version auto-increments.
+   * Admin uploads a post-agreement document (Final Agreement, NOC, bills, etc.) after client has uploaded signed agreement.
+   * Allowed only when stage is SIGNED_AGREEMENT_RECEIVED. Version auto-increments per (companyId, documentType).
    */
   async generateAdminAgreementFinalUploadUrl(
-    dto: AdminAgreementDraftUploadDto,
+    dto: AdminAgreementFinalUploadDto,
     user: { id: string; role: UserRole },
   ) {
     if (
@@ -1514,6 +1524,13 @@ export class DocumentsService {
     ) {
       throw new ForbiddenException(
         'Only SUPER_ADMIN, ADMIN, or MANAGER can upload final agreements',
+      );
+    }
+
+    const documentType = (dto.documentType ?? 'AGREEMENT_FINAL') as DocumentType;
+    if (!(ADMIN_POST_AGREEMENT_DOC_TYPES as readonly DocumentType[]).includes(documentType)) {
+      throw new BadRequestException(
+        `documentType must be one of: ${ADMIN_POST_AGREEMENT_DOC_TYPES.join(', ')}`,
       );
     }
 
@@ -1531,21 +1548,21 @@ export class DocumentsService {
       'Signed agreement required before final document upload',
     );
 
-    const previousFinal = await this.db.document.findFirst({
+    const previousDoc = await this.db.document.findFirst({
       where: {
         clientProfileId: dto.companyId,
-        documentType: DocumentType.AGREEMENT_FINAL,
+        documentType,
       },
       orderBy: { version: 'desc' },
       select: { id: true, version: true },
     });
-    const version = previousFinal ? previousFinal.version + 1 : 1;
-    const replacesId = previousFinal?.id ?? null;
+    const version = previousDoc ? previousDoc.version + 1 : 1;
+    const replacesId = previousDoc?.id ?? null;
 
     const uuid = randomUUID();
     const fileKey = this.r2Service.generateFileKey(
       dto.companyId,
-      DocumentType.AGREEMENT_FINAL,
+      documentType,
       dto.fileName,
       uuid,
     );
@@ -1558,7 +1575,7 @@ export class DocumentsService {
         documentOwner: 'ADMIN',
         fileName: dto.fileName,
         fileKey,
-        documentType: DocumentType.AGREEMENT_FINAL,
+        documentType,
         fileSize: dto.fileSize,
         mimeType: dto.mimeType,
         status: DocumentStatus.APPROVED,
@@ -1593,12 +1610,13 @@ export class DocumentsService {
 
   /**
    * POST /documents/admin/agreement-final-upload
-   * Proxy upload for final agreement. Avoids CORS.
+   * Proxy upload for a post-agreement document. Avoids CORS. Only AGREEMENT_FINAL triggers notify + stage change.
    */
   async uploadAdminAgreementFinalProxy(
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     companyId: string,
     user: { id: string; role: UserRole },
+    documentTypeParam: string = 'AGREEMENT_FINAL',
   ): Promise<{ documentId: string }> {
     if (
       user.role !== UserRole.SUPER_ADMIN &&
@@ -1607,6 +1625,13 @@ export class DocumentsService {
     ) {
       throw new ForbiddenException(
         'Only SUPER_ADMIN, ADMIN, or MANAGER can upload final agreements',
+      );
+    }
+
+    const documentType = documentTypeParam as DocumentType;
+    if (!(ADMIN_POST_AGREEMENT_DOC_TYPES as readonly DocumentType[]).includes(documentType)) {
+      throw new BadRequestException(
+        `documentType must be one of: ${ADMIN_POST_AGREEMENT_DOC_TYPES.join(', ')}`,
       );
     }
 
@@ -1636,16 +1661,16 @@ export class DocumentsService {
       throw new BadRequestException('File size exceeds maximum of 10MB');
     }
 
-    const previousFinal = await this.db.document.findFirst({
+    const previousDoc = await this.db.document.findFirst({
       where: {
         clientProfileId: companyId,
-        documentType: DocumentType.AGREEMENT_FINAL,
+        documentType,
       },
       orderBy: { version: 'desc' },
       select: { id: true, version: true },
     });
-    const version = previousFinal ? previousFinal.version + 1 : 1;
-    const replacesId = previousFinal?.id ?? null;
+    const version = previousDoc ? previousDoc.version + 1 : 1;
+    const replacesId = previousDoc?.id ?? null;
 
     const uuid = randomUUID();
     const sanitizedFileName = (file.originalname || 'document')
@@ -1653,7 +1678,7 @@ export class DocumentsService {
       .slice(0, 255);
     const fileKey = this.r2Service.generateFileKey(
       companyId,
-      DocumentType.AGREEMENT_FINAL,
+      documentType,
       sanitizedFileName,
       uuid,
     );
@@ -1672,7 +1697,7 @@ export class DocumentsService {
         documentOwner: 'ADMIN',
         fileName: file.originalname || 'document',
         fileKey,
-        documentType: DocumentType.AGREEMENT_FINAL,
+        documentType,
         fileSize: file.size,
         mimeType: file.mimetype || null,
         status: DocumentStatus.APPROVED,
@@ -1691,7 +1716,9 @@ export class DocumentsService {
       changes: { fileName: file.originalname, fileKey },
     });
 
-    await this.notifyAgreementFinalShared(document.id, user);
+    if (documentType === DocumentType.AGREEMENT_FINAL) {
+      await this.notifyAgreementFinalShared(document.id, user);
+    }
 
     return { documentId: document.id };
   }

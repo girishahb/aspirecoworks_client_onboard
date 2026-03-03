@@ -182,13 +182,27 @@ export async function notifyAgreementFinalShared(documentId: string): Promise<{ 
   );
 }
 
+/** Document types admin can upload after signed agreement. Only AGREEMENT_FINAL triggers notify + stage change. */
+export type AdminPostAgreementDocumentType =
+  | 'AGREEMENT_FINAL'
+  | 'NOC_ASPIRE_COWORKS'
+  | 'NOC_LANDLORD'
+  | 'ELECTRICITY_BILL'
+  | 'WIFI_BILL';
+
 /**
- * Upload final agreement file for a company via proxy (avoids CORS).
+ * Upload a post-agreement document for a company via proxy (avoids CORS).
+ * documentType defaults to AGREEMENT_FINAL. Only AGREEMENT_FINAL triggers client email and stage change.
  */
-export async function uploadFinalAgreement(companyId: string, file: File): Promise<void> {
+export async function uploadFinalAgreement(
+  companyId: string,
+  file: File,
+  documentType: AdminPostAgreementDocumentType = 'AGREEMENT_FINAL',
+): Promise<void> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('companyId', companyId);
+  formData.append('documentType', documentType);
 
   const res = await apiRequest('/documents/admin/agreement-final-upload', {
     method: 'POST',
