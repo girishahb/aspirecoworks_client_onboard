@@ -99,7 +99,7 @@ The client Dashboard shows **account activation status** (green Active / red Ina
    npm install
    npm run dev
    ```
-   Ensure `frontend/.env` has `VITE_API_BASE_URL=http://localhost:3000` (or your backend URL).
+   Ensure `frontend/.env` has `VITE_API_URL=http://localhost:3000` (or your backend URL).
 
 2. **Ensure DB is migrated and seeded**
    ```bash
@@ -135,7 +135,7 @@ The admin area includes: **Admin Login**, **Admin Dashboard** (companies table),
    cd frontend
    npm run dev
    ```
-   Ensure `frontend/.env` has `VITE_API_BASE_URL=http://localhost:3000`.
+   Ensure `frontend/.env` has `VITE_API_URL=http://localhost:3000`.
 
 2. **DB migrated and seeded**
    ```bash

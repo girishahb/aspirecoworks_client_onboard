@@ -9,10 +9,12 @@ Ensure Razorpay webhook is configured exactly:
 ```
 https://aspirecoworks-client-onboard.onrender.com/webhooks/razorpay
 ```
+(or `https://api.aspirecoworks.in/webhooks/razorpay` for production)
 
 - No trailing slash
 - Must be HTTPS
 - Path is `/webhooks/razorpay` (not `/webhook` or `/payment/webhook`)
+- **One webhook only**: This single endpoint handles both company payments and public bookings. Do not create a separate webhook for `/public/webhook`.
 
 ## 2. RAZORPAY_WEBHOOK_SECRET (Most Common Issue)
 

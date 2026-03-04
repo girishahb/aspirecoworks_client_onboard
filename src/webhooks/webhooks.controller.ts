@@ -14,6 +14,8 @@ import { RazorpayService } from '../payments/razorpay.service';
 import { PaymentsService } from '../payments/payments.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { InvoicesService } from '../invoices/invoices.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { PublicBookingsService } from '../public-bookings/public-bookings.service';
 import type { Request } from 'express';
 
 const HANDLED_EVENTS = ['payment.captured', 'order.paid', 'payment_link.paid'];
@@ -28,6 +30,8 @@ export class WebhooksController {
     private readonly paymentsService: PaymentsService,
     private readonly onboardingService: OnboardingService,
     private readonly invoicesService: InvoicesService,
+    private readonly prisma: PrismaService,
+    private readonly publicBookingsService: PublicBookingsService,
   ) {}
 
   @Post('razorpay')
@@ -175,6 +179,26 @@ export class WebhooksController {
     }
 
     if (!payment) {
+      // Check if this is a public booking order – process here so only one webhook URL is needed
+      const razorpayOrderId =
+        orderEntity?.id ?? paymentEntity?.order_id ?? payload.payload?.order?.entity?.id;
+      if (razorpayOrderId) {
+        const booking = await this.prisma.booking.findUnique({
+          where: { razorpayOrderId },
+        });
+        if (booking) {
+          this.logger.log(`Razorpay webhook: processing public booking ${booking.id}`);
+          const result = await this.publicBookingsService.handlePaymentSuccess(
+            rawBodyStr,
+            signature!,
+          );
+          return {
+            ok: true,
+            message: 'Public booking confirmed',
+            ...result,
+          };
+        }
+      }
       this.logger.warn(
         `Razorpay webhook: no matching payment for razorpayPaymentId=${razorpayPaymentId}, companyId=${companyId ?? 'n/a'}, plinkId=${razorpayPaymentLinkId ?? 'n/a'}`,
       );

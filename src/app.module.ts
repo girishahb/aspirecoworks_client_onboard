@@ -19,6 +19,8 @@ import { RenewalsModule } from './renewals/renewals.module';
 import { HealthModule } from './health/health.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { PublicBookingsModule } from './public-bookings/public-bookings.module';
+import { AdminBookingsModule } from './admin-bookings/admin-bookings.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -52,6 +54,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     HealthModule,
     InvoicesModule,
     WebhooksModule,
+    PublicBookingsModule,
+    AdminBookingsModule,
   ],
   controllers: [],
   providers: [

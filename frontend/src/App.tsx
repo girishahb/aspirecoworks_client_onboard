@@ -21,6 +21,9 @@ import AdminCompanyDetail from './pages/AdminCompanyDetail';
 import AdminCreateCompany from './pages/AdminCreateCompany';
 import AdminAuditLog from './pages/AdminAuditLog';
 import AdminPayments from './pages/AdminPayments';
+import AdminBookings from './pages/AdminBookings';
+import Book from './pages/Book';
+import BookSuccess from './pages/BookSuccess';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -33,6 +36,9 @@ export default function App() {
         <Route path="set-password" element={<SetPassword />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
+        <Route path="book" element={<Book />} />
+        <Route path="book/success" element={<BookSuccess />} />
+        <Route path="booking-success" element={<BookSuccess />} />
         <Route path="privacy-policy" element={<PrivacyPolicy />} />
         <Route path="terms-of-service" element={<TermsOfService />} />
         <Route element={<ProtectedRoute />}>
@@ -51,6 +57,7 @@ export default function App() {
             <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
             <Route path="audit-log" element={<AdminAuditLog />} />
             <Route path="payments" element={<AdminPayments />} />
+            <Route path="bookings" element={<AdminBookings />} />
             <Route path="invoices" element={<AdminInvoices />} />
           </Route>
         </Route>

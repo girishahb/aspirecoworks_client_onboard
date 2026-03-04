@@ -69,6 +69,24 @@ export class RazorpayService {
    * Logs companyId, amount, and environment mode for safety.
    */
   /**
+   * Extract user-friendly message from Razorpay SDK errors.
+   */
+  private extractRazorpayError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'object' && error !== null) {
+      const e = error as Record<string, unknown>;
+      if (typeof e.description === 'string') return e.description;
+      if (e.error && typeof e.error === 'object') {
+        const err = (e.error as Record<string, unknown>);
+        if (typeof err.description === 'string') return err.description;
+        if (typeof err.reason === 'string') return err.reason;
+      }
+      if (typeof e.message === 'string') return e.message;
+    }
+    return 'Unknown error. Check RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, and RAZORPAY_MODE (use "test" for local dev).';
+  }
+
+  /**
    * Get diagnostics for troubleshooting (e.g. which env vars are missing).
    * Do not log keySecret or webhookSecret.
    */
@@ -78,6 +96,45 @@ export class RazorpayService {
       keySecretSet: !!this.keySecret,
       mode: this.mode,
     };
+  }
+
+  /**
+   * Create a Razorpay order for Standard Checkout (e.g. public bookings).
+   * Returns order_id for frontend Razorpay.js capture.
+   */
+  async createOrder(params: {
+    amount: number;
+    currency?: string;
+    receipt?: string;
+    notes?: Record<string, string>;
+  }): Promise<{ id: string; amount: number; currency: string }> {
+    if (!this.isConfigured()) {
+      const status = this.getConfigStatus();
+      throw new BadRequestException(
+        'Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET. ' +
+          `(keyId: ${status.keyIdSet ? 'set' : 'missing'}, keySecret: ${status.keySecretSet ? 'set' : 'missing'})`,
+      );
+    }
+
+    const options: any = {
+      amount: params.amount * 100, // Razorpay expects amount in paise
+      currency: params.currency || 'INR',
+      receipt: params.receipt || `rcpt_${Date.now()}`,
+      notes: params.notes || {},
+    };
+
+    try {
+      const order: any = await this.razorpayClient.orders.create(options);
+      return {
+        id: order.id,
+        amount: order.amount / 100,
+        currency: order.currency,
+      };
+    } catch (error: any) {
+      this.logger.error('Failed to create Razorpay order', error);
+      const msg = this.extractRazorpayError(error);
+      throw new BadRequestException(`Failed to create order: ${msg}`);
+    }
   }
 
   async createPaymentLink(params: {
