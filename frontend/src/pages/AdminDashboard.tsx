@@ -126,6 +126,8 @@ export default function AdminDashboard() {
         {' · '}
         <Link to="/admin/bookings">Bookings</Link>
         {' · '}
+        <Link to="/admin/pricing">Pricing</Link>
+        {' · '}
         <Link to="/admin/invoices">Invoices</Link>
         {' · '}
         <Link to="/admin/audit-log">Audit log</Link>

@@ -47,6 +47,76 @@ export class AdminPricingController {
     return p;
   }
 
+  @Post('campaign')
+  @ApiOperation({ summary: 'Bulk update pricing by resource type' })
+  @ApiResponse({ status: 200, description: 'Campaign pricing applied' })
+  async applyCampaign(
+    @Body()
+    body: {
+      conferenceHourly?: number;
+      discussionHourly?: number;
+      dayPassPrice?: number;
+    },
+  ) {
+    let updated = 0;
+
+    if (body.conferenceHourly != null && body.conferenceHourly >= 0) {
+      const resources = await this.prisma.resource.findMany({
+        where: { type: 'CONFERENCE_ROOM' },
+      });
+      for (const res of resources) {
+        await this.prisma.pricing.upsert({
+          where: { resourceId: res.id },
+          create: {
+            resourceId: res.id,
+            hourlyPrice: body.conferenceHourly,
+            dayPrice: null,
+          },
+          update: { hourlyPrice: body.conferenceHourly, dayPrice: null },
+        });
+        updated++;
+      }
+    }
+
+    if (body.discussionHourly != null && body.discussionHourly >= 0) {
+      const resources = await this.prisma.resource.findMany({
+        where: { type: 'DISCUSSION_ROOM' },
+      });
+      for (const res of resources) {
+        await this.prisma.pricing.upsert({
+          where: { resourceId: res.id },
+          create: {
+            resourceId: res.id,
+            hourlyPrice: body.discussionHourly,
+            dayPrice: null,
+          },
+          update: { hourlyPrice: body.discussionHourly, dayPrice: null },
+        });
+        updated++;
+      }
+    }
+
+    if (body.dayPassPrice != null && body.dayPassPrice >= 0) {
+      const resources = await this.prisma.resource.findMany({
+        where: { type: 'DAY_PASS_DESK' },
+      });
+      for (const res of resources) {
+        await this.prisma.pricing.upsert({
+          where: { resourceId: res.id },
+          create: {
+            resourceId: res.id,
+            hourlyPrice: null,
+            dayPrice: body.dayPassPrice,
+          },
+          update: { hourlyPrice: null, dayPrice: body.dayPassPrice },
+        });
+        updated++;
+      }
+    }
+
+    return { updated };
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create pricing' })
   @ApiResponse({ status: 201, description: 'Pricing created' })

@@ -22,6 +22,7 @@ import AdminCreateCompany from './pages/AdminCreateCompany';
 import AdminAuditLog from './pages/AdminAuditLog';
 import AdminPayments from './pages/AdminPayments';
 import AdminBookings from './pages/AdminBookings';
+import AdminPricing from './pages/AdminPricing';
 import Book from './pages/Book';
 import BookSuccess from './pages/BookSuccess';
 import NotFound from './pages/NotFound';
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="audit-log" element={<AdminAuditLog />} />
             <Route path="payments" element={<AdminPayments />} />
             <Route path="bookings" element={<AdminBookings />} />
+            <Route path="pricing" element={<AdminPricing />} />
             <Route path="invoices" element={<AdminInvoices />} />
           </Route>
         </Route>
