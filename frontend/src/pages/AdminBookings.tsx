@@ -199,6 +199,18 @@ export default function AdminBookings() {
           </Link>
           <span>·</span>
           <span className="text-text">Bookings</span>
+          <span>·</span>
+          <Link to="/admin/pricing" className="hover:text-primary">
+            Pricing
+          </Link>
+          <span>·</span>
+          <Link to="/admin/invoices" className="hover:text-primary">
+            Invoices
+          </Link>
+          <span>·</span>
+          <Link to="/admin/audit-log" className="hover:text-primary">
+            Audit log
+          </Link>
         </div>
 
         <h1 className="mb-8 text-2xl font-bold text-text">Booking Monitor</h1>
