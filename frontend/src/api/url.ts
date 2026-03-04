@@ -1,12 +1,20 @@
 /**
  * Backend API base URL from environment.
- * Production default: https://api.aspirecoworks.in
- * Set VITE_API_URL to override (e.g. http://localhost:3000 for local dev).
+ * - VITE_API_URL: explicit override (e.g. http://localhost:3000)
+ * - Dev mode (npm run dev): defaults to http://localhost:3000
+ * - Production: defaults to https://api.aspirecoworks.in
  */
-const API_BASE =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL
-    ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
-    : 'https://api.aspirecoworks.in';
+function getApiBase(): string {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return String(import.meta.env.VITE_API_URL).replace(/\/$/, '');
+  }
+  // In Vite dev mode, default to local backend
+  if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+    return 'http://localhost:3000';
+  }
+  return 'https://api.aspirecoworks.in';
+}
+const API_BASE = getApiBase();
 
 /**
  * Build a full API URL from a path.

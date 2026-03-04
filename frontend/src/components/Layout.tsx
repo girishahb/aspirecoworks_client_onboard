@@ -30,6 +30,7 @@ export default function Layout() {
           <nav className="flex flex-wrap items-center gap-6 text-sm font-medium">
             {authenticated ? (
               <>
+                <Link to="/book" className="transition-colors hover:opacity-80" style={{ color: '#134b7f' }}>Book</Link>
                 <Link to="/dashboard" className="transition-colors hover:opacity-80" style={{ color: '#134b7f' }}>Dashboard</Link>
                 {isAdmin ? (
                   <Link to="/admin/dashboard" className="transition-colors hover:opacity-80" style={{ color: '#134b7f' }}>Admin</Link>
@@ -47,6 +48,7 @@ export default function Layout() {
               </>
             ) : (
               <>
+                <Link to="/book" className="transition-colors hover:opacity-80" style={{ color: '#134b7f' }}>Book</Link>
                 <Link to="/login" className="transition-colors hover:opacity-80" style={{ color: '#134b7f' }}>Login</Link>
                 <Link to="/signup" className="transition-colors hover:opacity-80" style={{ color: '#134b7f' }}>Signup</Link>
                 <Link to="/dashboard" className="transition-colors hover:opacity-80" style={{ color: '#134b7f' }}>Dashboard</Link>

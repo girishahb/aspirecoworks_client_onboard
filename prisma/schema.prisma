@@ -311,3 +311,85 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// ============ Public Slot-Based Booking System ============
+
+enum ResourceType {
+  CONFERENCE_ROOM
+  DISCUSSION_ROOM
+  DAY_PASS_DESK
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Location {
+  id        String     @id @default(uuid())
+  name      String
+  address   String
+  resources Resource[]
+  createdAt DateTime   @default(now())
+
+  @@map("locations")
+}
+
+model Resource {
+  id         String   @id @default(uuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+  type       ResourceType
+  capacity   Int
+  isActive   Boolean  @default(true)
+  pricing    Pricing?
+  bookings   Booking[]
+
+  @@index([locationId])
+  @@map("resources")
+}
+
+model TimeSlot {
+  id        String    @id @default(uuid())
+  startTime String
+  endTime   String
+  isFullDay Boolean   @default(false) // true for Day Pass full-day slot
+  isActive  Boolean   @default(true)
+  bookings  Booking[]
+
+  @@map("time_slots")
+}
+
+model Pricing {
+  id          String   @id @default(uuid())
+  resourceId  String   @unique
+  resource    Resource @relation(fields: [resourceId], references: [id])
+  hourlyPrice Float?
+  dayPrice    Float?
+  updatedAt   DateTime @updatedAt
+
+  @@map("pricing")
+}
+
+model Booking {
+  id               String        @id @default(uuid())
+  resourceId       String
+  resource         Resource      @relation(fields: [resourceId], references: [id])
+  date             DateTime      @db.Date
+  timeSlotId       String?
+  timeSlot         TimeSlot?     @relation(fields: [timeSlotId], references: [id])
+  quantity         Int          @default(1)
+  name             String
+  email            String
+  phone            String
+  amountPaid       Float
+  razorpayOrderId  String?       @unique
+  paymentId        String?
+  status           BookingStatus @default(PENDING)
+  createdAt        DateTime      @default(now())
+
+  @@index([resourceId, date, timeSlotId, status])
+  @@index([razorpayOrderId])
+  @@map("bookings")
+}

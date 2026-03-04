@@ -178,6 +178,8 @@ export default function AdminPayments() {
         {' · '}
         <Link to="/admin/payments">Payments</Link>
         {' · '}
+        <Link to="/admin/bookings">Bookings</Link>
+        {' · '}
         <Link to="/admin/audit-log">Audit log</Link>
       </div>
       <h1>Payment Dashboard</h1>

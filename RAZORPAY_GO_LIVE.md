@@ -49,12 +49,12 @@ RAZORPAY_MODE=test
 ### Webhook Secret
 
 1. Go to **Settings** → **Webhooks**
-2. Create a webhook URL pointing to: `https://yourdomain.com/webhooks/razorpay`
+2. Create **one** webhook URL: `https://yourdomain.com/webhooks/razorpay`
 3. Select events: **payment.captured**, **order.paid**, **payment_link.paid** (required when using Payment Links)
 4. Copy the **Webhook Secret** (shown only once)
 5. Set `RAZORPAY_WEBHOOK_SECRET` in your environment
 
-**Note**: Webhook signature verification requires the raw request body. The app is configured to use raw body for `POST /webhooks/razorpay` only.
+**Note**: The single `/webhooks/razorpay` endpoint handles both **company onboarding payments** and **public workspace bookings**. Do not create a separate webhook for `/public/webhook`—use only `/webhooks/razorpay`.
 
 **Testing locally:** Use a tunnel (e.g. [ngrok](https://ngrok.com)) and set the webhook URL to `https://<tunnel>/webhooks/razorpay`, or run the script `npm run scripts:test-razorpay-webhook -- --companyId=<uuid>` to send a signed test payload to `http://localhost:3000/webhooks/razorpay`. See **TESTING_GUIDE.md** for details.
 
@@ -100,16 +100,33 @@ NODE_ENV=production
 - The application will log a warning if `RAZORPAY_MODE=live` but `NODE_ENV != production`
 - Always set `NODE_ENV=production` when using live keys
 
-### Step 4: Verification
+### Step 4: Frontend Production Build
+
+For **public booking checkout** (Razorpay Standard Checkout), the frontend needs the live key at **build time**:
+
+Set these as build-time environment variables on your frontend host (e.g. Render, Vercel):
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `VITE_RAZORPAY_KEY_ID` | `rzp_live_xxx` | Same as backend `RAZORPAY_KEY_ID`; Key ID is safe to expose |
+| `VITE_API_URL` | `https://api.aspirecoworks.in` | Optional; production default is already this |
+
+The Key ID is public (Razorpay expects it in the browser). The **secret** stays backend-only.
+
+### Step 5: CORS
+
+The backend allows `https://app.aspirecoworks.in` by default. If your frontend runs on a different domain (e.g. `https://yourapp.onrender.com`), add that origin to the `origin` array in [src/main.ts](src/main.ts).
+
+### Step 6: Verification
 
 After switching to live mode:
 
 1. **Check logs** for: `Razorpay running in LIVE mode`
 2. **Test health endpoint**: `GET /health` should show `razorpayMode: "live"`
 3. **Create a test payment** (small amount) to verify:
-   - Payment link creation
-   - Webhook signature verification
-   - Invoice generation
+   - Company payment link creation and webhook
+   - Public booking (Book → Proceed to Pay) and webhook
+   - Invoice generation (company payments)
    - Email delivery
 
 ## Safety Features

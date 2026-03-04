@@ -11,8 +11,9 @@ import { SKIP_VALIDATION_KEY } from './common/pipes/zod-validation.pipe';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Razorpay webhook needs raw body for signature verification - register first for specific path
+  // Razorpay webhooks need raw body for signature verification - register first for specific paths
   app.use('/webhooks/razorpay', express.raw({ type: 'application/json' }));
+  app.use('/public/webhook', express.raw({ type: 'application/json' }));
 
   // JSON parser for all routes (must be before our debug middleware)
   app.use(express.json({

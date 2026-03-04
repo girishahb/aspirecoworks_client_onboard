@@ -34,6 +34,9 @@
     "scripts:test-renewals": "ts-node scripts/test-renewals.ts",
     "scripts:test-email": "ts-node scripts/test-email.ts",
     "scripts:test-razorpay-webhook": "ts-node scripts/test-razorpay-webhook.ts",
+    "scripts:test-availability-api": "ts-node scripts/test-availability-api.ts",
+    "scripts:test-booking-scenarios": "ts-node scripts/test-booking-scenarios.ts",
+    "scripts:update-campaign-pricing": "ts-node scripts/update-campaign-pricing.ts",
     "backup:db": "bash scripts/backup-db.sh",
     "backup:db:win": "powershell -ExecutionPolicy Bypass -File scripts/backup-db.ps1"
   },
