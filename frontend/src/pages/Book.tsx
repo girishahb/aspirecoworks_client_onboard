@@ -504,27 +504,66 @@ export default function Book() {
                         <div key={i} className="h-12 rounded-xl bg-slate-100 animate-pulse" />
                       ))}
                     </div>
-                  ) : pricing?.availableSlots?.length === 0 ? (
+                  ) : !pricing?.availableSlots?.length && !pricing?.slotAvailability?.length ? (
                     <p className="text-amber-600 py-4">No slots available for this date.</p>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {pricing?.availableSlots?.map((slot) => {
+                      {(pricing?.slotAvailability?.length
+                        ? pricing.slotAvailability.map((sa) => ({
+                            id: sa.slotId,
+                            startTime: sa.startTime,
+                            endTime: sa.endTime,
+                            isFullDay: isDesk,
+                            isActive: true,
+                            remaining: sa.remaining,
+                            isFull: sa.isFull,
+                          }))
+                        : pricing?.availableSlots?.map((s) => ({
+                            ...s,
+                            remaining: isDesk ? (pricing?.remainingCapacity ?? null) : null,
+                            isFull: false,
+                          })) ?? []
+                      ).map((slot) => {
+                        const isFull = 'isFull' in slot && slot.isFull;
+                        const remaining = 'remaining' in slot ? slot.remaining : null;
                         const isSelected = selectedSlots.some((s) => s.id === slot.id);
+                        const slotForSelect = {
+                          id: slot.id,
+                          startTime: slot.startTime,
+                          endTime: slot.endTime,
+                          isFullDay: isDesk,
+                          isActive: true,
+                        };
                         return (
                           <motion.button
                             key={slot.id}
                             type="button"
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => handleSlotSelect(slot)}
+                            whileTap={isFull ? undefined : { scale: 0.98 }}
+                            onClick={() => !isFull && handleSlotSelect(slotForSelect)}
+                            disabled={isFull}
                             className={cn(
                               'py-3 rounded-xl font-medium text-sm transition-all',
-                              isSelected
-                                ? 'bg-indigo-600 text-white ring-2 ring-indigo-600 ring-offset-2'
-                                : 'border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                              isFull &&
+                                'cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200',
+                              !isFull &&
+                                (isSelected
+                                  ? 'bg-indigo-600 text-white ring-2 ring-indigo-600 ring-offset-2'
+                                  : 'border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50')
                             )}
                           >
                             {slot.startTime} – {slot.endTime}
-                            {isDesk && pricing?.remainingCapacity != null && (
+                            {isFull && (
+                              <span className="block text-xs mt-1 font-medium">Full</span>
+                            )}
+                            {!isFull &&
+                              remaining != null &&
+                              remaining > 0 &&
+                              remaining < 3 && (
+                                <span className="block text-xs mt-1 opacity-80">
+                                  Only {remaining} left
+                                </span>
+                              )}
+                            {isDesk && !isFull && pricing?.remainingCapacity != null && remaining == null && (
                               <span className="block text-xs mt-1 opacity-80">
                                 {pricing.remainingCapacity} left
                               </span>

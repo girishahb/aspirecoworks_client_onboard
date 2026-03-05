@@ -49,6 +49,18 @@ export class PublicBookingsController {
     return this.service.getTimeSlots();
   }
 
+  @Get('availability')
+  @Public()
+  @ApiOperation({ summary: 'Slot-level availability for a resource on a date' })
+  @ApiResponse({ status: 200, description: 'Slots with capacity, booked, remaining, isFull' })
+  @ApiResponse({ status: 404, description: 'Resource not found' })
+  getAvailability(
+    @Query('resourceId') resourceId: string,
+    @Query('date') date: string,
+  ) {
+    return this.service.getSlotAvailability(resourceId, date);
+  }
+
   @Get('pricing/:resourceId')
   @Public()
   @ApiOperation({ summary: 'Get pricing and available slots' })

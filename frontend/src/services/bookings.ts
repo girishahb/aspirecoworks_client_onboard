@@ -27,11 +27,23 @@ export interface TimeSlot {
   isActive: boolean;
 }
 
+export interface SlotAvailability {
+  slotId: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  booked: number;
+  remaining: number;
+  isFull: boolean;
+}
+
 export interface PricingResponse {
   resource: Resource & { location: { id: string; name: string; address: string } };
   pricing: { hourlyPrice: number | null; dayPrice: number | null } | null;
   availableSlots: TimeSlot[];
   remainingCapacity?: number | null;
+  /** Slot-level availability when date is provided. Only CONFIRMED bookings count. */
+  slotAvailability?: SlotAvailability[] | null;
 }
 
 export interface CreateOrderRequest {

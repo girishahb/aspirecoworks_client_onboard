@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { EmailService } from '../email/email.service';
@@ -62,9 +63,11 @@ export class PublicBookingsService {
 
     let availableSlots = slots;
     let remainingCapacity: number | null = null;
+    let slotAvailability: Array<{ slotId: string; startTime: string; endTime: string; capacity: number; booked: number; remaining: number; isFull: boolean }> | null = null;
     if (date) {
       const availability = await this.getAvailabilityForDate(resource, date);
       availableSlots = slots.filter((s) => availability[s.id] !== false);
+      slotAvailability = await this.getSlotAvailability(resourceId, date);
       if (isDesk && availableSlots.length > 0) {
         const slot = availableSlots[0];
         const { total } = await this.getDeskCapacityUsed(resource.id, new Date(date), slot.id);
@@ -87,7 +90,96 @@ export class PublicBookingsService {
         : null,
       availableSlots,
       remainingCapacity,
+      slotAvailability,
     };
+  }
+
+  /**
+   * Slot-level availability for a resource on a date.
+   * Only CONFIRMED bookings count. Reusable for API and internal logic.
+   */
+  async getSlotAvailability(
+    resourceId: string,
+    dateStr: string,
+  ): Promise<
+    Array<{
+      slotId: string;
+      startTime: string;
+      endTime: string;
+      capacity: number;
+      booked: number;
+      remaining: number;
+      isFull: boolean;
+    }>
+  > {
+    if (!dateStr || !dateStr.trim()) {
+      throw new BadRequestException('date query is required (YYYY-MM-DD)');
+    }
+    const resource = await this.prisma.resource.findUnique({
+      where: { id: resourceId },
+    });
+    if (!resource || !resource.isActive) {
+      throw new NotFoundException('Resource not found or inactive');
+    }
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+
+    const isDesk = resource.type === 'DAY_PASS_DESK';
+    const slots = await this.prisma.timeSlot.findMany({
+      where: { isActive: true },
+      orderBy: [{ startTime: 'asc' }],
+    });
+    const relevantSlots = isDesk
+      ? slots.filter((s) => (s as any).isFullDay === true)
+      : slots.filter((s) => (s as any).isFullDay !== true);
+
+    const result: Array<{
+      slotId: string;
+      startTime: string;
+      endTime: string;
+      capacity: number;
+      booked: number;
+      remaining: number;
+      isFull: boolean;
+    }> = [];
+
+    for (const slot of relevantSlots) {
+      let booked: number;
+      if (isDesk) {
+        const agg = await this.prisma.booking.aggregate({
+          where: {
+            resourceId,
+            date,
+            timeSlotId: slot.id,
+            status: 'CONFIRMED',
+          },
+          _sum: { quantity: true },
+        });
+        booked = agg._sum.quantity ?? 0;
+      } else {
+        const count = await this.prisma.booking.count({
+          where: {
+            resourceId,
+            date,
+            timeSlotId: slot.id,
+            status: 'CONFIRMED',
+          },
+        });
+        booked = count;
+      }
+      const capacity = resource.capacity;
+      const remaining = Math.max(0, capacity - booked);
+      result.push({
+        slotId: slot.id,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        capacity,
+        booked,
+        remaining,
+        isFull: remaining <= 0,
+      });
+    }
+    return result;
   }
 
   /**
@@ -195,6 +287,41 @@ export class PublicBookingsService {
   }
 
   /**
+   * Expire stale PENDING bookings (expiresAt in the past). Only CONFIRMED bookings block seats.
+   */
+  private async expireStalePendingBookings(): Promise<void> {
+    const result = await this.prisma.booking.updateMany({
+      where: {
+        status: 'PENDING',
+        expiresAt: { lt: new Date() },
+      },
+      data: { status: 'CANCELLED' },
+    });
+    if (result.count > 0) {
+      this.logger.log(`Expired ${result.count} stale PENDING booking(s)`);
+    }
+  }
+
+  /**
+   * Every 5 minutes: expire PENDING bookings that have passed their expiresAt (or are older than 15 min as safety).
+   */
+  @Cron('*/5 * * * *', { name: 'expire-pending-bookings' })
+  async runExpirePendingBookings(): Promise<void> {
+    await this.expireStalePendingBookings();
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const result = await this.prisma.booking.updateMany({
+      where: {
+        status: 'PENDING',
+        createdAt: { lt: fifteenMinAgo },
+      },
+      data: { status: 'CANCELLED' },
+    });
+    if (result.count > 0) {
+      this.logger.log(`Expired ${result.count} PENDING booking(s) older than 15 minutes`);
+    }
+  }
+
+  /**
    * Create Razorpay order and save PENDING booking(s).
    * Supports multiple slots (timeSlotIds): one order, one booking per slot; all share same razorpayOrderId.
    */
@@ -248,6 +375,8 @@ export class PublicBookingsService {
     // For desks, only one slot (full day) is used
     const effectiveSlotIds = isDesk ? [slotIds[0]] : slotIds;
 
+    await this.expireStalePendingBookings();
+
     let totalAmount: number;
     const hourlyPrice = resource.pricing.hourlyPrice ?? 0;
     const dayPrice = resource.pricing.dayPrice ?? 0;
@@ -279,6 +408,7 @@ export class PublicBookingsService {
       notes: {},
     });
 
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
     const perSlotAmount = isDesk ? totalAmount : totalAmount / effectiveSlotIds.length;
     const first = await this.prisma.booking.create({
       data: {
@@ -292,6 +422,7 @@ export class PublicBookingsService {
         amountPaid: isDesk ? totalAmount : perSlotAmount,
         razorpayOrderId: order.id,
         status: 'PENDING',
+        expiresAt,
       },
     });
 
@@ -308,6 +439,7 @@ export class PublicBookingsService {
           amountPaid: perSlotAmount,
           razorpayOrderId: order.id,
           status: 'PENDING',
+          expiresAt,
         },
       });
     }
