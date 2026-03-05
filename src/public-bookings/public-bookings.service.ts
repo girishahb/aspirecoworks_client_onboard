@@ -237,8 +237,8 @@ export class PublicBookingsService {
 
     const isDesk = resource.type === 'DAY_PASS_DESK';
     const slotIds: string[] =
-      dto.timeSlotIds?.length > 0
-        ? dto.timeSlotIds
+      (dto.timeSlotIds?.length ?? 0) > 0
+        ? dto.timeSlotIds!
         : dto.timeSlotId
           ? [dto.timeSlotId]
           : [];
