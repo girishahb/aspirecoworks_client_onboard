@@ -22,6 +22,13 @@ export class PublicBookingsService {
   ) {}
 
   /**
+   * Get Razorpay Key ID for client-side checkout (public booking). Returns null when not configured.
+   */
+  getRazorpayKeyId(): { keyId: string | null } {
+    return { keyId: this.razorpayService.getKeyId() };
+  }
+
+  /**
    * Get pricing and available slots for a resource.
    * Only returns slots where isActive = true.
    */

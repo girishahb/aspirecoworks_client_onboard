@@ -25,6 +25,14 @@ export class PublicBookingsController {
 
   constructor(private readonly service: PublicBookingsService) {}
 
+  @Get('razorpay-key')
+  @Public()
+  @ApiOperation({ summary: 'Get Razorpay Key ID for client checkout' })
+  @ApiResponse({ status: 200, description: 'Key ID when configured; null otherwise' })
+  getRazorpayKey() {
+    return this.service.getRazorpayKeyId();
+  }
+
   @Get('locations')
   @Public()
   @ApiOperation({ summary: 'List locations' })
