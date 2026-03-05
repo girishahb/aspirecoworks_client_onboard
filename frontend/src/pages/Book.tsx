@@ -329,10 +329,17 @@ export default function Book() {
 
         {/* Stepper */}
         <div className="mb-10">
-          <div className="flex items-center justify-between gap-1 sm:gap-2">
+          {/* Mobile: current step label so it's always visible without scrolling */}
+          <p className="sm:hidden text-center text-sm font-medium text-slate-600 mb-3">
+            Step {step} of {STEPS.length}: {STEPS[step - 1]?.label}
+          </p>
+          <div className="flex items-center gap-1 sm:gap-2 sm:justify-between overflow-x-auto overflow-y-hidden pb-2 -mx-1 px-1 sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0">
             {STEPS.map((s, i) => (
-              <div key={s.id} className="flex flex-1 items-center">
-                <div className="flex flex-col items-center flex-1 min-w-0">
+              <div
+                key={s.id}
+                className="flex flex-1 sm:flex-initial items-center flex-shrink-0 min-w-[52px] sm:min-w-0"
+              >
+                <div className="flex flex-col items-center w-full min-w-[52px] sm:min-w-0 flex-1">
                   <div
                     className={cn(
                       'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all',
@@ -351,7 +358,7 @@ export default function Book() {
                   </div>
                   <span
                     className={cn(
-                      'mt-2 text-xs font-medium truncate w-full text-center',
+                      'mt-2 text-xs font-medium w-full text-center whitespace-nowrap',
                       step >= s.id ? 'text-slate-900' : 'text-slate-400'
                     )}
                   >
@@ -361,7 +368,7 @@ export default function Book() {
                 {i < STEPS.length - 1 && (
                   <div
                     className={cn(
-                      'h-0.5 flex-1 mx-1 min-w-[8px] rounded',
+                      'h-0.5 flex-1 mx-0.5 sm:mx-1 min-w-[6px] sm:min-w-[8px] rounded flex-shrink-0 hidden sm:block',
                       step > s.id ? 'bg-indigo-600' : 'bg-slate-200'
                     )}
                   />
