@@ -65,6 +65,14 @@ export class RazorpayService {
   }
 
   /**
+   * Get the public Key ID for client-side checkout (e.g. public booking).
+   * Safe to expose; secret must stay server-side only.
+   */
+  getKeyId(): string | null {
+    return this.isConfigured() ? this.keyId : null;
+  }
+
+  /**
    * Create a payment link for a company.
    * Logs companyId, amount, and environment mode for safety.
    */

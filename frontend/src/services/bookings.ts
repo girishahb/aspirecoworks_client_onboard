@@ -68,3 +68,9 @@ export async function getPricing(resourceId: string, date?: string): Promise<Pri
 export async function createOrder(data: CreateOrderRequest): Promise<CreateOrderResponse> {
   return apiPost<CreateOrderResponse>('/public/create-order', data);
 }
+
+/** Get Razorpay Key ID for client checkout (from backend when env is not set). */
+export async function getRazorpayKeyId(): Promise<string | null> {
+  const res = await apiGet<{ keyId: string | null }>('/public/razorpay-key');
+  return res?.keyId ?? null;
+}

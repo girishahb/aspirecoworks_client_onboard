@@ -5,6 +5,7 @@ import {
   getLocations,
   getPricing,
   createOrder,
+  getRazorpayKeyId,
   type Location,
   type Resource,
   type TimeSlot,
@@ -204,7 +205,10 @@ export default function Book() {
         phone: phone.trim().replace(/\s/g, ''),
       });
 
-      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? import.meta.env.VITE_RAZORPAY_KEY;
+      let keyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? import.meta.env.VITE_RAZORPAY_KEY;
+      if (!keyId) {
+        keyId = await getRazorpayKeyId();
+      }
       if (!keyId) {
         showToast('Razorpay not configured');
         return;
