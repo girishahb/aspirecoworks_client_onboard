@@ -183,7 +183,7 @@ export class WebhooksController {
       const razorpayOrderId =
         orderEntity?.id ?? paymentEntity?.order_id ?? payload.payload?.order?.entity?.id;
       if (razorpayOrderId) {
-        const booking = await this.prisma.booking.findUnique({
+        const booking = await this.prisma.booking.findFirst({
           where: { razorpayOrderId },
         });
         if (booking) {
