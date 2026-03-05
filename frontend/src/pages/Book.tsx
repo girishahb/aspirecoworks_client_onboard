@@ -77,7 +77,7 @@ export default function Book() {
   const [date, setDate] = useState<Date | undefined>();
   const [pricing, setPricing] = useState<PricingResponse | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -106,21 +106,21 @@ export default function Book() {
   useEffect(() => {
     if (!resource?.id || !debouncedDate) {
       setPricing(null);
-      setSelectedSlot(null);
+      setSelectedSlots([]);
       return;
     }
     setPricingLoading(true);
     setPricing(null);
-    setSelectedSlot(null);
+    setSelectedSlots([]);
     const dateStr = debouncedDate.toISOString().slice(0, 10);
     getPricing(resource.id, dateStr)
       .then((p) => {
         setPricing(p);
-        if (p.availableSlots?.length === 1) setSelectedSlot(p.availableSlots[0]);
+        if (p.availableSlots?.length === 1) setSelectedSlots([p.availableSlots[0]]);
       })
       .catch(() => {
         setPricing(null);
-        setSelectedSlot(null);
+        setSelectedSlots([]);
         showToast('Failed to load availability');
       })
       .finally(() => setPricingLoading(false));
@@ -129,12 +129,16 @@ export default function Book() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const isDesk = resource?.type === 'DAY_PASS_DESK';
-  const effectiveSlot = selectedSlot ?? (isDesk && pricing?.availableSlots?.[0]);
+  const effectiveSlots = selectedSlots.length > 0
+    ? selectedSlots
+    : isDesk && pricing?.availableSlots?.[0]
+      ? [pricing.availableSlots[0]]
+      : [];
   const amount =
-    pricing && effectiveSlot
+    pricing && effectiveSlots.length > 0
       ? isDesk
         ? (pricing.pricing?.dayPrice ?? 0) * quantity
-        : (pricing.pricing?.hourlyPrice ?? 0)
+        : (pricing.pricing?.hourlyPrice ?? 0) * effectiveSlots.length
       : 0;
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -161,7 +165,7 @@ export default function Book() {
       setResource(null);
       setDate(undefined);
       setPricing(null);
-      setSelectedSlot(null);
+      setSelectedSlots([]);
       goNext();
     },
     [goNext]
@@ -173,7 +177,7 @@ export default function Book() {
       setResource(res);
       setDate(undefined);
       setPricing(null);
-      setSelectedSlot(null);
+      setSelectedSlots([]);
       goNext();
     },
     [goNext]
@@ -182,23 +186,31 @@ export default function Book() {
   const handleDateSelect = useCallback(
     (d: Date | undefined) => {
       setDate(d);
-      setSelectedSlot(null);
+      setSelectedSlots([]);
     },
     []
   );
 
-  const handleSlotSelect = useCallback((slot: TimeSlot | null) => {
-    setSelectedSlot(slot);
-  }, []);
+  const handleSlotSelect = useCallback(
+    (slot: TimeSlot) => {
+      setSelectedSlots((prev) => {
+        const inList = prev.some((s) => s.id === slot.id);
+        if (inList) return prev.filter((s) => s.id !== slot.id);
+        if (isDesk) return [slot];
+        return [...prev, slot];
+      });
+    },
+    [isDesk]
+  );
 
   const handlePayment = useCallback(async () => {
-    if (!resource || !date || !validDetails || !effectiveSlot) return;
+    if (!resource || !date || !validDetails || effectiveSlots.length === 0) return;
     setSubmitting(true);
     try {
       const { orderId, amount: orderAmount } = await createOrder({
         resourceId: resource.id,
         date: date.toISOString().slice(0, 10),
-        timeSlotId: effectiveSlot.id,
+        timeSlotIds: effectiveSlots.map((s) => s.id),
         quantity: isDesk ? quantity : 1,
         name: name.trim(),
         email: email.trim(),
@@ -232,12 +244,18 @@ export default function Book() {
         description: 'Workspace Booking',
         prefill: { name: name.trim(), email: email.trim(), contact: phone.trim() },
         handler: () => {
+          const timeSlotText =
+            effectiveSlots.length === 1
+              ? `${effectiveSlots[0].startTime} – ${effectiveSlots[0].endTime}`
+              : effectiveSlots
+                  .map((s) => `${s.startTime}–${s.endTime}`)
+                  .join(', ');
           navigate('/booking-success', {
             state: {
               resourceType: resource.type,
               locationName: location?.name,
               date: date.toISOString().slice(0, 10),
-              timeSlot: effectiveSlot ? `${effectiveSlot.startTime} – ${effectiveSlot.endTime}` : null,
+              timeSlot: timeSlotText,
               quantity: isDesk ? quantity : 1,
               amount: orderAmount,
             },
@@ -254,7 +272,7 @@ export default function Book() {
     } finally {
       setSubmitting(false);
     }
-  }, [resource, date, validDetails, effectiveSlot, quantity, name, email, phone, location?.name, navigate, showToast]);
+  }, [resource, date, validDetails, effectiveSlots, quantity, name, email, phone, location?.name, navigate, showToast]);
 
   if (loading) {
     return (
@@ -491,7 +509,7 @@ export default function Book() {
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {pricing?.availableSlots?.map((slot) => {
-                        const isSelected = selectedSlot?.id === slot.id;
+                        const isSelected = selectedSlots.some((s) => s.id === slot.id);
                         return (
                           <motion.button
                             key={slot.id}
@@ -516,13 +534,18 @@ export default function Book() {
                       })}
                     </div>
                   )}
+                  {!isDesk && selectedSlots.length > 0 && (
+                    <p className="mt-2 text-sm text-slate-500">
+                      {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''} selected
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={goNext}
-                    disabled={!effectiveSlot || pricingLoading}
+                    disabled={effectiveSlots.length === 0 || pricingLoading}
                     className={cn(
                       'mt-6 w-full py-3 rounded-xl font-semibold transition-colors',
-                      effectiveSlot && !pricingLoading
+                      effectiveSlots.length > 0 && !pricingLoading
                         ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                         : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     )}
@@ -666,9 +689,13 @@ export default function Book() {
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-slate-500">Time Slot</dt>
-                      <dd className="font-medium text-slate-900">
-                        {effectiveSlot
-                          ? `${effectiveSlot.startTime} – ${effectiveSlot.endTime}`
+                      <dd className="font-medium text-slate-900 text-right max-w-[60%]">
+                        {effectiveSlots.length > 0
+                          ? effectiveSlots.length === 1
+                            ? `${effectiveSlots[0].startTime} – ${effectiveSlots[0].endTime}`
+                            : effectiveSlots
+                                .map((s) => `${s.startTime}–${s.endTime}`)
+                                .join(', ')
                           : '—'}
                       </dd>
                     </div>
@@ -713,13 +740,13 @@ export default function Book() {
               onClick={goNext}
               disabled={
                 (step === 3 && !date) ||
-                (step === 4 && (!effectiveSlot || pricingLoading)) ||
+                (step === 4 && (effectiveSlots.length === 0 || pricingLoading)) ||
                 (step === 5 && !validDetails)
               }
               className={cn(
                 'w-full py-3 rounded-xl font-semibold transition-colors',
                 (step === 3 && date) ||
-                  (step === 4 && effectiveSlot && !pricingLoading) ||
+                  (step === 4 && effectiveSlots.length > 0 && !pricingLoading) ||
                   (step === 5 && validDetails)
                   ? 'bg-indigo-600 text-white'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'

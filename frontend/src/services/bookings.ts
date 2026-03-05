@@ -38,6 +38,8 @@ export interface CreateOrderRequest {
   resourceId: string;
   date: string;
   timeSlotId?: string;
+  /** Multiple slot IDs (e.g. for room hourly slots). When set, used instead of timeSlotId. */
+  timeSlotIds?: string[];
   quantity: number;
   name: string;
   email: string;

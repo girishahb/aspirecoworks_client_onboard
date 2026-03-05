@@ -384,7 +384,7 @@ model Booking {
   email            String
   phone            String
   amountPaid       Float
-  razorpayOrderId  String?       @unique
+  razorpayOrderId  String?
   paymentId        String?
   status           BookingStatus @default(PENDING)
   createdAt        DateTime      @default(now())

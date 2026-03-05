@@ -195,12 +195,14 @@ export class PublicBookingsService {
   }
 
   /**
-   * Create Razorpay order and save PENDING booking.
+   * Create Razorpay order and save PENDING booking(s).
+   * Supports multiple slots (timeSlotIds): one order, one booking per slot; all share same razorpayOrderId.
    */
   async createOrder(dto: {
     resourceId: string;
     date: string;
     timeSlotId?: string;
+    timeSlotIds?: string[];
     quantity: number;
     name: string;
     email: string;
@@ -233,66 +235,87 @@ export class PublicBookingsService {
       throw new BadRequestException('Pricing not configured for this resource');
     }
 
-    let amount: number;
     const isDesk = resource.type === 'DAY_PASS_DESK';
+    const slotIds: string[] =
+      dto.timeSlotIds?.length > 0
+        ? dto.timeSlotIds
+        : dto.timeSlotId
+          ? [dto.timeSlotId]
+          : [];
+    if (slotIds.length === 0) {
+      throw new BadRequestException('At least one time slot is required');
+    }
+    // For desks, only one slot (full day) is used
+    const effectiveSlotIds = isDesk ? [slotIds[0]] : slotIds;
+
+    let totalAmount: number;
+    const hourlyPrice = resource.pricing.hourlyPrice ?? 0;
+    const dayPrice = resource.pricing.dayPrice ?? 0;
 
     if (isDesk) {
-      const dayPrice = resource.pricing.dayPrice;
-      if (dayPrice == null || dayPrice <= 0) {
+      if (dayPrice <= 0) {
         throw new BadRequestException('Day price not configured for this resource');
       }
-      amount = dayPrice * dto.quantity;
+      totalAmount = dayPrice * dto.quantity;
     } else {
-      const hourlyPrice = resource.pricing.hourlyPrice;
-      if (hourlyPrice == null || hourlyPrice <= 0) {
+      if (hourlyPrice <= 0) {
         throw new BadRequestException('Hourly price not configured for this resource');
       }
-      amount = hourlyPrice * 1; // 1 hour per slot
+      totalAmount = hourlyPrice * effectiveSlotIds.length;
     }
 
-    if (amount <= 0) {
+    if (totalAmount <= 0) {
       throw new BadRequestException('Invalid amount');
     }
 
-    // Check availability (with transaction to reduce race condition window)
-    await this.checkAvailability(
-      dto.resourceId,
-      date,
-      dto.timeSlotId ?? null,
-      dto.quantity,
-    );
+    for (const slotId of effectiveSlotIds) {
+      await this.checkAvailability(dto.resourceId, date, slotId, dto.quantity);
+    }
 
-    // Create Razorpay order
     const order = await this.razorpayService.createOrder({
-      amount,
+      amount: totalAmount,
       currency: 'INR',
       receipt: `book_${Date.now()}`,
-      notes: {}, // Will add bookingId after we create the booking
+      notes: {},
     });
 
-    // Save booking with PENDING status
-    const booking = await this.prisma.booking.create({
+    const perSlotAmount = isDesk ? totalAmount : totalAmount / effectiveSlotIds.length;
+    const first = await this.prisma.booking.create({
       data: {
         resourceId: dto.resourceId,
         date,
-        timeSlotId: dto.timeSlotId ?? null,
+        timeSlotId: effectiveSlotIds[0],
         quantity: dto.quantity,
         name: dto.name,
         email: dto.email,
         phone: dto.phone,
-        amountPaid: amount,
+        amountPaid: isDesk ? totalAmount : perSlotAmount,
         razorpayOrderId: order.id,
         status: 'PENDING',
       },
     });
 
-    // Update Razorpay order notes with bookingId (optional, for webhook fallback)
-    // Razorpay doesn't support updating order notes after creation, so we rely on razorpayOrderId stored in DB
+    for (let i = 1; i < effectiveSlotIds.length; i++) {
+      await this.prisma.booking.create({
+        data: {
+          resourceId: dto.resourceId,
+          date,
+          timeSlotId: effectiveSlotIds[i],
+          quantity: dto.quantity,
+          name: dto.name,
+          email: dto.email,
+          phone: dto.phone,
+          amountPaid: perSlotAmount,
+          razorpayOrderId: order.id,
+          status: 'PENDING',
+        },
+      });
+    }
 
     return {
       orderId: order.id,
       amount: order.amount,
-      bookingId: booking.id,
+      bookingId: first.id,
     };
   }
 
@@ -341,111 +364,109 @@ export class PublicBookingsService {
       return { status: 'ignored', reason: 'Missing order id' };
     }
 
-    // STEP 3 — Find PENDING booking
-    const booking = await this.prisma.booking.findFirst({
+    // STEP 3 — Find all PENDING bookings for this order (multi-slot creates one per slot)
+    const bookings = await this.prisma.booking.findMany({
       where: {
         razorpayOrderId: orderId,
         status: 'PENDING',
       },
       include: { resource: { include: { location: true } }, timeSlot: true },
+      orderBy: { timeSlotId: 'asc' },
     });
 
-    if (!booking) {
-      this.logger.log(`Public booking webhook: booking not found or already processed for order ${orderId}`);
+    if (bookings.length === 0) {
+      this.logger.log(`Public booking webhook: no PENDING bookings for order ${orderId}`);
       return { status: 'booking not found or already processed' };
     }
 
-    // STEP 4 — Use Prisma transaction (refetch inside for consistency)
+    const firstBooking = bookings[0];
+
+    // STEP 4 — In one transaction, confirm every booking for this order
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Refetch inside transaction (important for race safety)
-        const currentBooking = await tx.booking.findUnique({
-          where: { id: booking.id },
-          include: { resource: true },
-        });
-
-        if (!currentBooking || currentBooking.status !== 'PENDING') {
-          throw new Error('Already processed');
-        }
-
-        // ROOM LOGIC
-        if (
-          currentBooking.resource.type === 'CONFERENCE_ROOM' ||
-          currentBooking.resource.type === 'DISCUSSION_ROOM'
-        ) {
-          const conflict = await tx.booking.findFirst({
-            where: {
-              resourceId: currentBooking.resourceId,
-              date: currentBooking.date,
-              timeSlotId: currentBooking.timeSlotId,
-              status: 'CONFIRMED',
-            },
+        for (const booking of bookings) {
+          const current = await tx.booking.findUnique({
+            where: { id: booking.id },
+            include: { resource: true },
           });
-          if (conflict) {
-            throw new Error('Time slot already booked');
-          }
-        }
+          if (!current || current.status !== 'PENDING') continue;
 
-        // DESK LOGIC
-        if (currentBooking.resource.type === 'DAY_PASS_DESK') {
-          const existing = await tx.booking.aggregate({
-            _sum: { quantity: true },
-            where: {
-              resourceId: currentBooking.resourceId,
-              date: currentBooking.date,
-              timeSlotId: currentBooking.timeSlotId,
-              status: 'CONFIRMED',
-            },
+          if (
+            current.resource.type === 'CONFERENCE_ROOM' ||
+            current.resource.type === 'DISCUSSION_ROOM'
+          ) {
+            const conflict = await tx.booking.findFirst({
+              where: {
+                resourceId: current.resourceId,
+                date: current.date,
+                timeSlotId: current.timeSlotId,
+                status: 'CONFIRMED',
+              },
+            });
+            if (conflict) throw new Error(`Time slot already booked: ${current.timeSlotId}`);
+          }
+          if (current.resource.type === 'DAY_PASS_DESK') {
+            const existing = await tx.booking.aggregate({
+              _sum: { quantity: true },
+              where: {
+                resourceId: current.resourceId,
+                date: current.date,
+                timeSlotId: current.timeSlotId,
+                status: 'CONFIRMED',
+              },
+            });
+            const totalBooked = existing._sum.quantity ?? 0;
+            if (totalBooked + current.quantity > current.resource.capacity) {
+              throw new Error('Capacity exceeded');
+            }
+          }
+          await tx.booking.update({
+            where: { id: current.id },
+            data: { status: 'CONFIRMED', paymentId },
           });
-          const totalBooked = existing._sum.quantity ?? 0;
-          if (totalBooked + currentBooking.quantity > currentBooking.resource.capacity) {
-            throw new Error('Capacity exceeded');
-          }
         }
-
-        // CONFIRM BOOKING
-        await tx.booking.update({
-          where: { id: currentBooking.id },
-          data: {
-            status: 'CONFIRMED',
-            paymentId,
-          },
-        });
       });
     } catch (err) {
-      // STEP 6 — Handle errors: log, do NOT confirm, return 200 so Razorpay doesn't retry
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `Public booking webhook: transaction failed for order ${orderId} - ${msg}. Booking ${booking.id} remains PENDING. Consider refund review.`,
+        `Public booking webhook: transaction failed for order ${orderId} - ${msg}. Some bookings may remain PENDING.`,
       );
       return { status: 'acknowledged', reason: msg };
     }
 
-    // STEP 5 — Send confirmation email ONLY after transaction succeeds
+    // STEP 5 — One confirmation email with combined slots and total amount
+    const timeSlotText =
+      bookings.length === 1
+        ? firstBooking.timeSlot
+          ? `${firstBooking.timeSlot.startTime} – ${firstBooking.timeSlot.endTime}`
+          : 'Full day'
+        : bookings
+            .map((b) =>
+              b.timeSlot ? `${b.timeSlot.startTime}–${b.timeSlot.endTime}` : 'Full day',
+            )
+            .join(', ');
+    const totalPaid = bookings.reduce((sum, b) => sum + b.amountPaid, 0);
     try {
       const { subject, html, text } = bookingConfirmation({
-        name: booking.name,
-        locationName: booking.resource.location.name,
-        address: booking.resource.location.address,
-        date: booking.date,
-        timeSlot: booking.timeSlot
-          ? `${booking.timeSlot.startTime} – ${booking.timeSlot.endTime}`
-          : 'Full day',
-        resourceType: booking.resource.type,
-        amountPaid: booking.amountPaid,
+        name: firstBooking.name,
+        locationName: firstBooking.resource.location.name,
+        address: firstBooking.resource.location.address,
+        date: firstBooking.date,
+        timeSlot: timeSlotText,
+        resourceType: firstBooking.resource.type,
+        amountPaid: totalPaid,
       });
       await this.emailService.sendEmail({
-        to: booking.email,
+        to: firstBooking.email,
         subject,
         html,
         text,
       });
     } catch (err) {
       this.logger.error(`Failed to send booking confirmation email: ${err}`);
-      // Booking is already confirmed; don't fail the webhook
     }
 
-    return { status: 'processed', bookingId: booking.id };
+    return { status: 'processed', bookingId: firstBooking.id };
   }
 
   /**

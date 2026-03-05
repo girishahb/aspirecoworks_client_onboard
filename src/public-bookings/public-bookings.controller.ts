@@ -72,6 +72,7 @@ export class PublicBookingsController {
       resourceId: dto.resourceId,
       date: dto.date,
       timeSlotId: dto.timeSlotId,
+      timeSlotIds: dto.timeSlotIds,
       quantity: dto.quantity,
       name: dto.name,
       email: dto.email,
