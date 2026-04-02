@@ -67,7 +67,8 @@ async function bootstrap() {
   // CORS: allowed origins for production deployment
   app.enableCors({
     origin: [
-      'http://localhost:5173',
+      'https://aspirecoworks.in',
+      'https://www.aspirecoworks.in',
       'https://app.aspirecoworks.in',
     ],
     credentials: true,
