@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login, getCurrentUser, logout, clearSessionExpired } from '../services/auth';
-import Logo from '../components/Logo';
 
 const NON_ADMIN_ERROR = 'Access denied. Admin accounts only.';
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
-
-const inputClass =
-  'block w-full max-w-md rounded-lg border border-border bg-white px-3 py-2.5 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm disabled:opacity-60';
 
 /**
  * Admin login: email + password form, calls existing login API.
@@ -49,72 +45,65 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="max-w-md mx-auto">
-      <div className="mb-8 flex justify-center">
-        <Logo to="/" logoSrc="/logo.png" />
+    <div>
+      <div className="mb-7">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium mb-4"
+          style={{ background: 'rgba(19,75,127,0.08)', color: '#134b7f' }}>
+          Admin Portal
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-1">Admin sign in</h1>
+        <p className="text-sm text-slate-500">Sign in with your admin account to continue.</p>
       </div>
-      <h1 className="text-2xl font-bold text-text">Admin sign in</h1>
-      <p className="mt-1 text-sm text-muted mb-6">Sign in with an admin account.</p>
       {sessionExpired && (
-        <div
-          role="alert"
-          className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm"
-        >
-          <strong>Session expired.</strong> Please sign in again to continue.
+        <div role="alert" className="mb-5 p-3.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+          <strong>Session expired.</strong> Please sign in again.
         </div>
       )}
-      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="admin-email" className="mb-1 block text-sm font-medium text-text">
-            Email
-          </label>
+          <label htmlFor="admin-email" className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
           <input
             id="admin-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className={inputClass}
+            className="form-input"
+            placeholder="admin@aspirecoworks.com"
             required
             autoComplete="email"
             disabled={loading}
           />
-          <p className="mt-1 text-xs text-muted">Admin account email.</p>
         </div>
         <div>
-          <label htmlFor="admin-password" className="mb-1 block text-sm font-medium text-text">
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="admin-password" className="block text-sm font-medium text-slate-700">Password</label>
+            <Link to="/forgot-password" className="text-xs font-medium hover:underline" style={{ color: '#134b7f' }}>
+              Forgot password?
+            </Link>
+          </div>
           <input
             id="admin-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
+            className="form-input"
+            placeholder="••••••••"
             required
             autoComplete="current-password"
             disabled={loading}
           />
-          <p className="mt-1 text-xs text-muted">Your password.</p>
-          <p className="mt-2">
-            <Link to="/forgot-password" className="text-sm text-primary hover:underline" style={{ color: '#134b7f' }}>
-              Forgot password?
-            </Link>
-          </p>
         </div>
-        {error && (
-          <p className="text-sm text-error" role="alert">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm"
-          style={{ backgroundColor: '#134b7f' }}
-        >
+        {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+        <button type="submit" disabled={loading} className="btn-primary mt-1">
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
+      <p className="mt-5 text-center text-xs text-slate-400">
+        Not an admin?{' '}
+        <Link to="/login" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
+          Client login
+        </Link>
+      </p>
     </div>
   );
 }

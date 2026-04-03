@@ -1,11 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { apiPost } from '../services/api';
 import { login } from '../services/auth';
-import Logo from '../components/Logo';
-
-const inputClass =
-  'block w-full max-w-md rounded-lg border border-border bg-white px-3 py-2.5 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm disabled:opacity-60';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -36,15 +32,14 @@ export default function Signup() {
   }
 
   return (
-    <div className="max-w-md mx-auto">
-      <div className="mb-8 flex justify-center">
-        <Logo to="/" logoSrc="/logo.png" />
+    <div>
+      <div className="mb-7">
+        <h1 className="text-2xl font-bold text-slate-900 mb-1">Create your account</h1>
+        <p className="text-sm text-slate-500">Register your company and get started with Aspire Coworks.</p>
       </div>
-      <h1 className="text-2xl font-bold text-text">Create company account</h1>
-      <p className="mt-1 text-sm text-muted mb-6">Register your company to get started.</p>
-      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="companyName" className="mb-1 block text-sm font-medium text-text">
+          <label htmlFor="companyName" className="block text-sm font-medium text-slate-700 mb-1.5">
             Company name
           </label>
           <input
@@ -52,31 +47,31 @@ export default function Signup() {
             type="text"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
-            className={inputClass}
+            className="form-input"
+            placeholder="Acme Technologies"
             required
             autoComplete="organization"
             disabled={loading}
           />
-          <p className="mt-1 text-xs text-muted">Your company or organization name.</p>
         </div>
         <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-text">
-            Admin email
+          <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+            Email address
           </label>
           <input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className={inputClass}
+            className="form-input"
+            placeholder="you@company.com"
             required
             autoComplete="email"
             disabled={loading}
           />
-          <p className="mt-1 text-xs text-muted">Email for the company admin account.</p>
         </div>
         <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-text">
+          <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
             Password
           </label>
           <input
@@ -84,28 +79,26 @@ export default function Signup() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
+            className="form-input"
+            placeholder="••••••••"
             required
             autoComplete="new-password"
             minLength={8}
             disabled={loading}
           />
-          <p className="mt-1 text-xs text-muted">At least 8 characters.</p>
+          <p className="mt-1 text-xs text-slate-400">At least 8 characters</p>
         </div>
-        {error && (
-          <p className="text-sm text-error" role="alert">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm"
-          style={{ backgroundColor: '#134b7f' }}
-        >
-          {loading ? 'Creating account…' : 'Sign up'}
+        {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+        <button type="submit" disabled={loading} className="btn-primary mt-1">
+          {loading ? 'Creating account…' : 'Create account'}
         </button>
       </form>
+      <p className="mt-5 text-center text-sm text-slate-500">
+        Already have an account?{' '}
+        <Link to="/login" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }

@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { forgotPassword } from '../services/auth';
-import Logo from '../components/Logo';
-
-const inputClass =
-  'block w-full max-w-md rounded-lg border border-border bg-white px-3 py-2.5 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -28,62 +24,48 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="max-w-md mx-auto">
-      <div className="mb-8 flex justify-center">
-        <Logo to="/" logoSrc="/logo.png" />
+    <div>
+      <div className="mb-7">
+        <h1 className="text-2xl font-bold text-slate-900 mb-1">Forgot your password?</h1>
+        <p className="text-sm text-slate-500">
+          Enter your email and we'll send you a link to reset your password.
+        </p>
       </div>
-      <h1 className="text-2xl font-bold text-text mb-1">Forgot password</h1>
-      <p className="text-muted text-sm mb-6">
-        Enter your email and we&apos;ll send you a link to reset your password.
-      </p>
 
       {success ? (
         <div className="space-y-4">
-          <div
-            role="alert"
-            className="p-4 rounded-lg border border-green-200 bg-green-50 text-green-800 text-sm"
-          >
-            If an account exists with this email, a reset link has been sent. Check your inbox.
+          <div role="alert" className="p-4 rounded-lg border border-green-200 bg-green-50 text-green-800 text-sm">
+            If an account exists with that email, a reset link has been sent. Check your inbox.
           </div>
-          <p className="text-sm text-muted">
-            <Link to="/login" className="text-primary hover:underline" style={{ color: '#134b7f' }}>
-              Back to Login
-            </Link>
-          </p>
+          <Link to="/login" className="block text-sm font-medium hover:underline" style={{ color: '#134b7f' }}>
+            Back to sign in
+          </Link>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-text">
-              Email
+            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+              Email address
             </label>
             <input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
+              className="form-input"
+              placeholder="you@company.com"
               required
               autoComplete="email"
               disabled={loading}
             />
           </div>
-          {error && (
-            <p className="text-sm text-error" role="alert">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3a66] disabled:opacity-50 transition-colors shadow-sm"
-            style={{ backgroundColor: '#134b7f' }}
-          >
-            {loading ? 'Sending…' : 'Send Reset Link'}
+          {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+          <button type="submit" disabled={loading} className="btn-primary mt-1">
+            {loading ? 'Sending…' : 'Send reset link'}
           </button>
-          <p className="text-sm text-muted">
-            <Link to="/login" className="text-primary hover:underline" style={{ color: '#134b7f' }}>
-              Back to Login
+          <p className="text-center text-sm text-slate-500">
+            <Link to="/login" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
+              Back to sign in
             </Link>
           </p>
         </form>

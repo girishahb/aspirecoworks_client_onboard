@@ -1,5 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout';
+import AuthLayout from './components/AuthLayout';
+import AdminLayout from './components/AdminLayout';
+import ClientLayout from './components/ClientLayout';
+import PublicLayout from './components/PublicLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import Login from './pages/Login';
@@ -30,18 +33,20 @@ import NotFound from './pages/NotFound';
 export default function App() {
   return (
     <Routes>
-        <Route path="/" element={<Layout />}>
-        <Route index element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
+
+      {/* Auth pages — split-panel brand layout */}
+      <Route element={<AuthLayout />}>
         <Route path="login" element={<Login />} />
         <Route path="signup" element={<Signup />} />
         <Route path="set-password" element={<SetPassword />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
-        <Route path="book" element={<Book />} />
-        <Route path="book/success" element={<BookSuccess />} />
-        <Route path="booking-success" element={<BookSuccess />} />
-        <Route path="privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="terms-of-service" element={<TermsOfService />} />
+        <Route path="admin/login" element={<AdminLogin />} />
+      </Route>
+
+      {/* Client portal — brand-forward top-nav layout */}
+      <Route element={<ClientLayout />}>
         <Route element={<ProtectedRoute />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="client/documents" element={<ClientDocuments />} />
@@ -49,22 +54,33 @@ export default function App() {
           <Route path="client/invoices" element={<ClientInvoices />} />
           <Route path="client/profile" element={<ClientProfile />} />
         </Route>
-        <Route path="admin">
-          <Route index element={<Navigate to="/admin/login" replace />} />
-          <Route path="login" element={<AdminLogin />} />
-          <Route element={<AdminRoute />}>
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="companies/new" element={<AdminCreateCompany />} />
-            <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
-            <Route path="audit-log" element={<AdminAuditLog />} />
-            <Route path="payments" element={<AdminPayments />} />
-            <Route path="bookings" element={<AdminBookings />} />
-            <Route path="pricing" element={<AdminPricing />} />
-            <Route path="invoices" element={<AdminInvoices />} />
-          </Route>
-        </Route>
-        <Route path="*" element={<NotFound />} />
       </Route>
+
+      {/* Admin portal — dark sidebar layout */}
+      <Route path="admin" element={<AdminLayout />}>
+        <Route index element={<Navigate to="/admin/login" replace />} />
+        <Route element={<AdminRoute />}>
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="companies/new" element={<AdminCreateCompany />} />
+          <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
+          <Route path="audit-log" element={<AdminAuditLog />} />
+          <Route path="payments" element={<AdminPayments />} />
+          <Route path="bookings" element={<AdminBookings />} />
+          <Route path="pricing" element={<AdminPricing />} />
+          <Route path="invoices" element={<AdminInvoices />} />
+        </Route>
+      </Route>
+
+      {/* Public pages — clean header layout */}
+      <Route element={<PublicLayout />}>
+        <Route path="book" element={<Book />} />
+        <Route path="book/success" element={<BookSuccess />} />
+        <Route path="booking-success" element={<BookSuccess />} />
+        <Route path="privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="terms-of-service" element={<TermsOfService />} />
+      </Route>
+
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
