@@ -64,13 +64,16 @@ async function bootstrap() {
     next();
   });
 
-  // CORS: allowed origins for production deployment
+  // CORS: allowed origins for production deployment and local dev
+  const isDev = process.env.NODE_ENV !== 'production';
   app.enableCors({
-    origin: [
-      'https://aspirecoworks.in',
-      'https://www.aspirecoworks.in',
-      'https://app.aspirecoworks.in',
-    ],
+    origin: isDev
+      ? true
+      : [
+          'https://aspirecoworks.in',
+          'https://www.aspirecoworks.in',
+          'https://app.aspirecoworks.in',
+        ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

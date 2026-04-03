@@ -3,17 +3,13 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
     plugins: [react()],
     server: {
-        host: true,
-        port: 5173,
-        allowedHosts: [
-            'app.aspirecoworks.in',
-            'localhost',
-            '.onrender.com',
-        ],
+        host: '0.0.0.0',
+        port: 5000,
+        allowedHosts: 'all',
     },
     preview: {
-        host: true, // bind to 0.0.0.0 so Render can reach the server
-        port: process.env.PORT ? Number(process.env.PORT) : 4173,
-        allowedHosts: true, // allow custom domain and any Render host
+        host: '0.0.0.0',
+        port: 5000,
+        allowedHosts: true,
     },
 });

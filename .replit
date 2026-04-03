@@ -1,0 +1,88 @@
+modules = ["nodejs-20", "bash", "web"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+NODE_ENV = "development"
+PORT = "3000"
+JWT_SECRET = "dev-jwt-secret-for-replit-change-in-production"
+JWT_EXPIRES_IN = "7d"
+FRONTEND_URL = "http://localhost:5000"
+EMAIL_FROM = "Aspire Coworks <noreply@aspirecoworks.com>"
+COMPANY_GST_NUMBER = "29ACGFA3566P1ZQ"
+COMPANY_NAME = "Aspire Coworks"
+COMPANY_ADDRESS = "17, 7th Main Rd, Indiranagar, Bengaluru, Karnataka 560038"
+GST_RATE = "18"
+BANK_DETAILS = "AXIS BANK LTD, Account: 924020052406602, IFSC: UTIB0002969"
+TDS_APPLICABLE = "false"
+TDS_RATE = "0"
+RAZORPAY_MODE = "test"
+R2_ENDPOINT = "https://placeholder.r2.cloudflarestorage.com"
+R2_ACCESS_KEY_ID = "placeholder"
+R2_SECRET_ACCESS_KEY = "placeholder"
+R2_BUCKET_NAME = "placeholder"
+RAZORPAY_KEY_ID = "rzp_test_placeholder"
+RAZORPAY_KEY_SECRET = "placeholder"
+RAZORPAY_WEBHOOK_SECRET = "placeholder"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend API"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Backend API"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/main.js"
+waitForPort = 3000
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5173
+externalPort = 5173
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "npx prisma migrate deploy && node dist/main.js"]
+build = ["bash", "-c", "npm install --legacy-peer-deps && npx prisma generate && npx nest build && cd frontend && npm install && npm run build"]
