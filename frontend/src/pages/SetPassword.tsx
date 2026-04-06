@@ -45,33 +45,31 @@ export default function SetPassword() {
 
   if (!token) {
     return (
-      <div className="max-w-md mx-auto">
-        <div className="mb-8 flex justify-center">
-          <Logo to="/" logoSrc="/logo.png" />
+      <div>
+        <div className="mb-7">
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">Set Password</h1>
+          <p className="text-sm text-slate-500">
+            This invite link is invalid or has expired. Contact your administrator for a new one.
+          </p>
         </div>
-        <h1 className="text-2xl font-bold text-text mb-1">Set Password</h1>
-        <p className="text-muted text-sm mb-6">
-          Invalid or expired link. Please contact your administrator to request a new invite.
-        </p>
-        <a href="/login" className="text-primary hover:underline" style={{ color: '#134b7f' }}>
-          Go to Login
-        </a>
+        <Link to="/login" className="text-sm font-medium hover:underline" style={{ color: '#134b7f' }}>
+          Go to sign in
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto">
-      <div className="mb-8 flex justify-center">
-        <Logo to="/" logoSrc="/logo.png" />
+    <div>
+      <div className="mb-7">
+        <h1 className="text-2xl font-bold text-slate-900 mb-1">Welcome to Aspire Coworks</h1>
+        <p className="text-sm text-slate-500">
+          You've been onboarded. Create a password to access your account.
+        </p>
       </div>
-      <h1 className="text-2xl font-bold text-text mb-1">Set Your Password</h1>
-      <p className="text-muted text-sm mb-6">
-        You have been onboarded to Aspire Coworks. Create a password to access your account.
-      </p>
-      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-text">
+          <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
             New password
           </label>
           <input
@@ -79,16 +77,17 @@ export default function SetPassword() {
             type="password"
             value={password}
             onChange={(e) => setPasswordValue(e.target.value)}
-            className={inputClass}
+            className="form-input"
+            placeholder="••••••••"
             required
             minLength={8}
             autoComplete="new-password"
             disabled={loading}
           />
-          <p className="mt-1 text-xs text-muted">Minimum 8 characters</p>
+          <p className="mt-1 text-xs text-slate-400">Minimum 8 characters</p>
         </div>
         <div>
-          <label htmlFor="confirmPassword" className="mb-1 block text-sm font-medium text-text">
+          <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-1.5">
             Confirm password
           </label>
           <input
@@ -96,25 +95,17 @@ export default function SetPassword() {
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className={inputClass}
+            className="form-input"
+            placeholder="••••••••"
             required
             minLength={8}
             autoComplete="new-password"
             disabled={loading}
           />
         </div>
-        {error && (
-          <p className="text-sm text-error" role="alert">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3a66] disabled:opacity-50 transition-colors shadow-sm"
-          style={{ backgroundColor: '#134b7f' }}
-        >
-          {loading ? 'Setting password…' : 'Set Password'}
+        {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+        <button type="submit" disabled={loading} className="btn-primary mt-1">
+          {loading ? 'Setting password…' : 'Set password & sign in'}
         </button>
       </form>
     </div>

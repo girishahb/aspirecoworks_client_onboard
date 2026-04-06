@@ -68,6 +68,27 @@ cd frontend && npm install
 - **Run (production)**: `npx prisma migrate deploy && node dist/main.js`
 - Deployment target: autoscale
 
+## UI/UX Design System
+
+The frontend uses a combined design inspired by **Option A (dark sidebar)** + **Option B (warm brand)** choices:
+
+### Layout Components (`frontend/src/components/`)
+- **AuthLayout.tsx** — Split-panel brand layout for all auth pages (left: dark navy gradient with logo & copy, right: white form panel)
+- **AdminLayout.tsx** — Dark slate sidebar (`#0f172a`) with icon nav for `/admin/*` protected routes
+- **ClientLayout.tsx** — Sticky brand-blue top nav (`#134b7f`) for client portal pages
+- **PublicLayout.tsx** — Clean white header for public pages (booking, legal)
+
+### Design Tokens (`index.css`, `tailwind.config.js`)
+- Brand primary: `#134b7f` (`bg-primary`, `text-primary`)
+- Accent (teal): `#0d9488` (`text-accent`)
+- CSS component classes: `.card`, `.form-input`, `.btn-primary`, `.data-table`, `.section-title`
+
+### Routing (`App.tsx`)
+- Auth pages: `login`, `signup`, `set-password`, `forgot-password`, `reset-password`, `admin/login` → **AuthLayout**
+- Client pages: `dashboard`, `client/*` → **ClientLayout** (protected via ProtectedRoute)
+- Admin pages: `admin/dashboard`, `admin/*` → **AdminLayout** (protected via AdminRoute)
+- Public pages: `book`, `privacy-policy`, `terms-of-service` → **PublicLayout**
+
 ## Important Notes
 
 - The frontend API URL is configured via `VITE_API_URL` env var; defaults to `http://localhost:3000` in dev mode

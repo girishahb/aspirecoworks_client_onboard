@@ -60,34 +60,27 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div>
-        <h1>Dashboard</h1>
-        <p>Loading…</p>
+      <div className="flex flex-col gap-2 animate-pulse">
+        <div className="h-7 w-48 bg-slate-200 rounded" />
+        <div className="h-4 w-32 bg-slate-100 rounded" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 bg-slate-100 rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error || !company) {
     const errorMessage = error || 'Company not found';
-    const isForbidden = errorMessage.toLowerCase().includes('forbidden') || 
-                       errorMessage.toLowerCase().includes('no company');
-    
     return (
-      <div>
-        <h1>Dashboard</h1>
-        <div style={{ color: 'crimson', marginTop: '1rem' }}>
-          <p><strong>Error:</strong> {errorMessage}</p>
-          {isForbidden && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: '#fee', border: '1px solid #fcc', borderRadius: '4px' }}>
-              <p><strong>Possible causes:</strong></p>
-              <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
-                <li>Your account is not linked to a company</li>
-                <li>You need to log in with a CLIENT account</li>
-                <li>Try logging in with: <code>client@example.com</code> / <code>Client123!</code></li>
-              </ul>
-            </div>
-          )}
-        </div>
+      <div className="card p-6">
+        <h1 className="text-xl font-bold text-slate-900 mb-1">Dashboard</h1>
+        <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
+        <p className="text-xs text-slate-500 mt-1">
+          Make sure you are signed in with a client account.
+        </p>
       </div>
     );
   }
@@ -101,19 +94,15 @@ export default function Dashboard() {
   const notification = getNotification(stage, rejectedDocs.length > 0, agreementDraft, finalAgreement);
 
   return (
-    <div>
+    <div className="space-y-5">
       {/* Welcome Header */}
-      <section className="mb-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-text">Welcome back</h1>
-            <p className="mt-1 text-muted">{company.companyName}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={statusBadgeType(company)}>{statusBadgeLabel(company)}</Badge>
-          </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Welcome back</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{company.companyName}</p>
         </div>
-      </section>
+        <Badge variant={statusBadgeType(company)}>{statusBadgeLabel(company)}</Badge>
+      </div>
 
       {/* Notification Strip */}
       {notification && (
@@ -124,80 +113,72 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Onboarding Stepper - shown for all stages including ACTIVE (shows full green when activated) */}
-      <section className="mb-6">
-        <OnboardingStepper stage={stage} showPercentage />
-      </section>
+      {/* Onboarding Stepper */}
+      <OnboardingStepper stage={stage} showPercentage />
 
       {/* Next Action Card */}
-      <section className="mb-6">
-        <NextActionCard
-          stage={stage}
-          agreementDraftId={agreementDraft?.id}
-          finalAgreementId={finalAgreement?.id}
-        />
-      </section>
+      <NextActionCard
+        stage={stage}
+        agreementDraftId={agreementDraft?.id}
+        finalAgreementId={finalAgreement?.id}
+      />
 
       {/* Summary Cards */}
-      <section className="mb-6">
-        <SummaryCards stage={stage} />
-      </section>
+      <SummaryCards stage={stage} />
 
       {/* Timeline View */}
-      <section className="mb-6">
-        <TimelineView stage={stage} />
-      </section>
+      <TimelineView stage={stage} />
 
       {/* Quick Links */}
-      <section className="mb-6">
-        <h2 className="mb-4 text-lg font-semibold">Quick Links</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <section>
+        <p className="section-title">Quick Links</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             to="/client/documents"
-            className="flex items-center gap-3 rounded-lg border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            className="card flex items-center gap-3 p-4 hover:shadow-md transition-shadow"
           >
-            <div className="rounded-lg bg-primary/10 p-2">
-              <FileText className="h-5 w-5 text-primary" />
+            <div className="rounded-lg p-2 shrink-0" style={{ background: 'rgba(19,75,127,0.08)' }}>
+              <FileText className="h-5 w-5" style={{ color: '#134b7f' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-text">Document Center</h3>
-              <p className="text-xs text-muted">View and manage documents</p>
+              <p className="font-semibold text-slate-800 text-sm">Documents</p>
+              <p className="text-xs text-slate-500">View and manage</p>
             </div>
           </Link>
           <Link
             to="/client/payments"
-            className="flex items-center gap-3 rounded-lg border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            className="card flex items-center gap-3 p-4 hover:shadow-md transition-shadow"
           >
-            <div className="rounded-lg bg-success/10 p-2">
-              <CreditCard className="h-5 w-5 text-success" />
+            <div className="rounded-lg p-2 shrink-0 bg-emerald-50">
+              <CreditCard className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-text">Payments</h3>
-              <p className="text-xs text-muted">View payment history</p>
+              <p className="font-semibold text-slate-800 text-sm">Payments</p>
+              <p className="text-xs text-slate-500">Payment history</p>
             </div>
           </Link>
           <Link
             to="/client/invoices"
-            className="flex items-center gap-3 rounded-lg border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            className="card flex items-center gap-3 p-4 hover:shadow-md transition-shadow"
           >
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Receipt className="h-5 w-5 text-primary" />
+            <div className="rounded-lg p-2 shrink-0" style={{ background: 'rgba(19,75,127,0.08)' }}>
+              <Receipt className="h-5 w-5" style={{ color: '#134b7f' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-text">Invoices</h3>
-              <p className="text-xs text-muted">Download GST invoices</p>
+              <p className="font-semibold text-slate-800 text-sm">Invoices</p>
+              <p className="text-xs text-slate-500">GST invoices</p>
             </div>
           </Link>
           <Link
             to="/client/profile"
-            className="flex items-center gap-3 rounded-lg border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            className="card flex items-center gap-3 p-4 hover:shadow-md transition-shadow"
           >
-            <div className="rounded-lg bg-accent/10 p-2">
-              <User className="h-5 w-5 text-accent" />
+            <div className="rounded-lg p-2 shrink-0 bg-teal-50">
+              <User className="h-5 w-5 text-teal-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-text">Company Profile</h3>
-              <p className="text-xs text-muted">View company details</p>
+              <p className="font-semibold text-slate-800 text-sm">Profile</p>
+              <p className="text-xs text-slate-500">Company details</p>
             </div>
           </Link>
         </div>
@@ -205,13 +186,13 @@ export default function Dashboard() {
 
       {/* Success Banner for Active Accounts */}
       {(stage === 'ACTIVE' || stage === 'COMPLETED') && (
-        <section className="mb-6">
-          <div className="rounded-lg border-2 border-success bg-success/10 p-6 text-center">
-            <CheckCircle className="mx-auto mb-2 h-12 w-12 text-success" />
-            <h3 className="mb-1 text-lg font-semibold text-success">Your account is active and ready</h3>
-            <p className="text-sm text-muted">You have full access to all features.</p>
+        <div className="card p-5 flex items-center gap-4" style={{ borderColor: '#bbf7d0', background: '#f0fdf4' }}>
+          <CheckCircle className="h-8 w-8 text-emerald-600 shrink-0" />
+          <div>
+            <p className="font-semibold text-emerald-800 text-sm">Account active and ready</p>
+            <p className="text-xs text-emerald-600 mt-0.5">You have full access to all features.</p>
           </div>
-        </section>
+        </div>
       )}
     </div>
   );

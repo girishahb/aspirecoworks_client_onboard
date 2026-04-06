@@ -14,17 +14,17 @@ export default function MetricCard({
   title,
   value,
   icon: Icon,
-  bgColor = 'bg-primary/5',
-  iconColor = 'text-primary',
+  bgColor = 'bg-slate-100',
+  iconColor = 'text-slate-600',
 }: MetricCardProps) {
   return (
-    <div className="rounded-lg border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+    <div className="card p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-muted">{title}</p>
-          <p className="mt-1 text-2xl font-bold text-text">{value}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{title}</p>
+          <p className="mt-1.5 text-2xl font-bold text-slate-900">{value}</p>
         </div>
-        <div className={`rounded-lg p-2 ${bgColor}`}>
+        <div className={`rounded-xl p-2.5 shrink-0 ${bgColor}`}>
           <Icon className={`h-5 w-5 ${iconColor}`} strokeWidth={2} />
         </div>
       </div>

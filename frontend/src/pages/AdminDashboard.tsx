@@ -99,47 +99,49 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div>
-        <h1>Admin Dashboard</h1>
-        {user?.email && <p>Logged in as {user.email}</p>}
-        <p>Loading dashboard…</p>
+      <div className="flex flex-col gap-2 animate-pulse">
+        <div className="h-7 w-48 bg-slate-200 rounded" />
+        <div className="h-4 w-32 bg-slate-100 rounded" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 mt-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-24 bg-slate-100 rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div>
-        <h1>Admin Dashboard</h1>
-        {user?.email && <p>Logged in as {user.email}</p>}
-        <p style={{ color: 'crimson' }}>{error}</p>
+      <div className="card p-6">
+        <h1 className="text-xl font-bold text-slate-900 mb-1">Admin Dashboard</h1>
+        <p className="text-sm text-red-600 mt-2">{error}</p>
       </div>
     );
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: '1rem' }}>
-        <Link to="/admin/dashboard">Admin Dashboard</Link>
-        {' · '}
-        <Link to="/admin/payments">Payments</Link>
-        {' · '}
-        <Link to="/admin/bookings">Bookings</Link>
-        {' · '}
-        <Link to="/admin/pricing">Pricing</Link>
-        {' · '}
-        <Link to="/admin/invoices">Invoices</Link>
-        {' · '}
-        <Link to="/admin/audit-log">Audit log</Link>
+    <div className="space-y-6">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Overview of clients and onboarding pipeline</p>
+        </div>
+        <Link
+          to="/admin/companies/new"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors hover:opacity-90"
+          style={{ background: '#134b7f' }}
+        >
+          + New Client
+        </Link>
       </div>
-      <h1>Admin Dashboard</h1>
-      {user?.email && <p>Logged in as {user.email}</p>}
 
       {stats && (
         <>
           {/* Top Metric Cards */}
-          <section style={{ marginTop: '1.5rem' }}>
-            <h2>Overview</h2>
+          <section>
+            <p className="section-title">Overview</p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <MetricCard
                 title="Total Clients"
@@ -187,32 +189,32 @@ export default function AdminDashboard() {
           </section>
 
           {/* Revenue Section */}
-          <section style={{ marginTop: '2rem' }}>
-            <h2>Revenue</h2>
+          <section>
+            <p className="section-title">Revenue</p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="rounded-lg border border-border bg-white p-5 shadow-sm">
+              <div className="card p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted">Total Revenue Collected</p>
-                    <p className="mt-1 text-3xl font-bold text-text">
+                    <p className="text-sm font-medium text-slate-500">Total Revenue Collected</p>
+                    <p className="mt-1 text-3xl font-bold text-slate-900">
                       {formatCurrency(stats.totalRevenue)}
                     </p>
                   </div>
-                  <div className="rounded-lg bg-success/10 p-3">
-                    <TrendingUp className="h-6 w-6 text-success" strokeWidth={2} />
+                  <div className="rounded-xl bg-emerald-50 p-3">
+                    <TrendingUp className="h-6 w-6 text-emerald-600" strokeWidth={2} />
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg border border-border bg-white p-5 shadow-sm">
+              <div className="card p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted">Revenue This Month</p>
-                    <p className="mt-1 text-3xl font-bold text-text">
+                    <p className="text-sm font-medium text-slate-500">Revenue This Month</p>
+                    <p className="mt-1 text-3xl font-bold text-slate-900">
                       {formatCurrency(stats.revenueThisMonth)}
                     </p>
                   </div>
-                  <div className="rounded-lg bg-primary/10 p-3">
-                    <Calendar className="h-6 w-6 text-primary" strokeWidth={2} />
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(19,75,127,0.08)' }}>
+                    <Calendar className="h-6 w-6" style={{ color: '#134b7f' }} strokeWidth={2} />
                   </div>
                 </div>
               </div>
@@ -220,13 +222,13 @@ export default function AdminDashboard() {
           </section>
 
           {/* Pipeline Visualization */}
-          <section style={{ marginTop: '2rem' }}>
+          <section>
             <PipelineVisualization stats={stats} />
           </section>
 
           {/* Quick Action Panel */}
-          <section style={{ marginTop: '2rem' }}>
-            <h2>Quick Actions</h2>
+          <section>
+            <p className="section-title">Quick Actions</p>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -321,43 +323,46 @@ export default function AdminDashboard() {
       )}
 
       {/* Companies Table */}
-      <section style={{ marginTop: '2rem' }}>
-        <h2>Companies</h2>
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <p className="section-title mb-0">All Clients</p>
+          <span className="text-xs text-slate-400">{companies.length} total</span>
+        </div>
         {companies.length === 0 ? (
-          <p>No companies yet.</p>
+          <div className="card p-10 text-center">
+            <p className="text-slate-500 text-sm">No clients yet. Create your first one to get started.</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse" style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #333', textAlign: 'left' }}>
-                  <th style={{ padding: '0.5rem 0.75rem' }}>Company name</th>
-                  <th style={{ padding: '0.5rem 0.75rem' }}>Onboarding stage</th>
-                  <th style={{ padding: '0.5rem 0.75rem' }}>Status</th>
-                  <th style={{ padding: '0.5rem 0.75rem' }}>Created date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {companies.map((company) => (
-                  <tr
-                    key={company.id}
-                    onClick={() => handleRowClick(company.id)}
-                    style={{ borderBottom: '1px solid #ddd', cursor: 'pointer' }}
-                    className="transition-colors hover:bg-background"
-                  >
-                    <td style={{ padding: '0.5rem 0.75rem' }}>{company.companyName}</td>
-                    <td style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem' }}>
-                      {onboardingStageLabel(company.onboardingStage)}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem' }}>
-                      <Badge variant={companyStatus(company)}>
-                        {companyStatus(company) === 'active' ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem' }}>{formatDate(company.createdAt)}</td>
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Company name</th>
+                    <th>Onboarding stage</th>
+                    <th>Status</th>
+                    <th>Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {companies.map((company) => (
+                    <tr
+                      key={company.id}
+                      onClick={() => handleRowClick(company.id)}
+                    >
+                      <td className="font-medium text-slate-900">{company.companyName}</td>
+                      <td>{onboardingStageLabel(company.onboardingStage)}</td>
+                      <td>
+                        <Badge variant={companyStatus(company)}>
+                          {companyStatus(company) === 'active' ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </td>
+                      <td className="text-slate-500">{formatDate(company.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>
