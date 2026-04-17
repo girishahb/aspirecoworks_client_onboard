@@ -89,6 +89,7 @@ export class PublicBookingsController {
       name: dto.name,
       email: dto.email,
       phone: dto.phone,
+      couponCode: dto.couponCode,
     });
   }
 

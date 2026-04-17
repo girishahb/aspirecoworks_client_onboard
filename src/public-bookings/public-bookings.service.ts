@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { EmailService } from '../email/email.service';
@@ -20,6 +21,7 @@ export class PublicBookingsService {
     private prisma: PrismaService,
     private razorpayService: RazorpayService,
     private emailService: EmailService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -334,6 +336,7 @@ export class PublicBookingsService {
     name: string;
     email: string;
     phone: string;
+    couponCode?: string;
   }) {
     const date = new Date(dto.date);
     date.setHours(0, 0, 0, 0);
@@ -397,8 +400,55 @@ export class PublicBookingsService {
       throw new BadRequestException('Invalid amount');
     }
 
+    const internalCoupon = this.normalizeCouponCode(dto.couponCode);
+    const configuredInternalCoupon = this.normalizeCouponCode(
+      this.configService.get<string>('INTERNAL_BOOKING_COUPON_CODE'),
+    );
+    const isInternalCouponBooking =
+      !!internalCoupon && !!configuredInternalCoupon && internalCoupon === configuredInternalCoupon;
+
+    if (internalCoupon && !isInternalCouponBooking) {
+      throw new BadRequestException('Invalid coupon code');
+    }
+
     for (const slotId of effectiveSlotIds) {
       await this.checkAvailability(dto.resourceId, date, slotId, dto.quantity);
+    }
+
+    if (isInternalCouponBooking) {
+      const zeroPaymentResult = await this.tryCreateZeroAmountOrder({
+        totalAmount,
+        resourceId: dto.resourceId,
+        effectiveSlotIds,
+        date,
+        quantity: dto.quantity,
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        couponCode: internalCoupon,
+      });
+      if (zeroPaymentResult) {
+        return zeroPaymentResult;
+      }
+
+      const firstConfirmed = await this.createConfirmedInternalBookings({
+        resourceId: dto.resourceId,
+        date,
+        effectiveSlotIds,
+        quantity: dto.quantity,
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        totalAmount,
+        couponCode: internalCoupon,
+      });
+
+      return {
+        requiresPayment: false,
+        orderId: null,
+        amount: totalAmount,
+        bookingId: firstConfirmed.id,
+      };
     }
 
     const order = await this.razorpayService.createOrder({
@@ -423,6 +473,7 @@ export class PublicBookingsService {
         razorpayOrderId: order.id,
         status: 'PENDING',
         expiresAt,
+        bookingSource: 'PUBLIC',
       },
     });
 
@@ -440,15 +491,157 @@ export class PublicBookingsService {
           razorpayOrderId: order.id,
           status: 'PENDING',
           expiresAt,
+          bookingSource: 'PUBLIC',
         },
       });
     }
 
     return {
+      requiresPayment: true,
       orderId: order.id,
       amount: order.amount,
       bookingId: first.id,
     };
+  }
+
+  private normalizeCouponCode(value?: string | null): string | null {
+    const normalized = value?.trim();
+    return normalized ? normalized.toUpperCase() : null;
+  }
+
+  private isZeroPaymentAttemptEnabled(): boolean {
+    const raw = String(
+      this.configService.get<string>('INTERNAL_BOOKING_ZERO_PAYMENT_ENABLED') ?? 'true',
+    ).toLowerCase();
+    return raw !== 'false';
+  }
+
+  private async tryCreateZeroAmountOrder(params: {
+    totalAmount: number;
+    resourceId: string;
+    effectiveSlotIds: string[];
+    date: Date;
+    quantity: number;
+    name: string;
+    email: string;
+    phone: string;
+    couponCode: string | null;
+  }): Promise<{ requiresPayment: true; orderId: string; amount: number; bookingId: string } | null> {
+    if (!this.isZeroPaymentAttemptEnabled()) {
+      return null;
+    }
+    if (!this.razorpayService.isConfigured()) {
+      return null;
+    }
+
+    try {
+      const order = await this.razorpayService.createOrder({
+        amount: 0,
+        currency: 'INR',
+        receipt: `book_internal_${Date.now()}`,
+        notes: {},
+      });
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+      const perSlotAmount = params.totalAmount / params.effectiveSlotIds.length;
+      const first = await this.prisma.booking.create({
+        data: {
+          resourceId: params.resourceId,
+          date: params.date,
+          timeSlotId: params.effectiveSlotIds[0],
+          quantity: params.quantity,
+          name: params.name,
+          email: params.email,
+          phone: params.phone,
+          amountPaid: perSlotAmount,
+          razorpayOrderId: order.id,
+          status: 'PENDING',
+          expiresAt,
+          bookingSource: 'INTERNAL_COUPON',
+          couponCodeUsed: params.couponCode,
+        },
+      });
+
+      for (let i = 1; i < params.effectiveSlotIds.length; i++) {
+        await this.prisma.booking.create({
+          data: {
+            resourceId: params.resourceId,
+            date: params.date,
+            timeSlotId: params.effectiveSlotIds[i],
+            quantity: params.quantity,
+            name: params.name,
+            email: params.email,
+            phone: params.phone,
+            amountPaid: perSlotAmount,
+            razorpayOrderId: order.id,
+            status: 'PENDING',
+            expiresAt,
+            bookingSource: 'INTERNAL_COUPON',
+            couponCodeUsed: params.couponCode,
+          },
+        });
+      }
+      return {
+        requiresPayment: true,
+        orderId: order.id,
+        amount: order.amount,
+        bookingId: first.id,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Zero-amount order flow unavailable; falling back to direct confirmation (${error instanceof Error ? error.message : String(error)})`,
+      );
+      return null;
+    }
+  }
+
+  private async createConfirmedInternalBookings(params: {
+    resourceId: string;
+    date: Date;
+    effectiveSlotIds: string[];
+    quantity: number;
+    name: string;
+    email: string;
+    phone: string;
+    totalAmount: number;
+    couponCode: string | null;
+  }) {
+    const perSlotAmount = params.totalAmount / params.effectiveSlotIds.length;
+    return this.prisma.$transaction(async (tx) => {
+      const first = await tx.booking.create({
+        data: {
+          resourceId: params.resourceId,
+          date: params.date,
+          timeSlotId: params.effectiveSlotIds[0],
+          quantity: params.quantity,
+          name: params.name,
+          email: params.email,
+          phone: params.phone,
+          amountPaid: perSlotAmount,
+          status: 'CONFIRMED',
+          bookingSource: 'INTERNAL_COUPON',
+          couponCodeUsed: params.couponCode,
+        },
+      });
+
+      for (let i = 1; i < params.effectiveSlotIds.length; i++) {
+        await tx.booking.create({
+          data: {
+            resourceId: params.resourceId,
+            date: params.date,
+            timeSlotId: params.effectiveSlotIds[i],
+            quantity: params.quantity,
+            name: params.name,
+            email: params.email,
+            phone: params.phone,
+            amountPaid: perSlotAmount,
+            status: 'CONFIRMED',
+            bookingSource: 'INTERNAL_COUPON',
+            couponCodeUsed: params.couponCode,
+          },
+        });
+      }
+      return first;
+    });
   }
 
   /**

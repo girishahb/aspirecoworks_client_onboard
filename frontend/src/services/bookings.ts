@@ -56,10 +56,12 @@ export interface CreateOrderRequest {
   name: string;
   email: string;
   phone: string;
+  couponCode?: string;
 }
 
 export interface CreateOrderResponse {
-  orderId: string;
+  requiresPayment: boolean;
+  orderId: string | null;
   amount: number;
   bookingId: string;
 }

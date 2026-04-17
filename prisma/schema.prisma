@@ -326,6 +326,11 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum BookingSource {
+  PUBLIC
+  INTERNAL_COUPON
+}
+
 model Location {
   id        String     @id @default(uuid())
   name      String
@@ -387,6 +392,8 @@ model Booking {
   razorpayOrderId  String?
   paymentId        String?
   status           BookingStatus @default(PENDING)
+  bookingSource    BookingSource @default(PUBLIC)
+  couponCodeUsed   String?
   expiresAt        DateTime?
   createdAt        DateTime      @default(now())
 

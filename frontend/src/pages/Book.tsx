@@ -82,6 +82,7 @@ export default function Book() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [couponCode, setCouponCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [nameTouched, setNameTouched] = useState(false);
@@ -207,7 +208,7 @@ export default function Book() {
     if (!resource || !date || !validDetails || effectiveSlots.length === 0) return;
     setSubmitting(true);
     try {
-      const { orderId, amount: orderAmount } = await createOrder({
+      const { requiresPayment, orderId, amount: orderAmount } = await createOrder({
         resourceId: resource.id,
         date: date.toISOString().slice(0, 10),
         timeSlotIds: effectiveSlots.map((s) => s.id),
@@ -215,7 +216,29 @@ export default function Book() {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim().replace(/\s/g, ''),
+        couponCode: couponCode.trim() || undefined,
       });
+
+      const timeSlotText =
+        effectiveSlots.length === 1
+          ? `${effectiveSlots[0].startTime} – ${effectiveSlots[0].endTime}`
+          : effectiveSlots
+              .map((s) => `${s.startTime}–${s.endTime}`)
+              .join(', ');
+
+      if (!requiresPayment) {
+        navigate('/booking-success', {
+          state: {
+            resourceType: resource.type,
+            locationName: location?.name,
+            date: date.toISOString().slice(0, 10),
+            timeSlot: timeSlotText,
+            quantity: isDesk ? quantity : 1,
+            amount: orderAmount,
+          },
+        });
+        return;
+      }
 
       let keyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? import.meta.env.VITE_RAZORPAY_KEY;
       if (!keyId) {
@@ -239,17 +262,11 @@ export default function Book() {
         key: keyId,
         amount: Math.round(orderAmount * 100),
         currency: 'INR',
-        order_id: orderId,
+        order_id: orderId ?? undefined,
         name: 'Aspire Coworks',
         description: 'Workspace Booking',
         prefill: { name: name.trim(), email: email.trim(), contact: phone.trim() },
         handler: () => {
-          const timeSlotText =
-            effectiveSlots.length === 1
-              ? `${effectiveSlots[0].startTime} – ${effectiveSlots[0].endTime}`
-              : effectiveSlots
-                  .map((s) => `${s.startTime}–${s.endTime}`)
-                  .join(', ');
           navigate('/booking-success', {
             state: {
               resourceType: resource.type,
@@ -272,7 +289,7 @@ export default function Book() {
     } finally {
       setSubmitting(false);
     }
-  }, [resource, date, validDetails, effectiveSlots, quantity, name, email, phone, location?.name, navigate, showToast]);
+  }, [resource, date, validDetails, effectiveSlots, quantity, name, email, phone, couponCode, location?.name, navigate, showToast]);
 
   if (loading) {
     return (
@@ -677,6 +694,21 @@ export default function Book() {
                   <p className="text-slate-600">
                     Review your booking and proceed to pay securely via Razorpay.
                   </p>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Internal Coupon Code (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      placeholder="Enter coupon code for internal booking"
+                      className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      If valid, payment may be skipped for internal bookings.
+                    </p>
+                  </div>
                   <div className="flex gap-3">
                     <button
                       type="button"
@@ -691,7 +723,7 @@ export default function Book() {
                       disabled={submitting}
                       className="flex-1 py-3 rounded-xl font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                     >
-                      {submitting ? 'Processing...' : 'Proceed to Pay'}
+                      {submitting ? 'Processing...' : couponCode.trim() ? 'Apply Coupon & Continue' : 'Proceed to Pay'}
                     </button>
                   </div>
                 </div>
