@@ -32,6 +32,22 @@ export class PublicBookingsService {
   }
 
   /**
+   * Parse YYYY-MM-DD into a local date (midnight) without UTC shifting.
+   */
+  private parseDateOnly(dateStr: string): Date {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr).trim());
+    if (!match) {
+      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  /**
    * Get pricing and available slots for a resource.
    * Only returns slots where isActive = true.
    */
@@ -72,7 +88,7 @@ export class PublicBookingsService {
       slotAvailability = await this.getSlotAvailability(resourceId, date);
       if (isDesk && availableSlots.length > 0) {
         const slot = availableSlots[0];
-        const { total } = await this.getDeskCapacityUsed(resource.id, new Date(date), slot.id);
+        const { total } = await this.getDeskCapacityUsed(resource.id, this.parseDateOnly(date), slot.id);
         remainingCapacity = Math.max(0, resource.capacity - total);
       }
     }
@@ -123,8 +139,7 @@ export class PublicBookingsService {
     if (!resource || !resource.isActive) {
       throw new NotFoundException('Resource not found or inactive');
     }
-    const date = new Date(dateStr);
-    date.setHours(0, 0, 0, 0);
+    const date = this.parseDateOnly(dateStr);
 
     const isDesk = resource.type === 'DAY_PASS_DESK';
     const slots = await this.prisma.timeSlot.findMany({
@@ -193,8 +208,7 @@ export class PublicBookingsService {
     resource: { id: string; type: ResourceType; capacity: number },
     dateStr: string,
   ): Promise<Record<string, boolean>> {
-    const date = new Date(dateStr);
-    date.setHours(0, 0, 0, 0);
+    const date = this.parseDateOnly(dateStr);
 
     const allSlots = await this.prisma.timeSlot.findMany({
       where: { isActive: true },
@@ -338,8 +352,7 @@ export class PublicBookingsService {
     phone: string;
     couponCode?: string;
   }) {
-    const date = new Date(dto.date);
-    date.setHours(0, 0, 0, 0);
+    const date = this.parseDateOnly(dto.date);
 
     // Block past dates
     const today = new Date();

@@ -63,6 +63,13 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   return debounced;
 }
 
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function Book() {
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -113,7 +120,7 @@ export default function Book() {
     setPricingLoading(true);
     setPricing(null);
     setSelectedSlots([]);
-    const dateStr = debouncedDate.toISOString().slice(0, 10);
+    const dateStr = formatDateLocal(debouncedDate);
     getPricing(resource.id, dateStr)
       .then((p) => {
         setPricing(p);
@@ -210,7 +217,7 @@ export default function Book() {
     try {
       const { requiresPayment, orderId, amount: orderAmount } = await createOrder({
         resourceId: resource.id,
-        date: date.toISOString().slice(0, 10),
+        date: formatDateLocal(date),
         timeSlotIds: effectiveSlots.map((s) => s.id),
         quantity: isDesk ? quantity : 1,
         name: name.trim(),
@@ -231,7 +238,7 @@ export default function Book() {
           state: {
             resourceType: resource.type,
             locationName: location?.name,
-            date: date.toISOString().slice(0, 10),
+            date: formatDateLocal(date),
             timeSlot: timeSlotText,
             quantity: isDesk ? quantity : 1,
             amount: orderAmount,
@@ -271,7 +278,7 @@ export default function Book() {
             state: {
               resourceType: resource.type,
               locationName: location?.name,
-              date: date.toISOString().slice(0, 10),
+              date: formatDateLocal(date),
               timeSlot: timeSlotText,
               quantity: isDesk ? quantity : 1,
               amount: orderAmount,
