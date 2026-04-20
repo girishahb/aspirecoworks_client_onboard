@@ -89,10 +89,10 @@ export class AggregatorUsersService {
   }
 
   /**
-   * Resend the default credentials email to an aggregator user. Does not change
-   * their password in the database. If the user has already changed their password,
-   * they should continue using their new one and can ignore this email (stated in
-   * the email body).
+   * Resets the aggregator user's password to DEFAULT_AGGREGATOR_PASSWORD and emails
+   * the credentials. Any previously-set password is overwritten, so this doubles as
+   * a "reset to default" action for admins. Also used to backfill legacy aggregator
+   * accounts created under the old invite-token flow (which had a null passwordHash).
    */
   async resendInvite(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
@@ -100,12 +100,23 @@ export class AggregatorUsersService {
       throw new NotFoundException('Aggregator user not found');
     }
 
+    const passwordHash = await bcrypt.hash(DEFAULT_AGGREGATOR_PASSWORD, BCRYPT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        isActivated: true,
+        inviteToken: null,
+        inviteTokenExpiry: null,
+      },
+    });
+
     await this.sendCredentialsEmail(
       user.email,
       user.aggregatorName ?? '',
       DEFAULT_AGGREGATOR_PASSWORD,
     );
-    return { sent: true, message: 'Credentials email sent.' };
+    return { sent: true, message: 'Password reset to default and credentials email sent.' };
   }
 
   private publicSelect() {

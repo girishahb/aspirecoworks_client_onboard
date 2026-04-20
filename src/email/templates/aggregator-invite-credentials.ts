@@ -37,8 +37,8 @@ export function aggregatorInviteCredentials(params: AggregatorInviteCredentialsP
   </table>
   ${ctaButton(loginUrl, 'Sign in to your portal')}
   <p style="margin-top:18px;">
-    For security, please change your password after your first sign-in. If you've already
-    changed it, continue using your new password and ignore this email.
+    Your password has been set to the value above. For security, please change it after
+    your first sign-in from your portal account settings.
   </p>
   `;
 
@@ -54,7 +54,7 @@ Sign in with these credentials:
 
 Sign in: ${loginUrl}
 
-For security, please change your password after your first sign-in. If you've already changed it, continue using your new password and ignore this email.
+Your password has been set to the value above. For security, please change it after your first sign-in from your portal account settings.
 
 — Aspire Coworks`;
 
