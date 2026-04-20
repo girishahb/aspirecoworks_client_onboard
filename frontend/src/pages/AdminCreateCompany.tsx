@@ -7,7 +7,20 @@ const inputClass =
 
 type ClientChannel = 'DIRECT' | 'AGGREGATOR';
 
-export default function AdminCreateCompany() {
+interface AdminCreateCompanyProps {
+  /** When set, hides the channel radio and aggregator name field, and locks the channel to this value. */
+  lockChannel?: ClientChannel;
+  /** Where the Back and Cancel buttons navigate to. Defaults to /admin/dashboard. */
+  backPath?: string;
+  /** Path prefix for the detail page after create. Defaults to /admin/companies. */
+  detailPathPrefix?: string;
+}
+
+export default function AdminCreateCompany({
+  lockChannel,
+  backPath = '/admin/dashboard',
+  detailPathPrefix = '/admin/companies',
+}: AdminCreateCompanyProps = {}) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     companyName: '',
@@ -20,9 +33,11 @@ export default function AdminCreateCompany() {
     zipCode: '',
     country: '',
     notes: '',
-    clientChannel: 'DIRECT' as ClientChannel,
+    clientChannel: (lockChannel ?? 'DIRECT') as ClientChannel,
     aggregatorName: '',
   });
+  const isLocked = !!lockChannel;
+  const isAggregatorLocked = lockChannel === 'AGGREGATOR';
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +50,9 @@ export default function AdminCreateCompany() {
     e.preventDefault();
     setError(null);
 
-    if (formData.clientChannel === 'AGGREGATOR' && !formData.aggregatorName.trim()) {
+    // Aggregator users never send channel/aggregatorName; the server forces them from the JWT.
+    // Admin/Manager still validate aggregatorName when they explicitly pick Aggregator.
+    if (!isLocked && formData.clientChannel === 'AGGREGATOR' && !formData.aggregatorName.trim()) {
       setError('Aggregator name is required when Client channel is Aggregator.');
       return;
     }
@@ -46,11 +63,14 @@ export default function AdminCreateCompany() {
       const data: any = {
         companyName: formData.companyName.trim(),
         contactEmail: formData.contactEmail.trim(),
-        clientChannel: formData.clientChannel,
       };
 
-      if (formData.clientChannel === 'AGGREGATOR' && formData.aggregatorName.trim()) {
-        data.aggregatorName = formData.aggregatorName.trim();
+      // Only include channel fields when not locked (i.e. admin/manager create flow).
+      if (!isLocked) {
+        data.clientChannel = formData.clientChannel;
+        if (formData.clientChannel === 'AGGREGATOR' && formData.aggregatorName.trim()) {
+          data.aggregatorName = formData.aggregatorName.trim();
+        }
       }
 
       if (formData.contactPhone.trim()) data.contactPhone = formData.contactPhone.trim();
@@ -62,9 +82,8 @@ export default function AdminCreateCompany() {
       if (formData.country.trim()) data.country = formData.country.trim();
       if (formData.notes.trim()) data.notes = formData.notes.trim();
 
-      console.log('Submitting company data:', data);
       const company = await createCompany(data);
-      navigate(`/admin/companies/${company.id}`, { replace: true, state: { inviteSent: true } });
+      navigate(`${detailPathPrefix}/${company.id}`, { replace: true, state: { inviteSent: true } });
     } catch (err: any) {
       // Extract error message - it should already include details from apiPost
       let errorMessage = 'Failed to create company';
@@ -99,68 +118,97 @@ export default function AdminCreateCompany() {
   return (
     <div>
       <div style={{ marginBottom: '1rem' }}>
-        <button type="button" onClick={() => navigate('/admin/dashboard')}>
-          ← Back to dashboard
+        <button type="button" onClick={() => navigate(backPath)}>
+          ← Back
         </button>
       </div>
 
       <h1>Create New Client</h1>
 
       <form onSubmit={handleSubmit} style={{ maxWidth: '600px', marginTop: '1.5rem' }}>
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Client Channel <span style={{ color: 'crimson' }}>*</span>
-          </label>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name="clientChannel"
-                value="DIRECT"
-                checked={formData.clientChannel === 'DIRECT'}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, clientChannel: e.target.value as ClientChannel }))
-                }
-                disabled={loading}
-              />
-              <span>Direct (standard flow with payment)</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name="clientChannel"
-                value="AGGREGATOR"
-                checked={formData.clientChannel === 'AGGREGATOR'}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, clientChannel: e.target.value as ClientChannel }))
-                }
-                disabled={loading}
-              />
-              <span>Aggregator (skip payment, KYC first)</span>
-            </label>
-          </div>
-          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.35rem' }}>
-            Aggregator clients skip the internal payment step and start directly at KYC upload.
-          </p>
-        </div>
-
-        {formData.clientChannel === 'AGGREGATOR' && (
+        {isLocked ? (
           <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="aggregatorName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-              Aggregator Name <span style={{ color: 'crimson' }}>*</span>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              Client Channel
             </label>
-            <input
-              id="aggregatorName"
-              name="aggregatorName"
-              type="text"
-              value={formData.aggregatorName}
-              onChange={handleChange}
-              className={inputClass}
-              required
-              disabled={loading}
-              placeholder="e.g. MyHQ, Awfis, CoFynd"
-            />
+            <div
+              style={{
+                padding: '0.6rem 0.75rem',
+                borderRadius: 6,
+                background: '#f1f5f9',
+                border: '1px solid #e2e8f0',
+                fontSize: '0.9rem',
+                color: '#0f172a',
+              }}
+            >
+              {isAggregatorLocked
+                ? 'Aggregator (skip payment, KYC first)'
+                : 'Direct (standard flow with payment)'}
+            </div>
+            {isAggregatorLocked && (
+              <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.35rem' }}>
+                All clients you onboard start directly at KYC. Payment step is skipped.
+              </p>
+            )}
           </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Client Channel <span style={{ color: 'crimson' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="clientChannel"
+                    value="DIRECT"
+                    checked={formData.clientChannel === 'DIRECT'}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, clientChannel: e.target.value as ClientChannel }))
+                    }
+                    disabled={loading}
+                  />
+                  <span>Direct (standard flow with payment)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="clientChannel"
+                    value="AGGREGATOR"
+                    checked={formData.clientChannel === 'AGGREGATOR'}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, clientChannel: e.target.value as ClientChannel }))
+                    }
+                    disabled={loading}
+                  />
+                  <span>Aggregator (skip payment, KYC first)</span>
+                </label>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.35rem' }}>
+                Aggregator clients skip the internal payment step and start directly at KYC upload.
+              </p>
+            </div>
+
+            {formData.clientChannel === 'AGGREGATOR' && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label htmlFor="aggregatorName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                  Aggregator Name <span style={{ color: 'crimson' }}>*</span>
+                </label>
+                <input
+                  id="aggregatorName"
+                  name="aggregatorName"
+                  type="text"
+                  value={formData.aggregatorName}
+                  onChange={handleChange}
+                  className={inputClass}
+                  required
+                  disabled={loading}
+                  placeholder="e.g. MyHQ, Awfis, CoFynd"
+                />
+              </div>
+            )}
+          </>
         )}
 
         <div style={{ marginBottom: '1rem' }}>
@@ -347,7 +395,7 @@ export default function AdminCreateCompany() {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/admin/dashboard')}
+            onClick={() => navigate(backPath)}
             disabled={loading}
             style={{
               padding: '0.5rem 1.5rem',

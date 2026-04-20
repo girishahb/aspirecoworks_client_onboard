@@ -405,8 +405,9 @@ export class InvoicesService {
     companyId?: string;
     page?: number;
     limit?: number;
+    createdById?: string;
   }) {
-    const { companyId, page: pageIn = 1, limit: limitIn = 50 } = filters;
+    const { companyId, page: pageIn = 1, limit: limitIn = 50, createdById } = filters;
     const page = typeof pageIn === 'number' && Number.isFinite(pageIn) ? pageIn : 1;
     const limit = typeof limitIn === 'number' && Number.isFinite(limitIn) ? limitIn : 50;
     const skip = (page - 1) * limit;
@@ -414,6 +415,10 @@ export class InvoicesService {
     const where: any = {};
     if (companyId) {
       where.companyId = companyId;
+    }
+    // Aggregator scoping: only invoices whose company was created by this user
+    if (createdById) {
+      where.company = { createdById };
     }
 
     const [invoices, total] = await Promise.all([

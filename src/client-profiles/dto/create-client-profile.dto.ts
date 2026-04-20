@@ -8,6 +8,8 @@ const optionalString = z.preprocess(
   z.string().optional()
 );
 
+export const ClientChannelEnum = z.enum(['DIRECT', 'AGGREGATOR']);
+
 export const createClientProfileSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
   contactEmail: z.string().email('Invalid email format'),
@@ -20,6 +22,8 @@ export const createClientProfileSchema = z.object({
   country: optionalString,
   onboardingStage: z.nativeEnum(OnboardingStage).default(OnboardingStage.ADMIN_CREATED).optional(),
   notes: optionalString,
+  clientChannel: ClientChannelEnum.optional(),
+  aggregatorName: optionalString,
 });
 
 export class CreateClientProfileDto extends createZodDto(createClientProfileSchema) {}

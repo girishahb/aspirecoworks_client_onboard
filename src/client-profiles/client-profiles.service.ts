@@ -38,7 +38,11 @@ export class ClientProfilesService {
     private r2Service: R2Service,
   ) {}
 
-  async create(createClientProfileDto: CreateClientProfileDto, userId: string) {
+  async create(
+    createClientProfileDto: CreateClientProfileDto,
+    userId: string,
+    actor?: { role?: UserRole; aggregatorName?: string | null },
+  ) {
     if (createClientProfileDto.taxId) {
       const existing = await this.prisma.clientProfile.findUnique({
         where: { taxId: createClientProfileDto.taxId },
@@ -49,9 +53,45 @@ export class ClientProfilesService {
       }
     }
 
+    // Resolve channel + aggregator from payload and actor context.
+    // AGGREGATOR users cannot choose the channel; it is always forced to AGGREGATOR
+    // and aggregatorName is taken from the authenticated user.
+    let clientChannel: 'DIRECT' | 'AGGREGATOR' =
+      (createClientProfileDto.clientChannel as 'DIRECT' | 'AGGREGATOR' | undefined) ?? 'DIRECT';
+    let aggregatorName: string | null =
+      (createClientProfileDto.aggregatorName as string | undefined) ?? null;
+
+    if (actor?.role === UserRole.AGGREGATOR) {
+      clientChannel = 'AGGREGATOR';
+      aggregatorName = actor.aggregatorName ?? null;
+      if (!aggregatorName) {
+        throw new BadRequestException(
+          'Aggregator user is missing aggregatorName on their profile.',
+        );
+      }
+    }
+
+    if (clientChannel === 'AGGREGATOR' && !aggregatorName?.trim()) {
+      throw new BadRequestException(
+        'aggregatorName is required when clientChannel is AGGREGATOR',
+      );
+    }
+
+    // AGGREGATOR clients skip internal payment and land on KYC upload on first login.
+    const initialStage =
+      clientChannel === 'AGGREGATOR'
+        ? OnboardingStage.KYC_IN_PROGRESS
+        : (createClientProfileDto.onboardingStage ?? OnboardingStage.ADMIN_CREATED);
+
+    const { clientChannel: _c, aggregatorName: _a, onboardingStage: _s, ...rest } =
+      createClientProfileDto as any;
+
     const clientProfile = await this.prisma.clientProfile.create({
       data: {
-        ...createClientProfileDto,
+        ...rest,
+        clientChannel,
+        aggregatorName,
+        onboardingStage: initialStage,
         createdById: userId,
       },
       include: {
@@ -203,6 +243,11 @@ export class ClientProfilesService {
     // COMPANY_ADMIN users can only see their own company profile (filtered by companyId in service logic)
     // This check is handled elsewhere for COMPANY_ADMIN users
 
+    // AGGREGATOR partners only see clients they onboarded.
+    if (userRole === UserRole.AGGREGATOR && userId) {
+      where.createdById = userId;
+    }
+
     const list = await this.prisma.clientProfile.findMany({
       where,
       include: {
@@ -259,6 +304,17 @@ export class ClientProfilesService {
     // Authorization check: COMPANY_ADMIN users can only access their own company profile
     // This is handled via companyId check elsewhere for COMPANY_ADMIN users
 
+    // AGGREGATOR users can only view clients they created.
+    if (
+      userRole === UserRole.AGGREGATOR &&
+      userId &&
+      clientProfile.createdById !== userId
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to view this client profile',
+      );
+    }
+
     const isActive = clientProfile.onboardingStage === OnboardingStage.ACTIVE;
     return {
       ...clientProfile,
@@ -286,7 +342,12 @@ export class ClientProfilesService {
     }
 
     // Authorization check: Only admins/managers can update, or the creator
-    if (userRole !== UserRole.ADMIN && userRole !== UserRole.MANAGER && existing.createdById !== userId) {
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.MANAGER &&
+      userRole !== UserRole.AGGREGATOR &&
+      existing.createdById !== userId
+    ) {
       throw new ForbiddenException('You do not have permission to update this client profile');
     }
 
@@ -295,9 +356,16 @@ export class ClientProfilesService {
       assertValidTransition(existing.onboardingStage, updateClientProfileDto.onboardingStage);
     }
 
+    // AGGREGATOR users cannot change channel or aggregatorName on an existing client.
+    const sanitizedDto: Record<string, unknown> = { ...updateClientProfileDto };
+    if (userRole === UserRole.AGGREGATOR) {
+      delete sanitizedDto.clientChannel;
+      delete sanitizedDto.aggregatorName;
+    }
+
     const updated = await this.prisma.clientProfile.update({
       where: { id },
-      data: updateClientProfileDto,
+      data: sanitizedDto,
       include: {
         createdBy: {
           select: {

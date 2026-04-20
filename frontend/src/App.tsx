@@ -1,10 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthLayout from './components/AuthLayout';
 import AdminLayout from './components/AdminLayout';
+import AggregatorLayout from './components/AggregatorLayout';
 import ClientLayout from './components/ClientLayout';
 import PublicLayout from './components/PublicLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+import AggregatorRoute from './components/AggregatorRoute';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import SetPassword from './pages/SetPassword';
@@ -26,6 +28,12 @@ import AdminAuditLog from './pages/AdminAuditLog';
 import AdminPayments from './pages/AdminPayments';
 import AdminBookings from './pages/AdminBookings';
 import AdminPricing from './pages/AdminPricing';
+import AdminAggregatorUsers from './pages/AdminAggregatorUsers';
+import AdminCustomers from './pages/AdminCustomers';
+import AggregatorDashboard from './pages/AggregatorDashboard';
+import AggregatorCreateCompany from './pages/AggregatorCreateCompany';
+import AggregatorInvoices from './pages/AggregatorInvoices';
+import AggregatorPayments from './pages/AggregatorPayments';
 import Book from './pages/Book';
 import BookListing from './pages/BookListing';
 import BookSuccess from './pages/BookSuccess';
@@ -62,6 +70,7 @@ export default function App() {
         <Route index element={<Navigate to="/admin/login" replace />} />
         <Route element={<AdminRoute />}>
           <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="customers" element={<AdminCustomers />} />
           <Route path="companies/new" element={<AdminCreateCompany />} />
           <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
           <Route path="audit-log" element={<AdminAuditLog />} />
@@ -69,6 +78,19 @@ export default function App() {
           <Route path="bookings" element={<AdminBookings />} />
           <Route path="pricing" element={<AdminPricing />} />
           <Route path="invoices" element={<AdminInvoices />} />
+          <Route path="aggregator-users" element={<AdminAggregatorUsers />} />
+        </Route>
+      </Route>
+
+      {/* Aggregator portal — partner-facing sidebar layout */}
+      <Route path="aggregator" element={<AggregatorLayout />}>
+        <Route index element={<Navigate to="/aggregator/dashboard" replace />} />
+        <Route element={<AggregatorRoute />}>
+          <Route path="dashboard" element={<AggregatorDashboard />} />
+          <Route path="companies/new" element={<AggregatorCreateCompany />} />
+          <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
+          <Route path="invoices" element={<AggregatorInvoices />} />
+          <Route path="payments" element={<AggregatorPayments />} />
         </Route>
       </Route>
 

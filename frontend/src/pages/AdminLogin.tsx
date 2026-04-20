@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login, getCurrentUser, logout, clearSessionExpired } from '../services/auth';
 
-const NON_ADMIN_ERROR = 'Access denied. Admin accounts only.';
+const NON_ADMIN_ERROR = 'Access denied. Admin or aggregator accounts only.';
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
 
 /**
@@ -31,6 +31,10 @@ export default function AdminLogin() {
     try {
       await login(email.trim(), password);
       const user = getCurrentUser();
+      if (user?.role === 'AGGREGATOR') {
+        navigate('/aggregator/dashboard', { replace: true });
+        return;
+      }
       if (user?.role && ADMIN_ROLES.includes(user.role)) {
         navigate('/admin/dashboard', { replace: true });
         return;

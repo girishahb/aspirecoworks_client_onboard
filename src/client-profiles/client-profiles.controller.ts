@@ -28,14 +28,12 @@ export class ClientProfilesController {
   constructor(private readonly clientProfilesService: ClientProfilesService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Create a new client profile' })
   @ApiResponse({ status: 201, description: 'Client profile created successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   async create(@Body() body: any, @CurrentUser() user: any) {
-    console.log('BODY RECEIVED:', body);
-
     const companyName = body?.companyName;
     const contactEmail = body?.contactEmail;
 
@@ -58,13 +56,16 @@ export class ClientProfilesController {
         zipCode: body?.zipCode,
         country: body?.country,
         notes: body?.notes,
-      },
+        clientChannel: body?.clientChannel,
+        aggregatorName: body?.aggregatorName,
+      } as any,
       user.id,
+      { role: user.role, aggregatorName: user.aggregatorName },
     );
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Get all client profiles' })
   @ApiResponse({ status: 200, description: 'List of client profiles' })
   findAll(@CurrentUser() user: any) {
@@ -72,7 +73,7 @@ export class ClientProfilesController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Get client profile by ID' })
   @ApiResponse({ status: 200, description: 'Client profile found' })
   @ApiResponse({ status: 404, description: 'Client profile not found' })
@@ -82,7 +83,7 @@ export class ClientProfilesController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Update client profile' })
   @ApiResponse({ status: 200, description: 'Client profile updated successfully' })
   @ApiResponse({ status: 404, description: 'Client profile not found' })
@@ -141,11 +142,15 @@ export class ClientProfilesController {
   }
 
   @Post(':id/resend-invite')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Resend set-password invite to client' })
   @ApiResponse({ status: 200, description: 'Invite sent or already activated' })
   @ApiResponse({ status: 404, description: 'Company not found' })
-  async resendInvite(@Param('id') id: string) {
+  async resendInvite(@Param('id') id: string, @CurrentUser() user: any) {
+    if (user?.role === UserRole.AGGREGATOR) {
+      // ownership check via findOne throws Forbidden when mismatch
+      await this.clientProfilesService.findOne(id, user.role, user.id);
+    }
     return this.clientProfilesService.resendInvite(id);
   }
 
