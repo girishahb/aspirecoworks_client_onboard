@@ -5,6 +5,8 @@ import { createCompany } from '../services/admin';
 const inputClass =
   'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60';
 
+type ClientChannel = 'DIRECT' | 'AGGREGATOR';
+
 export default function AdminCreateCompany() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -18,6 +20,8 @@ export default function AdminCreateCompany() {
     zipCode: '',
     country: '',
     notes: '',
+    clientChannel: 'DIRECT' as ClientChannel,
+    aggregatorName: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,15 +34,25 @@ export default function AdminCreateCompany() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (formData.clientChannel === 'AGGREGATOR' && !formData.aggregatorName.trim()) {
+      setError('Aggregator name is required when Client channel is Aggregator.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const data: any = {
         companyName: formData.companyName.trim(),
         contactEmail: formData.contactEmail.trim(),
+        clientChannel: formData.clientChannel,
       };
 
-      // Add optional fields only if they have values
+      if (formData.clientChannel === 'AGGREGATOR' && formData.aggregatorName.trim()) {
+        data.aggregatorName = formData.aggregatorName.trim();
+      }
+
       if (formData.contactPhone.trim()) data.contactPhone = formData.contactPhone.trim();
       if (formData.taxId.trim()) data.taxId = formData.taxId.trim();
       if (formData.address.trim()) data.address = formData.address.trim();
@@ -93,6 +107,62 @@ export default function AdminCreateCompany() {
       <h1>Create New Client</h1>
 
       <form onSubmit={handleSubmit} style={{ maxWidth: '600px', marginTop: '1.5rem' }}>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Client Channel <span style={{ color: 'crimson' }}>*</span>
+          </label>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="clientChannel"
+                value="DIRECT"
+                checked={formData.clientChannel === 'DIRECT'}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, clientChannel: e.target.value as ClientChannel }))
+                }
+                disabled={loading}
+              />
+              <span>Direct (standard flow with payment)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="clientChannel"
+                value="AGGREGATOR"
+                checked={formData.clientChannel === 'AGGREGATOR'}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, clientChannel: e.target.value as ClientChannel }))
+                }
+                disabled={loading}
+              />
+              <span>Aggregator (skip payment, KYC first)</span>
+            </label>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.35rem' }}>
+            Aggregator clients skip the internal payment step and start directly at KYC upload.
+          </p>
+        </div>
+
+        {formData.clientChannel === 'AGGREGATOR' && (
+          <div style={{ marginBottom: '1rem' }}>
+            <label htmlFor="aggregatorName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              Aggregator Name <span style={{ color: 'crimson' }}>*</span>
+            </label>
+            <input
+              id="aggregatorName"
+              name="aggregatorName"
+              type="text"
+              value={formData.aggregatorName}
+              onChange={handleChange}
+              className={inputClass}
+              required
+              disabled={loading}
+              placeholder="e.g. MyHQ, Awfis, CoFynd"
+            />
+          </div>
+        )}
+
         <div style={{ marginBottom: '1rem' }}>
           <label htmlFor="companyName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
             Company Name <span style={{ color: 'crimson' }}>*</span>

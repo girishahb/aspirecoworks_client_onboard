@@ -510,6 +510,61 @@ export class DocumentsService {
   }
 
   /**
+   * POST /documents/kyc/submit
+   * Explicitly move the authenticated client's company from KYC_IN_PROGRESS to KYC_REVIEW
+   * after they've uploaded all their KYC documents. Idempotent when already in KYC_REVIEW.
+   * Requires at least one uploaded KYC document (AADHAAR, PAN, or OTHER).
+   */
+  async submitKycForReview(user: {
+    id: string;
+    companyId?: string | null;
+    role: UserRole;
+  }): Promise<{ companyId: string; onboardingStage: OnboardingStage }> {
+    if (!user.companyId) {
+      throw new ForbiddenException('No company associated with this user');
+    }
+    const company = await this.db.clientProfile.findUnique({
+      where: { id: user.companyId },
+      select: { id: true, onboardingStage: true },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+    const current = company.onboardingStage as OnboardingStage;
+    if (current === OnboardingStage.KYC_REVIEW) {
+      return { companyId: company.id, onboardingStage: current };
+    }
+    if (current !== OnboardingStage.KYC_IN_PROGRESS) {
+      throw new BadRequestException(
+        `KYC submission only allowed from KYC_IN_PROGRESS. Current stage: ${current}.`,
+      );
+    }
+    const hasKyc = await this.db.document.count({
+      where: {
+        clientProfileId: user.companyId,
+        documentType: { in: [DocumentType.AADHAAR, DocumentType.PAN, DocumentType.OTHER, DocumentType.KYC] },
+      },
+    });
+    if (hasKyc === 0) {
+      throw new BadRequestException(
+        'Upload at least one KYC document before submitting for review.',
+      );
+    }
+    await this.onboardingService.moveToKycReviewAfterUpload(user.companyId);
+    await this.auditLogsService.create({
+      userId: user.id,
+      clientProfileId: user.companyId,
+      action: 'SUBMIT_KYC_FOR_REVIEW',
+      entityType: 'ClientProfile',
+      entityId: user.companyId,
+      changes: {
+        stage: { before: current, after: OnboardingStage.KYC_REVIEW },
+      },
+    });
+    return { companyId: user.companyId, onboardingStage: OnboardingStage.KYC_REVIEW };
+  }
+
+  /**
    * GET /documents/my
    * Get current user's documents (COMPANY_ADMIN sees own company's documents).
    * AGREEMENT_DRAFT is only visible when company stage = AGREEMENT_DRAFT_SHARED.

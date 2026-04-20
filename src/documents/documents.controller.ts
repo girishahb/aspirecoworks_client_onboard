@@ -216,6 +216,20 @@ export class DocumentsController {
     );
   }
 
+  @Post('kyc/submit')
+  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
+  @ApiOperation({
+    summary: 'Submit uploaded KYC documents for admin review',
+    description:
+      'Explicitly transitions the authenticated company from KYC_IN_PROGRESS to KYC_REVIEW after the client has uploaded all required KYC documents. Idempotent when stage is already KYC_REVIEW.',
+  })
+  @ApiResponse({ status: 200, description: 'KYC submitted for review (or already under review)' })
+  @ApiResponse({ status: 400, description: 'Invalid stage for submission' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  submitKycForReview(@CurrentUser() user: any) {
+    return this.documentsService.submitKycForReview(user);
+  }
+
   @Get()
   @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({

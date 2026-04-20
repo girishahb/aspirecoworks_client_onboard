@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { ClientProfilesService } from './client-profiles.service';
 import { UpdateClientProfileDto } from './dto/update-client-profile.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { ActivateCompanyDto } from './dto/activate-company.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -128,8 +129,15 @@ export class ClientProfilesController {
   @ApiResponse({ status: 200, description: 'Company activated' })
   @ApiResponse({ status: 400, description: 'Stage is not FINAL_AGREEMENT_SHARED' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  activateCompany(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.clientProfilesService.activateCompany(id, user.id, user.role);
+  activateCompany(
+    @Param('id') id: string,
+    @Body() dto: ActivateCompanyDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.clientProfilesService.activateCompany(id, user.id, user.role, {
+      contractStartDate: dto.contractStartDate,
+      contractEndDate: dto.contractEndDate,
+    });
   }
 
   @Post(':id/resend-invite')

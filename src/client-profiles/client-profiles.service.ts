@@ -448,7 +448,12 @@ export class ClientProfilesService {
    * Activate company: only allowed when onboardingStage is FINAL_AGREEMENT_SHARED.
    * Sets activationDate, updates stage to ACTIVE, and sends activation email to company contact.
    */
-  async activateCompany(id: string, userId: string, userRole: UserRole) {
+  async activateCompany(
+    id: string,
+    userId: string,
+    userRole: UserRole,
+    options?: { contractStartDate?: Date; contractEndDate?: Date },
+  ) {
     if (
       userRole !== UserRole.SUPER_ADMIN &&
       userRole !== UserRole.ADMIN &&
@@ -459,6 +464,7 @@ export class ClientProfilesService {
 
     const existing = await this.findOne(id, userRole, userId);
     const current = existing.onboardingStage as OnboardingStage;
+    const isAggregator = existing.clientChannel === 'AGGREGATOR';
 
     if (current === OnboardingStage.ACTIVE) {
       throw new BadRequestException('Company is already activated.');
@@ -470,14 +476,24 @@ export class ClientProfilesService {
       );
     }
 
+    if (isAggregator) {
+      if (!options?.contractStartDate || !options?.contractEndDate) {
+        throw new BadRequestException(
+          'contractStartDate and contractEndDate are required to activate an aggregator company.',
+        );
+      }
+    }
+
     const canActivate = await this.onboardingService.canActivateCompany(id);
     if (!canActivate) {
       throw new BadRequestException(
-        'Activation requirements not met. Ensure: at least one payment PAID, all KYC approved, at least one final agreement, and stage is Final agreement shared.',
+        isAggregator
+          ? 'Activation requirements not met. Ensure all KYC approved, at least one final agreement, and stage is Final agreement shared.'
+          : 'Activation requirements not met. Ensure: at least one payment PAID, all KYC approved, at least one final agreement, and stage is Final agreement shared.',
       );
     }
 
-    await this.onboardingService.activateCompany(id);
+    await this.onboardingService.activateCompany(id, options);
 
     const updated = await this.findOne(id, userRole, userId);
 
@@ -490,6 +506,12 @@ export class ClientProfilesService {
       changes: {
         stage: { before: current, after: OnboardingStage.ACTIVE },
         activationDate: updated.activationDate?.toISOString() ?? new Date().toISOString(),
+        ...(options?.contractStartDate
+          ? { contractStartDate: options.contractStartDate.toISOString() }
+          : {}),
+        ...(options?.contractEndDate
+          ? { contractEndDate: options.contractEndDate.toISOString() }
+          : {}),
       },
     });
 

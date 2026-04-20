@@ -40,9 +40,17 @@ export class CompaniesService {
       }
     }
 
+    // AGGREGATOR customers skip the payment phase: they start directly in KYC_IN_PROGRESS
+    // so the client can upload KYC documents on first login.
+    const isAggregator = createCompanyDto.clientChannel === 'AGGREGATOR';
+    const initialStage = isAggregator
+      ? OnboardingStage.KYC_IN_PROGRESS
+      : (createCompanyDto.onboardingStage ?? OnboardingStage.ADMIN_CREATED);
+
     const company = await this.prisma.clientProfile.create({
       data: {
         ...createCompanyDto,
+        onboardingStage: initialStage,
         createdById: userId,
       },
       include: {

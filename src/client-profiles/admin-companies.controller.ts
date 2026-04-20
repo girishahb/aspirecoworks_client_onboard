@@ -1,4 +1,4 @@
-import { Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ClientProfilesService } from './client-profiles.service';
@@ -7,6 +7,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { ActivateCompanyDto } from './dto/activate-company.dto';
 
 @ApiTags('Admin Companies')
 @ApiBearerAuth()
@@ -27,7 +28,14 @@ export class AdminCompaniesController {
   @ApiResponse({ status: 400, description: 'Activation requirements not met or already active' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Company not found' })
-  activateCompany(@Param('companyId') companyId: string, @CurrentUser() user: any) {
-    return this.clientProfilesService.activateCompany(companyId, user.id, user.role);
+  activateCompany(
+    @Param('companyId') companyId: string,
+    @Body() dto: ActivateCompanyDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.clientProfilesService.activateCompany(companyId, user.id, user.role, {
+      contractStartDate: dto.contractStartDate,
+      contractEndDate: dto.contractEndDate,
+    });
   }
 }

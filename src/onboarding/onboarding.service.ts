@@ -185,8 +185,12 @@ export class OnboardingService {
     if (stage !== OnboardingStage.FINAL_AGREEMENT_SHARED) {
       return false;
     }
-    const hasPaidPayment = company.payments.some((p) => p.status === 'PAID');
-    if (!hasPaidPayment) return false;
+    // AGGREGATOR clients are paid via the aggregator - skip the internal payment check.
+    const isAggregator = company.clientChannel === 'AGGREGATOR';
+    if (!isAggregator) {
+      const hasPaidPayment = company.payments.some((p) => p.status === 'PAID');
+      if (!hasPaidPayment) return false;
+    }
     const kycDocs = company.documents.filter(
       (d) => d.documentType === 'KYC' && d.documentOwner === 'CLIENT',
     );
@@ -223,23 +227,70 @@ export class OnboardingService {
   }
 
   /**
-   * Activate company: set ACTIVE and activationDate.
+   * Activate company: set ACTIVE and activationDate. Optionally persist contract dates.
    * Allowed only from FINAL_AGREEMENT_SHARED.
+   *
+   * For AGGREGATOR clients, contractStartDate and contractEndDate are required; they are
+   * mirrored to renewalDate (and renewalStatus ACTIVE) so the existing renewal cron keeps working.
    */
-  async activateCompany(companyId: string): Promise<void> {
+  async activateCompany(
+    companyId: string,
+    options?: { contractStartDate?: Date; contractEndDate?: Date },
+  ): Promise<void> {
     await this.assertStage(
       companyId,
       [OnboardingStage.FINAL_AGREEMENT_SHARED],
       'Activation only allowed after final agreement has been shared.',
     );
+
+    const company = await this.prisma.clientProfile.findUnique({
+      where: { id: companyId },
+      select: { clientChannel: true },
+    });
+    if (!company) {
+      throw new NotFoundException(`Company not found: ${companyId}`);
+    }
+
+    const isAggregator = company.clientChannel === 'AGGREGATOR';
+    const { contractStartDate, contractEndDate } = options ?? {};
+
+    if (isAggregator) {
+      if (!contractStartDate || !contractEndDate) {
+        throw new BadRequestException(
+          'contractStartDate and contractEndDate are required to activate an aggregator company.',
+        );
+      }
+      if (contractEndDate.getTime() <= contractStartDate.getTime()) {
+        throw new BadRequestException(
+          'contractEndDate must be after contractStartDate.',
+        );
+      }
+    }
+
+    const now = new Date();
     await this.prisma.clientProfile.update({
       where: { id: companyId },
       data: {
         onboardingStage: OnboardingStage.ACTIVE as PrismaOnboardingStage,
-        activationDate: new Date(),
+        activationDate: now,
+        ...(contractStartDate ? { contractStartDate } : {}),
+        ...(contractEndDate
+          ? {
+              contractEndDate,
+              // Mirror contractEndDate to renewalDate so existing cron logic works.
+              renewalDate: contractEndDate,
+              renewalStatus: 'ACTIVE',
+            }
+          : {}),
       },
     });
-    this.logger.log(`Company activated: ${companyId}`);
+    this.logger.log(
+      `Company activated: ${companyId} (channel=${company.clientChannel}${
+        contractStartDate && contractEndDate
+          ? `, contract=${contractStartDate.toISOString()}..${contractEndDate.toISOString()}`
+          : ''
+      })`,
+    );
   }
 
   private async assertCurrentStage(

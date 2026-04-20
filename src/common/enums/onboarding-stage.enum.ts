@@ -37,7 +37,7 @@ export function isKycUploadAllowed(stage: OnboardingStage): boolean {
  * Allowed stage transitions. Each key can transition to the listed stages.
  */
 export const ALLOWED_STAGE_TRANSITIONS: Record<OnboardingStage, OnboardingStage[]> = {
-  [OnboardingStage.ADMIN_CREATED]: [OnboardingStage.PAYMENT_PENDING, OnboardingStage.PENDING_DOCUMENTS, OnboardingStage.REJECTED],
+  [OnboardingStage.ADMIN_CREATED]: [OnboardingStage.PAYMENT_PENDING, OnboardingStage.PENDING_DOCUMENTS, OnboardingStage.KYC_IN_PROGRESS, OnboardingStage.REJECTED],
   [OnboardingStage.PAYMENT_PENDING]: [OnboardingStage.PAYMENT_CONFIRMED, OnboardingStage.REJECTED],
   [OnboardingStage.PENDING_DOCUMENTS]: [OnboardingStage.DOCUMENTS_SUBMITTED, OnboardingStage.REJECTED],
   [OnboardingStage.DOCUMENTS_SUBMITTED]: [OnboardingStage.UNDER_REVIEW, OnboardingStage.PENDING_DOCUMENTS],

@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { ClientChannelEnum } from './create-company.dto';
 
 export const updateCompanySchema = z.object({
   companyName: z.string().min(1, 'Company name is required').optional(),
@@ -12,7 +13,8 @@ export const updateCompanySchema = z.object({
   zipCode: z.string().optional(),
   country: z.string().optional(),
   notes: z.string().optional(),
+  clientChannel: ClientChannelEnum.optional(),
+  aggregatorName: z.string().optional(),
 });
 
 export class UpdateCompanyDto extends createZodDto(updateCompanySchema) {}
-
