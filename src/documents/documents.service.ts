@@ -409,6 +409,129 @@ export class DocumentsService {
   }
 
   /**
+   * POST /documents/aggregator/kyc-upload
+   * Aggregator uploads a KYC document (AADHAAR | PAN | OTHER) on behalf of a client
+   * they onboarded. Scoped to the provided companyId (not user.companyId) and guarded
+   * by ownership: company.clientChannel must be AGGREGATOR and company.createdById
+   * must match the authenticated aggregator.
+   *
+   * Does not trigger any stage transition – documents are attached to the client
+   * profile and become reviewable by admins once KYC is submitted.
+   */
+  async uploadAggregatorKycProxy(
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    companyId: string,
+    documentType: DocumentType,
+    user: { id: string; role: UserRole },
+  ): Promise<{ documentId: string }> {
+    if (user.role !== UserRole.AGGREGATOR) {
+      throw new ForbiddenException('Only AGGREGATOR role can use this endpoint');
+    }
+
+    const allowed: DocumentType[] = [DocumentType.AADHAAR, DocumentType.PAN, DocumentType.OTHER];
+    if (!allowed.includes(documentType)) {
+      throw new BadRequestException(
+        `Aggregators can only upload KYC documents (AADHAAR, PAN, OTHER). Requested: "${documentType}".`,
+      );
+    }
+
+    const company = await this.db.clientProfile.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        clientChannel: true,
+        createdById: true,
+        onboardingStage: true,
+      },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+    if (company.clientChannel !== 'AGGREGATOR' || company.createdById !== user.id) {
+      throw new ForbiddenException('You can only upload documents for clients you onboarded');
+    }
+
+    await this.onboardingService.assertNotActive(companyId);
+
+    const sanitizedFileName = (file.originalname || 'document')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 255);
+    const ext = sanitizedFileName.toLowerCase().match(/\.[^.]+$/)?.[0];
+    const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+    if (!ext || !allowedExts.includes(ext)) {
+      throw new BadRequestException(
+        `Invalid file extension. Allowed: ${allowedExts.join(', ')}`,
+      );
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('File size exceeds maximum of 10MB');
+    }
+
+    const uuid = randomUUID();
+    const fileKey = this.r2Service.generateFileKey(
+      companyId,
+      documentType,
+      sanitizedFileName,
+      uuid,
+    );
+
+    await this.r2Service.uploadFile(
+      fileKey,
+      file.buffer,
+      file.mimetype || 'application/octet-stream',
+    );
+
+    let document;
+    try {
+      document = await this.db.document.create({
+        data: {
+          clientProfileId: companyId,
+          uploadedById: user.id,
+          ownerId: user.id,
+          fileName: file.originalname || 'document',
+          fileKey,
+          documentType,
+          fileSize: file.size,
+          mimeType: file.mimetype || null,
+          status: DocumentStatus.REVIEW_PENDING,
+          version: 1,
+          replacesId: null,
+          reviewNotes: null,
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(`Aggregator KYC upload failed: ${err?.message}`, err?.stack);
+      throw err;
+    }
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      clientProfileId: companyId,
+      documentId: document.id,
+      action: 'UPLOAD_DOCUMENT',
+      entityType: 'Document',
+      entityId: document.id,
+      changes: {
+        fileName: file.originalname,
+        documentType,
+        fileSize: file.size,
+        fileKey,
+        uploadedBy: 'AGGREGATOR',
+      },
+    });
+
+    try {
+      await this.onboardingService.onKycUploaded(companyId);
+    } catch (err) {
+      this.logger.warn(
+        `onKycUploaded skipped companyId=${companyId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+
+    return { documentId: document.id };
+  }
+
+  /**
    * POST /documents/:id/confirm-signed-agreement
    * CLIENT only. Call after uploading the signed agreement file. Updates company stage to SIGNED_AGREEMENT_RECEIVED.
    */

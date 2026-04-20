@@ -143,6 +143,7 @@ export default function AdminCompanyDetail() {
 
   const currentUser = getCurrentUser();
   const canDeleteCompany = currentUser?.role === 'ADMIN';
+  const isAggregatorView = currentUser?.role === 'AGGREGATOR';
 
   const loadData = useCallback(async () => {
     if (!companyId) return;
@@ -536,7 +537,7 @@ export default function AdminCompanyDetail() {
                       <Download className="h-3 w-3" />
                       Download
                     </button>
-                    {isReviewable(doc.status) && (
+                    {!isAggregatorView && isReviewable(doc.status) && (
                       <>
                         <button
                           type="button"
@@ -931,8 +932,11 @@ export default function AdminCompanyDetail() {
       <section style={{ marginTop: '1.5rem' }}>
         <h2>Documents</h2>
         <p style={{ margin: '0 0 1rem 0', fontSize: '0.875rem', color: '#555' }}>
-          Download any file; use Approve / Reject / Pending with client for documents awaiting review.
+          {isAggregatorView
+            ? 'Download or view any uploaded document. KYC review and agreement steps are handled by Aspire admins.'
+            : 'Download any file; use Approve / Reject / Pending with client for documents awaiting review.'}
         </p>
+        {!isAggregatorView && (
         <div style={{ marginBottom: '1rem', padding: '1rem', border: '1px solid #ddd', borderRadius: 4 }}>
           <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Upload agreement draft(s)</h3>
           <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', color: '#666' }}>
@@ -996,6 +1000,7 @@ export default function AdminCompanyDetail() {
             <p style={{ color: 'crimson', fontSize: '0.875rem', marginTop: '0.5rem' }}>{finalAgreementError}</p>
           )}
         </div>
+        )}
         {actionError && (
           <p style={{ color: 'crimson', marginBottom: '0.5rem' }}>{actionError}</p>
         )}

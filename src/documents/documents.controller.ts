@@ -79,6 +79,56 @@ export class DocumentsController {
   }
 
   @SkipThrottle()
+  @Post('aggregator/kyc-upload')
+  @Roles(UserRole.AGGREGATOR)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Aggregator KYC document upload (on behalf of an aggregator-onboarded client)',
+    description:
+      'Aggregator uploads a KYC document for a client they onboarded. Multipart form: file, companyId, documentType (AADHAAR | PAN | OTHER). Enforces ownership: the company must have clientChannel = AGGREGATOR and createdById equal to the authenticated aggregator. Does not trigger a stage transition – the document is stored on the client profile and becomes visible to admins during KYC review.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        companyId: { type: 'string', format: 'uuid' },
+        documentType: { type: 'string', enum: ['AADHAAR', 'PAN', 'OTHER'] },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Document uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid file, company or document type' })
+  @ApiResponse({ status: 403, description: 'Aggregator does not own this company' })
+  async uploadAggregatorKyc(
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    @Body('companyId') companyId: string,
+    @Body('documentType') documentType: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    if (!companyId || typeof companyId !== 'string') {
+      throw new BadRequestException('companyId is required');
+    }
+    if (!documentType || !['AADHAAR', 'PAN', 'OTHER'].includes(documentType)) {
+      throw new BadRequestException('documentType must be one of: AADHAAR, PAN, OTHER');
+    }
+    return this.documentsService.uploadAggregatorKycProxy(
+      file,
+      companyId,
+      documentType as DocumentType,
+      user,
+    );
+  }
+
+  @SkipThrottle()
   @Post('upload-url')
   @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
   @ApiOperation({

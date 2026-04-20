@@ -73,6 +73,44 @@ export async function uploadDocument(
 }
 
 /**
+ * AGGREGATOR-only: upload a KYC document (AADHAAR | PAN | OTHER) on behalf of a
+ * client the aggregator onboarded. Scoped by companyId – does not rely on the
+ * aggregator's own companyId (they don't have one).
+ */
+export async function uploadAggregatorKyc(
+  companyId: string,
+  file: File,
+  documentType: 'AADHAAR' | 'PAN' | 'OTHER',
+  onProgress?: (percent: number) => void
+): Promise<{ documentId: string }> {
+  if (onProgress) onProgress(10);
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('companyId', companyId);
+  formData.append('documentType', documentType);
+
+  const res = await apiRequest('/documents/aggregator/kyc-upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (onProgress) onProgress(100);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const message =
+      typeof data === 'object' && data !== null && 'message' in data
+        ? String((data as { message: unknown }).message)
+        : res.statusText;
+    throw new Error(message || `Upload failed (${res.status})`);
+  }
+
+  const data = (await res.json()) as { documentId: string };
+  return { documentId: data.documentId };
+}
+
+/**
  * Upload signed agreement (CLIENT only, when stage is AGREEMENT_DRAFT_SHARED).
  * Uses proxy upload; backend handles confirm-signed-agreement automatically.
  */
