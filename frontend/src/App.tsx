@@ -27,6 +27,7 @@ import AdminPayments from './pages/AdminPayments';
 import AdminBookings from './pages/AdminBookings';
 import AdminPricing from './pages/AdminPricing';
 import Book from './pages/Book';
+import BookListing from './pages/BookListing';
 import BookSuccess from './pages/BookSuccess';
 import NotFound from './pages/NotFound';
 
@@ -73,8 +74,9 @@ export default function App() {
 
       {/* Public pages — clean header layout */}
       <Route element={<PublicLayout />}>
-        <Route path="book" element={<Book />} />
+        <Route path="book" element={<BookListing />} />
         <Route path="book/success" element={<BookSuccess />} />
+        <Route path="book/:resourceId" element={<Book />} />
         <Route path="booking-success" element={<BookSuccess />} />
         <Route path="privacy-policy" element={<PrivacyPolicy />} />
         <Route path="terms-of-service" element={<TermsOfService />} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getLocations,
@@ -72,13 +72,14 @@ function formatDateLocal(date: Date): string {
 
 export default function Book() {
   const navigate = useNavigate();
+  const { resourceId: urlResourceId } = useParams<{ resourceId?: string }>();
   const contentRef = useRef<HTMLDivElement>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(urlResourceId ? 3 : 1);
   const [location, setLocation] = useState<Location | null>(null);
   const [resource, setResource] = useState<Resource | null>(null);
   const [date, setDate] = useState<Date | undefined>();
@@ -102,13 +103,28 @@ export default function Book() {
 
   useEffect(() => {
     getLocations()
-      .then(setLocations)
+      .then((locs) => {
+        setLocations(locs);
+        if (urlResourceId) {
+          for (const loc of locs) {
+            const match = (loc.resources ?? []).find((r) => r.id === urlResourceId);
+            if (match) {
+              setLocation(loc);
+              setResource(match);
+              setStep(3);
+              return;
+            }
+          }
+          showToast('Selected space not found. Please pick another.');
+          navigate('/book', { replace: true });
+        }
+      })
       .catch((e) => {
         setError(e instanceof Error ? e.message : 'Failed to load');
         showToast(e instanceof Error ? e.message : 'Failed to load locations');
       })
       .finally(() => setLoading(false));
-  }, [showToast]);
+  }, [showToast, urlResourceId, navigate]);
 
   const debouncedDate = useDebouncedValue(date, 300);
   useEffect(() => {
@@ -164,8 +180,12 @@ export default function Book() {
   }, [step]);
 
   const goBack = useCallback(() => {
+    if (urlResourceId && step === 3) {
+      navigate('/book');
+      return;
+    }
     if (step > 1) setStep(step - 1);
-  }, [step]);
+  }, [step, urlResourceId, navigate]);
 
   const handleSelectLocation = useCallback(
     (loc: Location) => {
