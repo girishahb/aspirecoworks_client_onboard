@@ -1,9 +1,9 @@
 import {
-  ONBOARDING_STEPS,
+  getOnboardingSteps,
   getStepIndex,
   getActionHint,
   getStepIcon,
-  TOTAL_ONBOARDING_STEPS,
+  type ClientChannel,
 } from '../onboardingSteps';
 import { Check } from 'lucide-react';
 
@@ -14,19 +14,24 @@ export interface OnboardingStepperProps {
   showPercentage?: boolean;
   /** Optional: compact mode for smaller spaces */
   compact?: boolean;
+  /** Client channel; AGGREGATOR hides the Payment step. */
+  clientChannel?: ClientChannel | null;
 }
 
 export default function OnboardingStepper({
   stage,
   showPercentage = true,
   compact = false,
+  clientChannel = null,
 }: OnboardingStepperProps) {
-  const currentIndex = getStepIndex(stage);
+  const steps = getOnboardingSteps(clientChannel);
+  const totalSteps = steps.length;
+  const currentIndex = getStepIndex(stage, clientChannel);
   const safeIndex = currentIndex < 0 ? 0 : currentIndex;
   const displayPercent =
-    TOTAL_ONBOARDING_STEPS <= 1
+    totalSteps <= 1
       ? 0
-      : Math.min(100, Math.round((safeIndex / (TOTAL_ONBOARDING_STEPS - 1)) * 100));
+      : Math.min(100, Math.round((safeIndex / (totalSteps - 1)) * 100));
 
   const actionHint = getActionHint(stage);
 
@@ -40,8 +45,8 @@ export default function OnboardingStepper({
       {/* Desktop: horizontal */}
       <div className="hidden md:block">
         <div className="flex items-stretch gap-0">
-          {ONBOARDING_STEPS.map((step, index) => {
-            const isLastTwoSteps = index >= ONBOARDING_STEPS.length - 2;
+          {steps.map((step, index) => {
+            const isLastTwoSteps = index >= steps.length - 2;
             const completed = currentIndex > index || (currentIndex === index && isLastTwoSteps);
             const current = currentIndex === index && !completed;
             const stageForLabel =
@@ -94,7 +99,7 @@ export default function OnboardingStepper({
                     </div>
                   </div>
                   {/* Connector line after (except last) */}
-                  {index < ONBOARDING_STEPS.length - 1 && (
+                  {index < steps.length - 1 && (
                     <div
                       className="h-0.5 flex-1"
                       style={{
@@ -111,8 +116,8 @@ export default function OnboardingStepper({
 
       {/* Mobile: vertical stack */}
       <div className="md:hidden space-y-3">
-        {ONBOARDING_STEPS.map((step, index) => {
-          const isLastTwoSteps = index >= ONBOARDING_STEPS.length - 2;
+        {steps.map((step, index) => {
+          const isLastTwoSteps = index >= steps.length - 2;
           const completed = currentIndex > index || (currentIndex === index && isLastTwoSteps);
           const current = currentIndex === index && !completed;
           const stageForLabel =

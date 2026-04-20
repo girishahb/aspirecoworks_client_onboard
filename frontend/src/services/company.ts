@@ -1,5 +1,7 @@
 import { apiGet } from './api';
 
+export type ClientChannel = 'DIRECT' | 'AGGREGATOR';
+
 export interface CompanyProfile {
   id: string;
   companyName: string;
@@ -7,6 +9,11 @@ export interface CompanyProfile {
   onboardingStage?: string;
   renewalStatus?: string | null;
   renewalDate?: string | null;
+  clientChannel?: ClientChannel;
+  aggregatorName?: string | null;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  activationDate?: string | null;
   [key: string]: unknown;
 }
 

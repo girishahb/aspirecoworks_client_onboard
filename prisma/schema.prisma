@@ -82,6 +82,11 @@ enum RenewalStatus {
   EXPIRED
 }
 
+enum ClientChannel {
+  DIRECT
+  AGGREGATOR
+}
+
 model User {
   id                String    @id @default(uuid())
   email             String    @unique
@@ -144,6 +149,12 @@ model ClientProfile {
   kycCompleted    Boolean         @default(false)
   renewalDate     DateTime?
   renewalStatus   RenewalStatus?
+  // Channel attribution: DIRECT (default, existing) or AGGREGATOR (new track)
+  clientChannel   ClientChannel   @default(DIRECT)
+  aggregatorName  String?
+  // Contract term for aggregator clients; mirrored to renewalDate for cron compatibility
+  contractStartDate DateTime?
+  contractEndDate   DateTime?
   notes           String?         @db.Text
   // Billing details for invoices
   gstNumber       String?

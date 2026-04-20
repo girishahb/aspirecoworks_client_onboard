@@ -1,5 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiRequest } from './api';
 
+export type ClientChannel = 'DIRECT' | 'AGGREGATOR';
+
 /** Company (client profile) as returned by admin list/get. */
 export interface AdminCompany {
   id: string;
@@ -16,6 +18,10 @@ export interface AdminCompany {
   activationDate?: string | null;
   renewalDate?: string | null;
   renewalStatus?: string | null;
+  clientChannel?: ClientChannel;
+  aggregatorName?: string | null;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
   notes?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -71,6 +77,8 @@ export async function createCompany(data: {
   zipCode?: string;
   country?: string;
   notes?: string;
+  clientChannel?: ClientChannel;
+  aggregatorName?: string;
 }): Promise<AdminCompany> {
   return apiPost<AdminCompany>('/client-profiles', data);
 }
@@ -293,8 +301,14 @@ export async function updateCompanyStage(
  * Only allowed when stage is FINAL_AGREEMENT_SHARED. Sets activationDate, stage to ACTIVE, sends activation email.
  * Backend: POST /client-profiles/:id/activate (SUPER_ADMIN, ADMIN, MANAGER).
  */
-export async function activateCompany(companyId: string): Promise<unknown> {
-  return apiPost(`/client-profiles/${companyId}/activate`);
+export async function activateCompany(
+  companyId: string,
+  options?: { contractStartDate?: string; contractEndDate?: string },
+): Promise<unknown> {
+  const body: Record<string, string> = {};
+  if (options?.contractStartDate) body.contractStartDate = options.contractStartDate;
+  if (options?.contractEndDate) body.contractEndDate = options.contractEndDate;
+  return apiPost(`/client-profiles/${companyId}/activate`, body);
 }
 
 /** Compliance status for a company (required docs, approved docs, isCompliant). */

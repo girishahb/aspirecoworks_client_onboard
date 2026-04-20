@@ -1,4 +1,4 @@
-import { apiGet, apiRequest } from './api';
+import { apiGet, apiPost, apiRequest } from './api';
 
 /** Document types supported by the backend. */
 export type DocumentType =
@@ -81,6 +81,18 @@ export async function uploadSignedAgreement(
   onProgress?: (percent: number) => void
 ): Promise<{ documentId: string }> {
   return uploadDocument(file, 'AGREEMENT_SIGNED', onProgress);
+}
+
+/**
+ * Submit all uploaded KYC documents for admin review.
+ * Transitions company onboarding stage from KYC_IN_PROGRESS to KYC_REVIEW.
+ * Idempotent when stage is already KYC_REVIEW.
+ */
+export async function submitKycForReview(): Promise<{
+  companyId: string;
+  onboardingStage: string;
+}> {
+  return apiPost<{ companyId: string; onboardingStage: string }>('/documents/kyc/submit');
 }
 
 /**

@@ -9,7 +9,22 @@ import NextActionCard from '../components/NextActionCard';
 import SummaryCards from '../components/SummaryCards';
 import TimelineView from '../components/TimelineView';
 import NotificationStrip from '../components/NotificationStrip';
-import { FileText, CreditCard, User, CheckCircle, Receipt } from 'lucide-react';
+import { FileText, CreditCard, User, CheckCircle, Receipt, CalendarRange } from 'lucide-react';
+
+function formatContractDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' });
+}
+
+function daysBetween(a: Date, b: Date): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const aMid = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
+  const bMid = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
+  return Math.round((bMid - aMid) / msPerDay);
+}
 
 function statusBadgeType(company: CompanyProfile): 'active' | 'pending' | 'expired' {
   if (company.renewalStatus === 'EXPIRED') return 'expired';
@@ -114,7 +129,11 @@ export default function Dashboard() {
       )}
 
       {/* Onboarding Stepper */}
-      <OnboardingStepper stage={stage} showPercentage />
+      <OnboardingStepper
+        stage={stage}
+        showPercentage
+        clientChannel={company.clientChannel ?? null}
+      />
 
       {/* Next Action Card */}
       <NextActionCard
@@ -128,6 +147,62 @@ export default function Dashboard() {
 
       {/* Timeline View */}
       <TimelineView stage={stage} />
+
+      {/* Contract Period (when contract dates are set) */}
+      {(company.contractStartDate || company.contractEndDate) && (() => {
+        const end = company.contractEndDate ? new Date(company.contractEndDate) : null;
+        const daysRemaining = end ? daysBetween(new Date(), end) : null;
+        const remainingTone =
+          daysRemaining == null
+            ? 'neutral'
+            : daysRemaining < 0
+              ? 'expired'
+              : daysRemaining <= 30
+                ? 'warning'
+                : 'active';
+        const toneStyles: Record<string, { bg: string; border: string; color: string; label: string }> = {
+          active: { bg: '#f0fdf4', border: '#bbf7d0', color: '#166534', label: 'Active' },
+          warning: { bg: '#fff7ed', border: '#fed7aa', color: '#9a3412', label: 'Renewal due soon' },
+          expired: { bg: '#fef2f2', border: '#fecaca', color: '#991b1b', label: 'Expired' },
+          neutral: { bg: '#f8fafc', border: '#e2e8f0', color: '#334155', label: 'Contract set' },
+        };
+        const tone = toneStyles[remainingTone];
+        return (
+          <section>
+            <p className="section-title">Contract Period</p>
+            <div
+              className="card p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              style={{ borderColor: tone.border, background: tone.bg }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg p-2 shrink-0" style={{ background: 'rgba(19,75,127,0.08)' }}>
+                  <CalendarRange className="h-5 w-5" style={{ color: '#134b7f' }} />
+                </div>
+                <div className="grid gap-0.5 text-sm">
+                  <p className="font-semibold text-slate-900">
+                    {formatContractDate(company.contractStartDate)} – {formatContractDate(company.contractEndDate)}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    {daysRemaining == null
+                      ? 'Contract dates recorded.'
+                      : daysRemaining < 0
+                        ? `Expired ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago.`
+                        : daysRemaining === 0
+                          ? 'Ends today.'
+                          : `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining.`}
+                  </p>
+                </div>
+              </div>
+              <span
+                className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                style={{ background: '#fff', color: tone.color, border: `1px solid ${tone.border}` }}
+              >
+                {tone.label}
+              </span>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Quick Links */}
       <section>

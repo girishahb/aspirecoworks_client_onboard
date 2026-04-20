@@ -7,8 +7,32 @@ import { EmailService } from '../email/email.service';
 import { renewalReminder } from '../email/templates/renewal-reminder';
 import { ReminderType } from './renewal.types';
 
-/** Days before renewal to send reminders (matches ReminderType). */
-const REMINDER_DAYS_BEFORE = [30, 7] as const;
+type ChannelKey = 'DIRECT' | 'AGGREGATOR';
+
+/**
+ * Days before renewal to send reminders, per channel.
+ * - DIRECT: keeps the existing cadence unchanged.
+ * - AGGREGATOR: 4 weekly reminders during the final month.
+ */
+const REMINDER_DAYS_BY_CHANNEL: Record<ChannelKey, readonly number[]> = {
+  DIRECT: [30, 7],
+  AGGREGATOR: [30, 21, 14, 7],
+};
+
+function reminderTypeFor(daysBefore: number): ReminderType {
+  switch (daysBefore) {
+    case 30:
+      return ReminderType.REMINDER_30;
+    case 21:
+      return ReminderType.REMINDER_21;
+    case 14:
+      return ReminderType.REMINDER_14;
+    case 7:
+      return ReminderType.REMINDER_7;
+    default:
+      return ReminderType.REMINDER_7;
+  }
+}
 
 function formatRenewalDate(d: Date | null): string {
   if (!d) return '—';
@@ -105,15 +129,16 @@ export class RenewalsService {
       }
     }
 
-    // 2. Reminders for renewalDate in 30 or 7 days
+    // 2. Reminders for renewalDate in the lookup window (per channel)
     let upcoming: Array<{
       id: string;
       companyName: string;
       contactEmail: string;
       renewalDate: Date | null;
+      clientChannel: ChannelKey;
     }>;
     try {
-      upcoming = await this.db.clientProfile.findMany({
+      upcoming = (await this.db.clientProfile.findMany({
         where: {
           renewalDate: { gte: today },
         },
@@ -122,8 +147,9 @@ export class RenewalsService {
           companyName: true,
           contactEmail: true,
           renewalDate: true,
+          clientChannel: true,
         },
-      });
+      })) as typeof upcoming;
     } catch (err) {
       this.logger.error('Failed to fetch companies for reminders', err);
       return;
@@ -146,6 +172,7 @@ export class RenewalsService {
       companyName: string;
       contactEmail: string;
       renewalDate: Date | null;
+      clientChannel: ChannelKey;
     },
     today: Date,
   ): Promise<void> {
@@ -162,11 +189,13 @@ export class RenewalsService {
 
     if (daysRemaining <= 0) return;
 
-    for (const daysBefore of REMINDER_DAYS_BEFORE) {
+    const daysList =
+      REMINDER_DAYS_BY_CHANNEL[company.clientChannel] ?? REMINDER_DAYS_BY_CHANNEL.DIRECT;
+
+    for (const daysBefore of daysList) {
       if (daysRemaining !== daysBefore) continue;
 
-      const reminderType =
-        daysBefore === 30 ? ReminderType.REMINDER_30 : ReminderType.REMINDER_7;
+      const reminderType = reminderTypeFor(daysBefore);
 
       const alreadySent = await this.db.renewalReminder.findUnique({
         where: {

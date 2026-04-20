@@ -6,6 +6,7 @@ import {
   getDocumentViewUrl,
   uploadDocument,
   uploadSignedAgreement,
+  submitKycForReview,
   type DocumentListItem,
   type DocumentType,
 } from '../services/documents';
@@ -56,6 +57,21 @@ export default function ClientDocuments() {
   const [viewerFileUrl, setViewerFileUrl] = useState<string | null>(null);
   const [viewerFileName, setViewerFileName] = useState('');
   const [viewerLoading, setViewerLoading] = useState(false);
+
+  // Multi-file upload (AGGREGATOR-friendly)
+  type BulkItemStatus = 'pending' | 'uploading' | 'done' | 'error';
+  interface BulkUploadItem {
+    id: string;
+    file: File;
+    documentType: DocumentType;
+    status: BulkItemStatus;
+    progress: number;
+    error?: string;
+  }
+  const [bulkItems, setBulkItems] = useState<BulkUploadItem[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -117,6 +133,84 @@ export default function ClientDocuments() {
     } finally {
       setUploading(false);
       setUploadProgress(null);
+    }
+  }
+
+  function inferDocumentType(name: string): DocumentType {
+    const lower = name.toLowerCase();
+    if (lower.includes('aadhaar') || lower.includes('aadhar') || lower.includes('uidai')) return 'AADHAAR';
+    if (lower.includes('pan')) return 'PAN';
+    return 'OTHER';
+  }
+
+  function handleBulkFilesSelected(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploadError(null);
+    setUploadSuccess(null);
+    const now = Date.now();
+    const next: BulkUploadItem[] = Array.from(files).map((file, i) => ({
+      id: `${now}-${i}-${file.name}`,
+      file,
+      documentType: inferDocumentType(file.name),
+      status: 'pending',
+      progress: 0,
+    }));
+    setBulkItems((prev) => [...prev, ...next]);
+  }
+
+  function updateBulkItem(id: string, patch: Partial<BulkUploadItem>) {
+    setBulkItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }
+
+  function removeBulkItem(id: string) {
+    setBulkItems((prev) => prev.filter((it) => it.id !== id));
+  }
+
+  async function handleBulkUpload() {
+    if (bulkItems.length === 0 || bulkUploading) return;
+    setBulkUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null);
+    const pending = bulkItems.filter((it) => it.status === 'pending' || it.status === 'error');
+    await Promise.all(
+      pending.map(async (item) => {
+        updateBulkItem(item.id, { status: 'uploading', progress: 0, error: undefined });
+        try {
+          await uploadDocument(item.file, item.documentType, (p) =>
+            updateBulkItem(item.id, { progress: p }),
+          );
+          updateBulkItem(item.id, { status: 'done', progress: 100 });
+        } catch (err) {
+          updateBulkItem(item.id, {
+            status: 'error',
+            error: err instanceof Error ? err.message : 'Upload failed',
+          });
+        }
+      }),
+    );
+    setBulkUploading(false);
+    const hasErrors = bulkItems.some((it) => it.status === 'error');
+    if (!hasErrors) {
+      setUploadSuccess(`${pending.length} document${pending.length === 1 ? '' : 's'} uploaded.`);
+    } else {
+      setUploadError('Some uploads failed. Use Retry to try again.');
+    }
+    await loadData();
+  }
+
+  async function handleSubmitKycForReview() {
+    if (submittingReview) return;
+    setSubmitMessage(null);
+    setUploadError(null);
+    setSubmittingReview(true);
+    try {
+      await submitKycForReview();
+      setSubmitMessage('KYC submitted for review. You will receive an email once the admin responds.');
+      await loadData();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to submit KYC for review');
+    } finally {
+      setSubmittingReview(false);
     }
   }
 
@@ -274,6 +368,129 @@ export default function ClientDocuments() {
             </div>
           )}
         </div>
+
+        {canUploadKyc && (
+          <div className="mb-4 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Bulk KYC upload</h3>
+                <p className="text-xs text-muted">
+                  Select multiple KYC documents at once. Each file uploads in parallel. We guess the type
+                  from the file name – you can change it before uploading.
+                </p>
+              </div>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-primary bg-white px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5">
+                <Upload className="h-4 w-4" />
+                Add files
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleBulkFilesSelected(e.target.files);
+                    e.currentTarget.value = '';
+                  }}
+                  disabled={bulkUploading}
+                />
+              </label>
+            </div>
+
+            {bulkItems.length > 0 && (
+              <div className="space-y-2">
+                {bulkItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm"
+                  >
+                    <FileText className="h-4 w-4 text-muted" />
+                    <span className="max-w-[240px] truncate font-medium" title={item.file.name}>
+                      {item.file.name}
+                    </span>
+                    <span className="text-xs text-muted">
+                      ({(item.file.size / 1024).toFixed(1)} KB)
+                    </span>
+                    <select
+                      value={item.documentType}
+                      onChange={(e) =>
+                        updateBulkItem(item.id, { documentType: e.target.value as DocumentType })
+                      }
+                      disabled={bulkUploading || item.status === 'uploading' || item.status === 'done'}
+                      className="rounded border border-border px-2 py-1 text-xs"
+                    >
+                      {KYC_DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="ml-auto flex items-center gap-2">
+                      {item.status === 'pending' && <span className="text-xs text-muted">Ready</span>}
+                      {item.status === 'uploading' && (
+                        <span className="text-xs text-primary">Uploading {item.progress}%</span>
+                      )}
+                      {item.status === 'done' && (
+                        <span className="text-xs font-semibold text-success">Uploaded</span>
+                      )}
+                      {item.status === 'error' && (
+                        <span className="text-xs text-error" title={item.error}>
+                          Failed
+                        </span>
+                      )}
+                      {item.status !== 'uploading' && item.status !== 'done' && (
+                        <button
+                          type="button"
+                          onClick={() => removeBulkItem(item.id)}
+                          disabled={bulkUploading}
+                          className="text-xs text-muted hover:text-error"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleBulkUpload}
+                    disabled={
+                      bulkUploading ||
+                      bulkItems.every((it) => it.status === 'done' || it.status === 'uploading')
+                    }
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    {bulkUploading
+                      ? 'Uploading…'
+                      : `Upload ${bulkItems.filter((it) => it.status === 'pending' || it.status === 'error').length} file(s)`}
+                  </button>
+                  {bulkItems.some((it) => it.status === 'done') && (
+                    <button
+                      type="button"
+                      onClick={() => setBulkItems([])}
+                      disabled={bulkUploading}
+                      className="rounded-lg border border-border bg-white px-3 py-2 text-xs"
+                    >
+                      Clear list
+                    </button>
+                  )}
+                  {company?.onboardingStage === 'KYC_IN_PROGRESS' &&
+                    bulkItems.some((it) => it.status === 'done') && (
+                      <button
+                        type="button"
+                        onClick={handleSubmitKycForReview}
+                        disabled={submittingReview}
+                        className="ml-auto rounded-lg border border-success bg-success/10 px-3 py-2 text-xs font-semibold text-success disabled:opacity-50"
+                      >
+                        {submittingReview ? 'Submitting…' : 'Submit for admin review'}
+                      </button>
+                    )}
+                </div>
+                {submitMessage && <p className="mt-2 text-xs text-success">{submitMessage}</p>}
+              </div>
+            )}
+          </div>
+        )}
 
         {canUploadKyc && selectedFile && (
           <form

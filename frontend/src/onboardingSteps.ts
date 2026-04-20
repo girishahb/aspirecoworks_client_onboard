@@ -110,15 +110,30 @@ export function getStepIcon(step: OnboardingStepConfig, stage: OnboardingStage |
   return step.icon;
 }
 
+export type ClientChannel = 'DIRECT' | 'AGGREGATOR';
+
 /**
- * Returns the 0-based step index for the given onboarding stage.
- * Returns -1 for unknown or REJECTED (caller may treat as 0 or show error state).
+ * Returns the onboarding steps applicable to the given client channel.
+ * AGGREGATOR clients skip the Payment step because payment is handled by the aggregator.
  */
-export function getStepIndex(stage: string | null | undefined): number {
+export function getOnboardingSteps(channel?: ClientChannel | null): OnboardingStepConfig[] {
+  if (channel === 'AGGREGATOR') {
+    return ONBOARDING_STEPS.filter((s) => s.stepIndex !== 1);
+  }
+  return ONBOARDING_STEPS;
+}
+
+/**
+ * Returns the 0-based step index for the given onboarding stage within the
+ * steps for the given channel. Returns -1 for unknown or REJECTED.
+ */
+export function getStepIndex(
+  stage: string | null | undefined,
+  channel?: ClientChannel | null,
+): number {
   if (!stage || stage === 'REJECTED') return stage === 'REJECTED' ? -1 : 0;
-  const idx = ONBOARDING_STEPS.findIndex((s) =>
-    s.stages.includes(stage as OnboardingStage)
-  );
+  const steps = getOnboardingSteps(channel);
+  const idx = steps.findIndex((s) => s.stages.includes(stage as OnboardingStage));
   return idx >= 0 ? idx : 0;
 }
 
@@ -145,3 +160,8 @@ export function getActionHint(stage: string | null | undefined): string {
 
 /** Total number of steps (for progress percentage). */
 export const TOTAL_ONBOARDING_STEPS = ONBOARDING_STEPS.length;
+
+/** Total number of steps for a specific channel (AGGREGATOR skips payment). */
+export function getTotalOnboardingSteps(channel?: ClientChannel | null): number {
+  return getOnboardingSteps(channel).length;
+}

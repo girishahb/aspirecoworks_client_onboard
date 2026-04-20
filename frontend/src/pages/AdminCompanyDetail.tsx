@@ -136,6 +136,10 @@ export default function AdminCompanyDetail() {
   const [resendInviteBusy, setResendInviteBusy] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<string>('50000'); // Default ₹50,000
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [activateModalOpen, setActivateModalOpen] = useState(false);
+  const [activateStartDate, setActivateStartDate] = useState<string>('');
+  const [activateEndDate, setActivateEndDate] = useState<string>('');
+  const [activateError, setActivateError] = useState<string | null>(null);
 
   const currentUser = getCurrentUser();
   const canDeleteCompany = currentUser?.role === 'ADMIN';
@@ -349,8 +353,11 @@ export default function AdminCompanyDetail() {
   const canActivate = company?.onboardingStage === 'FINAL_AGREEMENT_SHARED';
   const isKycReviewStage = company?.onboardingStage === 'KYC_REVIEW';
   const canMarkKycComplete = isKycReviewStage && compliance?.isCompliant === true;
+  const isAggregator = company?.clientChannel === 'AGGREGATOR';
   const showPaymentSection =
-    company?.onboardingStage === 'ADMIN_CREATED' || company?.onboardingStage === 'PAYMENT_PENDING';
+    !isAggregator &&
+    (company?.onboardingStage === 'ADMIN_CREATED' ||
+      company?.onboardingStage === 'PAYMENT_PENDING');
   const pendingPayment = paymentHistory?.payments?.find((p) => p.status === 'CREATED');
   const paidPayment = paymentHistory?.payments?.find((p) => p.status === 'PAID');
   const latestPayment = paymentHistory?.payments?.[0]; // Most recent first
@@ -370,16 +377,44 @@ export default function AdminCompanyDetail() {
     }
   }
 
-  async function handleActivate() {
+  function openActivateModal() {
+    if (!canActivate) return;
+    setActivateError(null);
+    setActivateStartDate('');
+    setActivateEndDate('');
+    setActivateModalOpen(true);
+  }
+
+  async function handleActivateSubmit() {
     if (!companyId || !canActivate) return;
-    if (!window.confirm(`Activate ${company?.companyName}?`)) return;
+    setActivateError(null);
+
+    if (isAggregator) {
+      if (!activateStartDate || !activateEndDate) {
+        setActivateError('Contract start and end dates are required to activate an aggregator company.');
+        return;
+      }
+    }
+    if (activateStartDate && activateEndDate) {
+      const start = new Date(activateStartDate);
+      const end = new Date(activateEndDate);
+      if (!(end.getTime() > start.getTime())) {
+        setActivateError('Contract end date must be after contract start date.');
+        return;
+      }
+    }
+
     setActionError(null);
     setActivateBusy(true);
     try {
-      await activateCompany(companyId);
+      await activateCompany(companyId, {
+        contractStartDate: activateStartDate || undefined,
+        contractEndDate: activateEndDate || undefined,
+      });
+      setActivateModalOpen(false);
       await loadData();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Activation failed');
+      setActivateError(err instanceof Error ? err.message : 'Activation failed');
     } finally {
       setActivateBusy(false);
     }
@@ -563,12 +598,44 @@ export default function AdminCompanyDetail() {
         )}
       </div>
 
-      <h1>Company review</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0 }}>Company review</h1>
+        <span
+          style={{
+            padding: '0.25rem 0.65rem',
+            borderRadius: 999,
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            letterSpacing: 0.3,
+            backgroundColor: isAggregator ? '#fef3c7' : '#e0f2fe',
+            color: isAggregator ? '#92400e' : '#075985',
+            border: `1px solid ${isAggregator ? '#fde68a' : '#bae6fd'}`,
+          }}
+          title={isAggregator ? 'Aggregator client (payment handled externally)' : 'Direct client (standard flow)'}
+        >
+          {isAggregator
+            ? `AGGREGATOR${company.aggregatorName ? `: ${company.aggregatorName}` : ''}`
+            : 'DIRECT'}
+        </span>
+      </div>
+
+      {(company.contractStartDate || company.contractEndDate) && (
+        <p style={{ marginTop: '0.25rem', color: '#475569', fontSize: '0.875rem' }}>
+          Contract:{' '}
+          <strong>{company.contractStartDate ? formatDate(company.contractStartDate) : '—'}</strong>
+          {' to '}
+          <strong>{company.contractEndDate ? formatDate(company.contractEndDate) : '—'}</strong>
+        </p>
+      )}
 
       {/* Visual onboarding progress stepper */}
       <section style={{ marginTop: '1rem' }}>
         <h2 style={{ marginBottom: '0.5rem', fontSize: '1.125rem' }}>Onboarding progress</h2>
-        <OnboardingStepper stage={company.onboardingStage} showPercentage />
+        <OnboardingStepper
+          stage={company.onboardingStage}
+          showPercentage
+          clientChannel={company.clientChannel ?? null}
+        />
       </section>
 
       {/* Prominent onboarding stage */}
@@ -723,7 +790,7 @@ export default function AdminCompanyDetail() {
           ) : (
             <button
               type="button"
-              onClick={handleActivate}
+              onClick={openActivateModal}
               disabled={!canActivate || activateBusy}
               style={{
                 padding: '0.6rem 1.25rem',
@@ -969,6 +1036,122 @@ export default function AdminCompanyDetail() {
             : undefined
         }
       />
+
+      {activateModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem',
+          }}
+          onClick={() => {
+            if (!activateBusy) setActivateModalOpen(false);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: 12,
+              padding: '1.5rem',
+              maxWidth: 460,
+              width: '100%',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Activate {company.companyName}</h2>
+            <p style={{ margin: '0.5rem 0 1rem', color: '#475569', fontSize: '0.9rem' }}>
+              {isAggregator
+                ? 'Enter the contract period. Both dates are required for aggregator clients.'
+                : 'Optionally enter a contract period. Leave blank to use the existing flow.'}
+            </p>
+
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <label style={{ display: 'grid', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                  Contract start date{isAggregator ? ' *' : ''}
+                </span>
+                <input
+                  type="date"
+                  value={activateStartDate}
+                  onChange={(e) => setActivateStartDate(e.target.value)}
+                  disabled={activateBusy}
+                  required={isAggregator}
+                  style={{
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.95rem',
+                  }}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                  Contract end date{isAggregator ? ' *' : ''}
+                </span>
+                <input
+                  type="date"
+                  value={activateEndDate}
+                  onChange={(e) => setActivateEndDate(e.target.value)}
+                  disabled={activateBusy}
+                  required={isAggregator}
+                  min={activateStartDate || undefined}
+                  style={{
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.95rem',
+                  }}
+                />
+              </label>
+            </div>
+
+            {activateError && (
+              <p style={{ color: 'crimson', fontSize: '0.85rem', marginTop: '0.75rem' }}>{activateError}</p>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setActivateModalOpen(false)}
+                disabled={activateBusy}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  cursor: activateBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleActivateSubmit}
+                disabled={activateBusy}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: 6,
+                  border: '1px solid #1565c0',
+                  background: '#1565c0',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: activateBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {activateBusy ? 'Activating…' : 'Confirm activation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
