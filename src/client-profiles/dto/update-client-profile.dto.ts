@@ -2,6 +2,8 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { OnboardingStage } from '../../common/enums/onboarding-stage.enum';
 
+export const ClientChannelEnum = z.enum(['DIRECT', 'AGGREGATOR']);
+
 export const updateClientProfileSchema = z.object({
   companyName: z.string().min(1, 'Company name is required').optional(),
   contactEmail: z.string().email('Invalid email format').optional(),
@@ -14,6 +16,8 @@ export const updateClientProfileSchema = z.object({
   country: z.string().optional(),
   onboardingStage: z.nativeEnum(OnboardingStage).optional(),
   notes: z.string().optional(),
+  clientChannel: ClientChannelEnum.optional(),
+  aggregatorName: z.string().optional(),
 });
 
 export class UpdateClientProfileDto extends createZodDto(updateClientProfileSchema) {}

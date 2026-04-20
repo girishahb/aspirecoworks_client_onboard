@@ -5,6 +5,7 @@ import { InvoicesService } from './invoices.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 
 @ApiTags('Admin Invoices')
@@ -12,7 +13,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 @Controller('admin/invoices')
 @Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
 export class AdminInvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
@@ -27,6 +28,7 @@ export class AdminInvoicesController {
   @ApiResponse({ status: 200, description: 'List of invoices' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async findAll(
+    @CurrentUser() user: any,
     @Query('companyId') companyId?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
@@ -35,6 +37,7 @@ export class AdminInvoicesController {
       companyId,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      createdById: user?.role === UserRole.AGGREGATOR ? user.id : undefined,
     });
   }
 

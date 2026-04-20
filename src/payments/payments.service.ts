@@ -138,6 +138,7 @@ export class PaymentsService {
     toDate?: Date;
     page?: number;
     limit?: number;
+    createdById?: string;
   }) {
     const {
       status,
@@ -146,6 +147,7 @@ export class PaymentsService {
       toDate,
       page = 1,
       limit = 50,
+      createdById,
     } = filters;
 
     const where: any = {};
@@ -156,6 +158,10 @@ export class PaymentsService {
 
     if (companyId) {
       where.clientProfileId = companyId;
+    }
+
+    if (createdById) {
+      where.clientProfile = { createdById };
     }
 
     if (fromDate || toDate) {
@@ -217,13 +223,17 @@ export class PaymentsService {
   /**
    * Get all payments for a specific company.
    */
-  async findByCompanyId(companyId: string) {
+  async findByCompanyId(companyId: string, createdById?: string) {
     const company = await this.prisma.clientProfile.findUnique({
       where: { id: companyId },
-      select: { id: true, companyName: true },
+      select: { id: true, companyName: true, createdById: true },
     });
 
     if (!company) {
+      throw new NotFoundException(`Company with ID ${companyId} not found`);
+    }
+
+    if (createdById && company.createdById !== createdById) {
       throw new NotFoundException(`Company with ID ${companyId} not found`);
     }
 

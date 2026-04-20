@@ -61,6 +61,7 @@ export class UsersService {
         lastName: true,
         companyId: true,
         role: true,
+        aggregatorName: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,

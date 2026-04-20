@@ -56,6 +56,7 @@ export class AuthService {
         lastName: user.lastName,
         role: user.role,
         companyId: user.companyId || null,
+        aggregatorName: user.aggregatorName ?? null,
       },
     };
   }

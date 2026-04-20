@@ -17,6 +17,7 @@ enum UserRole {
   ADMIN
   MANAGER
   USER
+  AGGREGATOR
 }
 
 enum OnboardingStage {
@@ -105,6 +106,8 @@ model User {
   // Forgot password flow
   resetToken        String?   @unique
   resetTokenExpiry  DateTime?
+  // Aggregator users: partner brand this user acts on behalf of. Populated when role = AGGREGATOR.
+  aggregatorName    String?
 
   // Relations
   company        ClientProfile?  @relation("CompanyUsers", fields: [companyId], references: [id])

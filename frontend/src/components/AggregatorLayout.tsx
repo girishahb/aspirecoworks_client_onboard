@@ -3,31 +3,23 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../services/auth';
 import {
   LayoutDashboard,
-  Users,
+  UserPlus,
   CreditCard,
   Receipt,
-  Calendar,
-  Tag,
-  Shield,
   LogOut,
   Menu,
   X,
   ChevronRight,
-  Handshake,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/admin/customers', icon: Users, label: 'Customers' },
-  { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/admin/invoices', icon: Receipt, label: 'Invoices' },
-  { to: '/admin/bookings', icon: Calendar, label: 'Bookings' },
-  { to: '/admin/pricing', icon: Tag, label: 'Pricing' },
-  { to: '/admin/aggregator-users', icon: Handshake, label: 'Aggregators', roles: ['ADMIN', 'SUPER_ADMIN'] as const },
-  { to: '/admin/audit-log', icon: Shield, label: 'Audit Log' },
+  { to: '/aggregator/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/aggregator/companies/new', icon: UserPlus, label: 'Create New Client' },
+  { to: '/aggregator/invoices', icon: Receipt, label: 'Invoices' },
+  { to: '/aggregator/payments', icon: CreditCard, label: 'Payments' },
 ];
 
-export default function AdminLayout() {
+export default function AggregatorLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   let user: ReturnType<typeof getCurrentUser> = null;
@@ -39,13 +31,15 @@ export default function AdminLayout() {
   }
 
   const userInitials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'A'
-    : 'A';
-  const userName = user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email : 'Admin';
+    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'P'
+    : 'P';
+  const userName = user
+    ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email
+    : 'Partner';
+  const aggregatorName = user?.aggregatorName || 'Aggregator';
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="px-5 py-5 border-b border-slate-700/50">
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Aspire Coworks" className="h-8 w-8 object-contain shrink-0" />
@@ -53,18 +47,13 @@ export default function AdminLayout() {
             <p className="text-white font-bold text-sm tracking-wide" style={{ fontFamily: 'Arial, sans-serif' }}>
               ASPIRE COWORKS
             </p>
-            <p className="text-slate-500 text-xs">Admin Portal</p>
+            <p className="text-slate-500 text-xs">Aggregator Portal</p>
           </div>
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.filter((item) => {
-          const allowed = (item as { roles?: readonly string[] }).roles;
-          if (!allowed) return true;
-          return !!user?.role && allowed.includes(user.role);
-        }).map(({ to, icon: Icon, label }) => (
+        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
@@ -88,7 +77,6 @@ export default function AdminLayout() {
         ))}
       </nav>
 
-      {/* User */}
       <div className="px-3 py-4 border-t border-slate-700/50">
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-800/50 mb-2">
           <div
@@ -99,7 +87,7 @@ export default function AdminLayout() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-white font-medium truncate">{userName}</p>
-            <p className="text-xs text-slate-500 truncate">{user?.role ?? 'Admin'}</p>
+            <p className="text-xs text-slate-400 truncate">Partner: {aggregatorName}</p>
           </div>
         </div>
         <button
@@ -115,7 +103,6 @@ export default function AdminLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      {/* Desktop Sidebar */}
       <aside
         className="hidden lg:flex flex-col w-60 shrink-0 h-full"
         style={{ background: '#0f172a' }}
@@ -123,7 +110,6 @@ export default function AdminLayout() {
         <SidebarContent />
       </aside>
 
-      {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
@@ -142,9 +128,7 @@ export default function AdminLayout() {
         </div>
       )}
 
-      {/* Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile top bar */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
           <button
             onClick={() => setMobileOpen(true)}
@@ -160,7 +144,6 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
             <Outlet />

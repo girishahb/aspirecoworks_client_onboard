@@ -15,6 +15,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { InvoicesService } from '../invoices/invoices.service';
@@ -24,7 +25,6 @@ import { InvoicesService } from '../invoices/invoices.service';
 @Controller('admin/payments')
 @Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 export class AdminPaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
@@ -33,6 +33,7 @@ export class AdminPaymentsController {
   ) {}
 
   @Post()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
     summary: 'Create a new payment for a company',
     description:
@@ -51,6 +52,7 @@ export class AdminPaymentsController {
   }
 
   @Get()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({
     summary: 'List all payments with filters',
     description: 'Returns paginated list of payments with optional filters for status, company, and date range.',
@@ -64,6 +66,7 @@ export class AdminPaymentsController {
   @ApiResponse({ status: 200, description: 'List of payments' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async findAll(
+    @CurrentUser() user: any,
     @Query('status') status?: 'CREATED' | 'PAID' | 'FAILED',
     @Query('companyId') companyId?: string,
     @Query('fromDate') fromDateStr?: string,
@@ -81,10 +84,12 @@ export class AdminPaymentsController {
       toDate,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      createdById: user?.role === UserRole.AGGREGATOR ? user.id : undefined,
     });
   }
 
   @Get('companies/:companyId')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({
     summary: 'Get payment history for a company',
     description: 'Returns all payments for a specific company.',
@@ -92,11 +97,18 @@ export class AdminPaymentsController {
   @ApiResponse({ status: 200, description: 'Company payment history' })
   @ApiResponse({ status: 404, description: 'Company not found' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async getCompanyPayments(@Param('companyId') companyId: string) {
-    return this.paymentsService.findByCompanyId(companyId);
+  async getCompanyPayments(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.paymentsService.findByCompanyId(
+      companyId,
+      user?.role === UserRole.AGGREGATOR ? user.id : undefined,
+    );
   }
 
   @Post(':paymentId/mark-paid')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
     summary: 'Manually mark payment as paid',
     description:
@@ -132,6 +144,7 @@ export class AdminPaymentsController {
   }
 
   @Post(':paymentId/resend-link')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
     summary: 'Resend payment link',
     description: 'Resends the payment link to the company contact email.',
