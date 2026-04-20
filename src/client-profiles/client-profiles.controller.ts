@@ -58,10 +58,32 @@ export class ClientProfilesController {
         notes: body?.notes,
         clientChannel: body?.clientChannel,
         aggregatorName: body?.aggregatorName,
+        booking: body?.booking,
+        invoiceTo: body?.invoiceTo,
+        saveInvoiceToProfile: body?.saveInvoiceToProfile,
       } as any,
       user.id,
       { role: user.role, aggregatorName: user.aggregatorName },
     );
+  }
+
+  @Get(':id/bookings')
+  @Roles(
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.AGGREGATOR,
+  )
+  @ApiOperation({
+    summary: 'List aggregator bookings attached to a client profile',
+    description:
+      'Returns the AggregatorBooking rows for the given client. AGGREGATORs can only read bookings for clients they onboarded; admins can read any.',
+  })
+  @ApiResponse({ status: 200, description: 'List of bookings (may be empty)' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Client profile not found' })
+  listBookings(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.clientProfilesService.listBookings(id, { id: user.id, role: user.role });
   }
 
   @Get()

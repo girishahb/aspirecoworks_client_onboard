@@ -22,6 +22,11 @@ import { companyActivated } from '../email/templates/company-activated';
 import { onboardingStageChanged } from '../email/templates/onboarding-stage-changed';
 import { clientInviteSetPassword } from '../email/templates/client-invite-set-password';
 import { assertValidTransition } from './onboarding-stage.helper';
+import { AggregatorProfileService } from '../aggregator-profile/aggregator-profile.service';
+import type {
+  AggregatorBookingInput,
+  InvoiceToOverrideInput,
+} from './dto/aggregator-booking-input';
 
 const INVITE_TOKEN_EXPIRY_HOURS = 48;
 
@@ -36,6 +41,7 @@ export class ClientProfilesService {
     private onboardingService: OnboardingService,
     private config: ConfigService,
     private r2Service: R2Service,
+    private aggregatorProfileService: AggregatorProfileService,
   ) {}
 
   async create(
@@ -83,42 +89,197 @@ export class ClientProfilesService {
         ? OnboardingStage.KYC_IN_PROGRESS
         : (createClientProfileDto.onboardingStage ?? OnboardingStage.ADMIN_CREATED);
 
-    const { clientChannel: _c, aggregatorName: _a, onboardingStage: _s, ...rest } =
-      createClientProfileDto as any;
+    // Booking + Invoice-To payloads are only honored on the AGGREGATOR code path.
+    const isAggregatorCreation =
+      actor?.role === UserRole.AGGREGATOR && clientChannel === 'AGGREGATOR';
+    const booking = isAggregatorCreation ? createClientProfileDto.booking : undefined;
+    const invoiceToOverride = isAggregatorCreation ? createClientProfileDto.invoiceTo : undefined;
+    const saveInvoiceToProfile = isAggregatorCreation
+      ? Boolean(createClientProfileDto.saveInvoiceToProfile)
+      : false;
 
-    const clientProfile = await this.prisma.clientProfile.create({
-      data: {
-        ...rest,
-        clientChannel,
-        aggregatorName,
-        onboardingStage: initialStage,
-        createdById: userId,
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+    // Resolve Invoice-To snapshot: override wins field-by-field over saved profile.
+    let invoiceSnapshot: {
+      legalName: string | null;
+      constitution: string | null;
+      gstin: string | null;
+      pan: string | null;
+      registeredAddress: string | null;
+    } | null = null;
+
+    if (isAggregatorCreation) {
+      const savedProfile = await this.aggregatorProfileService.findForUser(userId);
+      invoiceSnapshot = {
+        legalName:
+          invoiceToOverride?.legalName ?? savedProfile?.legalName ?? null,
+        constitution:
+          invoiceToOverride?.constitution ?? savedProfile?.constitution ?? null,
+        gstin: invoiceToOverride?.gstin ?? savedProfile?.gstin ?? null,
+        pan: invoiceToOverride?.pan ?? savedProfile?.pan ?? null,
+        registeredAddress:
+          invoiceToOverride?.registeredAddress ?? savedProfile?.registeredAddress ?? null,
+      };
+    }
+
+    const {
+      clientChannel: _c,
+      aggregatorName: _a,
+      onboardingStage: _s,
+      booking: _b,
+      invoiceTo: _it,
+      saveInvoiceToProfile: _sp,
+      ...rest
+    } = createClientProfileDto as any;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const clientProfile = await tx.clientProfile.create({
+        data: {
+          ...rest,
+          clientChannel,
+          aggregatorName,
+          onboardingStage: initialStage,
+          createdById: userId,
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
           },
         },
-      },
+      });
+
+      if (isAggregatorCreation) {
+        await this.createAggregatorBookingTx(tx, {
+          clientProfileId: clientProfile.id,
+          createdById: userId,
+          booking,
+          invoiceSnapshot,
+        });
+
+        if (saveInvoiceToProfile && invoiceSnapshot?.legalName) {
+          // Upsert the aggregator's saved invoice profile using the resolved snapshot.
+          await tx.aggregatorInvoiceProfile.upsert({
+            where: { userId },
+            create: {
+              userId,
+              legalName: invoiceSnapshot.legalName,
+              constitution: invoiceSnapshot.constitution,
+              gstin: invoiceSnapshot.gstin,
+              pan: invoiceSnapshot.pan,
+              registeredAddress: invoiceSnapshot.registeredAddress,
+            },
+            update: {
+              legalName: invoiceSnapshot.legalName,
+              constitution: invoiceSnapshot.constitution,
+              gstin: invoiceSnapshot.gstin,
+              pan: invoiceSnapshot.pan,
+              registeredAddress: invoiceSnapshot.registeredAddress,
+            },
+          });
+        }
+      }
+
+      return clientProfile;
     });
 
     await this.auditLogsService.create({
       userId,
-      clientProfileId: clientProfile.id,
+      clientProfileId: result.id,
       action: 'CREATE',
       entityType: 'ClientProfile',
-      entityId: clientProfile.id,
+      entityId: result.id,
       changes: createClientProfileDto,
     });
 
-    // Create User for client login + send invite email
-    await this.createClientUserAndSendInvite(clientProfile);
+    // Create User for client login + send invite email (outside the transaction to avoid
+    // slow email sends holding DB locks; creation of the client is already committed).
+    await this.createClientUserAndSendInvite(result);
 
-    return clientProfile;
+    return result;
+  }
+
+  /**
+   * Inside-transaction helper: create an AggregatorBooking row tied to the newly
+   * created ClientProfile. Snapshots the resolved Invoice-To for auditability.
+   */
+  private async createAggregatorBookingTx(
+    tx: Parameters<Parameters<typeof this.prisma.$transaction>[0]>[0],
+    args: {
+      clientProfileId: string;
+      createdById: string;
+      booking: AggregatorBookingInput | undefined;
+      invoiceSnapshot: {
+        legalName: string | null;
+        constitution: string | null;
+        gstin: string | null;
+        pan: string | null;
+        registeredAddress: string | null;
+      } | null;
+    },
+  ) {
+    const { clientProfileId, createdById, booking, invoiceSnapshot } = args;
+    const currency = booking?.currency?.toUpperCase() || 'INR';
+    await tx.aggregatorBooking.create({
+      data: {
+        clientProfileId,
+        createdById,
+        bookingReference: booking?.bookingReference ?? null,
+        planType: booking?.planType ?? null,
+        venueName: booking?.venueName ?? null,
+        venueAddress: booking?.venueAddress ?? null,
+        durationMonths: booking?.durationMonths ?? null,
+        amount: booking?.amount == null ? null : booking.amount,
+        currency,
+        gstApplicable: booking?.gstApplicable ?? true,
+        paymentTerms: booking?.paymentTerms ?? null,
+        signageTerms: booking?.signageTerms ?? null,
+        clientContactName: booking?.clientContactName ?? null,
+        pocName: booking?.pocName ?? null,
+        pocContact: booking?.pocContact ?? null,
+        invoiceLegalName: invoiceSnapshot?.legalName ?? null,
+        invoiceConstitution: invoiceSnapshot?.constitution ?? null,
+        invoiceGstin: invoiceSnapshot?.gstin ?? null,
+        invoicePan: invoiceSnapshot?.pan ?? null,
+        invoiceRegisteredAddress: invoiceSnapshot?.registeredAddress ?? null,
+      },
+    });
+  }
+
+  /**
+   * List AggregatorBooking rows attached to a client profile. Aggregators can
+   * only read bookings for clients they onboarded; admins can read any.
+   */
+  async listBookings(
+    clientProfileId: string,
+    actor: { id: string; role: UserRole },
+  ) {
+    const company = await this.prisma.clientProfile.findUnique({
+      where: { id: clientProfileId },
+      select: { id: true, createdById: true, clientChannel: true },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+    if (actor.role === UserRole.AGGREGATOR) {
+      if (company.clientChannel !== 'AGGREGATOR' || company.createdById !== actor.id) {
+        throw new ForbiddenException('You can only view bookings for clients you onboarded');
+      }
+    } else if (
+      actor.role !== UserRole.SUPER_ADMIN &&
+      actor.role !== UserRole.ADMIN &&
+      actor.role !== UserRole.MANAGER
+    ) {
+      throw new ForbiddenException('Not authorized');
+    }
+
+    return this.prisma.aggregatorBooking.findMany({
+      where: { clientProfileId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   /**

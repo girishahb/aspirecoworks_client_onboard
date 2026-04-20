@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { listCompanies, type AdminCompany } from '../services/admin';
+import { getMyInvoiceProfile } from '../services/aggregatorProfile';
 import { getCurrentUser } from '../services/auth';
 
 const ACTIVE_STAGES = new Set(['ACTIVE', 'COMPLETED']);
@@ -55,14 +56,21 @@ export default function AggregatorDashboard() {
   const [companies, setCompanies] = useState<AdminCompany[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [invoiceProfileMissing, setInvoiceProfileMissing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       try {
-        const data = await listCompanies();
-        if (!cancelled) setCompanies(data);
+        const [data, profile] = await Promise.all([
+          listCompanies(),
+          getMyInvoiceProfile().catch(() => null),
+        ]);
+        if (!cancelled) {
+          setCompanies(data);
+          setInvoiceProfileMissing(!profile);
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load clients');
       } finally {
@@ -113,6 +121,26 @@ export default function AggregatorDashboard() {
         <KpiCard label="Active" value={kpis.active} />
         <KpiCard label="Expiring in 30 days" value={kpis.expiring} tone="warn" />
       </div>
+
+      {!loading && invoiceProfileMissing && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">
+              Set your Invoice-To details once
+            </p>
+            <p className="text-xs text-amber-800 mt-0.5">
+              Save your company legal name, GSTIN and address so they auto-fill on every new
+              client you register.
+            </p>
+          </div>
+          <Link
+            to="/aggregator/invoice-profile"
+            className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+          >
+            Set up now
+          </Link>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-3 rounded-md border border-red-200 bg-red-50 text-red-700 text-sm">

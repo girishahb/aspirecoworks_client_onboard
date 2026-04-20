@@ -1,10 +1,14 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { createCompany } from '../services/admin';
 import { uploadAggregatorKyc } from '../services/documents';
+import {
+  getMyInvoiceProfile,
+  type AggregatorInvoiceProfile,
+} from '../services/aggregatorProfile';
 
 const inputClass =
-  'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60';
+  'block w-full rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60';
 
 type KycDocType = 'AADHAAR' | 'PAN' | 'OTHER';
 
@@ -14,6 +18,12 @@ const KYC_TYPE_OPTIONS: { value: KycDocType; label: string }[] = [
   { value: 'OTHER', label: 'Other' },
 ];
 
+const PLAN_TYPE_SUGGESTIONS = ['BR', 'Enterprise', 'Startup', 'Virtual Office', 'Day Pass'];
+
+const DEFAULT_PAYMENT_TERMS = '100% payment upfront in the next monthly billing cycle';
+const DEFAULT_SIGNAGE_TERMS =
+  'Complimentary verification signage / sticker (anywhere in the premises)';
+
 type KycItemStatus = 'pending' | 'uploading' | 'done' | 'error';
 
 interface KycItem {
@@ -22,6 +32,59 @@ interface KycItem {
   documentType: KycDocType;
   status: KycItemStatus;
   error?: string;
+}
+
+interface BookingState {
+  bookingReference: string;
+  planType: string;
+  venueName: string;
+  venueAddress: string;
+  durationMonths: string;
+  amount: string;
+  currency: string;
+  gstApplicable: boolean;
+  paymentTerms: string;
+  signageTerms: string;
+  clientContactName: string;
+  pocName: string;
+  pocContact: string;
+}
+
+interface InvoiceToState {
+  legalName: string;
+  constitution: string;
+  gstin: string;
+  pan: string;
+  registeredAddress: string;
+}
+
+const EMPTY_INVOICE_TO: InvoiceToState = {
+  legalName: '',
+  constitution: '',
+  gstin: '',
+  pan: '',
+  registeredAddress: '',
+};
+
+function toInvoiceToState(profile: AggregatorInvoiceProfile | null): InvoiceToState {
+  if (!profile) return EMPTY_INVOICE_TO;
+  return {
+    legalName: profile.legalName ?? '',
+    constitution: profile.constitution ?? '',
+    gstin: profile.gstin ?? '',
+    pan: profile.pan ?? '',
+    registeredAddress: profile.registeredAddress ?? '',
+  };
+}
+
+function invoiceToEquals(a: InvoiceToState, b: InvoiceToState): boolean {
+  return (
+    a.legalName.trim() === b.legalName.trim() &&
+    a.constitution.trim() === b.constitution.trim() &&
+    a.gstin.trim().toUpperCase() === b.gstin.trim().toUpperCase() &&
+    a.pan.trim().toUpperCase() === b.pan.trim().toUpperCase() &&
+    a.registeredAddress.trim() === b.registeredAddress.trim()
+  );
 }
 
 function inferKycType(fileName: string): KycDocType {
@@ -49,14 +112,87 @@ export default function AggregatorCreateCompany() {
     notes: '',
   });
 
+  const [booking, setBooking] = useState<BookingState>({
+    bookingReference: '',
+    planType: '',
+    venueName: '',
+    venueAddress: '',
+    durationMonths: '',
+    amount: '',
+    currency: 'INR',
+    gstApplicable: true,
+    paymentTerms: DEFAULT_PAYMENT_TERMS,
+    signageTerms: DEFAULT_SIGNAGE_TERMS,
+    clientContactName: '',
+    pocName: '',
+    pocContact: '',
+  });
+
+  const [invoiceTo, setInvoiceTo] = useState<InvoiceToState>(EMPTY_INVOICE_TO);
+  const [savedInvoiceTo, setSavedInvoiceTo] = useState<InvoiceToState | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [customizeInvoiceTo, setCustomizeInvoiceTo] = useState(false);
+  const [saveInvoiceToProfile, setSaveInvoiceToProfile] = useState(false);
+
   const [kycItems, setKycItems] = useState<KycItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'idle' | 'creating' | 'uploading' | 'done'>('idle');
+  const [currentStep, setCurrentStep] = useState<'idle' | 'creating' | 'uploading' | 'done'>(
+    'idle',
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setProfileLoading(true);
+      try {
+        const profile = await getMyInvoiceProfile();
+        if (cancelled) return;
+        const mapped = toInvoiceToState(profile);
+        setSavedInvoiceTo(profile ? mapped : null);
+        setInvoiceTo(mapped);
+        if (!profile) {
+          setCustomizeInvoiceTo(true);
+          setSaveInvoiceToProfile(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setSavedInvoiceTo(null);
+          setInvoiceTo(EMPTY_INVOICE_TO);
+          setCustomizeInvoiceTo(true);
+          setSaveInvoiceToProfile(true);
+        }
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function handleBookingChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) {
+    const target = e.target;
+    const name = target.name as keyof BookingState;
+    if (target.type === 'checkbox' && target instanceof HTMLInputElement) {
+      setBooking((prev) => ({ ...prev, [name]: target.checked }));
+      return;
+    }
+    setBooking((prev) => ({ ...prev, [name]: target.value }));
+  }
+
+  function handleInvoiceToChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) {
+    const { name, value } = e.target;
+    setInvoiceTo((prev) => ({ ...prev, [name]: value }));
   }
 
   function handleFilesSelected(files: FileList | null) {
@@ -92,7 +228,7 @@ export default function AggregatorCreateCompany() {
     setCurrentStep('creating');
 
     try {
-      const data: Record<string, string> = {
+      const data: any = {
         companyName: formData.companyName.trim(),
         contactEmail: formData.contactEmail.trim(),
       };
@@ -104,6 +240,50 @@ export default function AggregatorCreateCompany() {
       if (formData.zipCode.trim()) data.zipCode = formData.zipCode.trim();
       if (formData.country.trim()) data.country = formData.country.trim();
       if (formData.notes.trim()) data.notes = formData.notes.trim();
+
+      // Booking payload – include only non-empty values.
+      const bookingPayload: Record<string, any> = {};
+      if (booking.bookingReference.trim())
+        bookingPayload.bookingReference = booking.bookingReference.trim();
+      if (booking.planType.trim()) bookingPayload.planType = booking.planType.trim();
+      if (booking.venueName.trim()) bookingPayload.venueName = booking.venueName.trim();
+      if (booking.venueAddress.trim()) bookingPayload.venueAddress = booking.venueAddress.trim();
+      if (booking.durationMonths.trim()) {
+        const d = Number(booking.durationMonths);
+        if (Number.isFinite(d) && d > 0) bookingPayload.durationMonths = d;
+      }
+      if (booking.amount.trim()) {
+        const a = Number(booking.amount);
+        if (Number.isFinite(a) && a >= 0) bookingPayload.amount = a;
+      }
+      if (booking.currency.trim()) bookingPayload.currency = booking.currency.trim().toUpperCase();
+      bookingPayload.gstApplicable = booking.gstApplicable;
+      if (booking.paymentTerms.trim()) bookingPayload.paymentTerms = booking.paymentTerms.trim();
+      if (booking.signageTerms.trim()) bookingPayload.signageTerms = booking.signageTerms.trim();
+      if (booking.clientContactName.trim())
+        bookingPayload.clientContactName = booking.clientContactName.trim();
+      if (booking.pocName.trim()) bookingPayload.pocName = booking.pocName.trim();
+      if (booking.pocContact.trim()) bookingPayload.pocContact = booking.pocContact.trim();
+      if (Object.keys(bookingPayload).length > 0) data.booking = bookingPayload;
+
+      // Invoice-To logic:
+      // - If user is not customizing and we have a saved profile, omit invoiceTo (server uses saved profile).
+      // - If customizing, send the current fields and optionally ask to persist them as the default.
+      const isCustomizing = !savedInvoiceTo || customizeInvoiceTo;
+      if (isCustomizing) {
+        const invoiceToPayload: Record<string, any> = {};
+        if (invoiceTo.legalName.trim()) invoiceToPayload.legalName = invoiceTo.legalName.trim();
+        if (invoiceTo.constitution.trim())
+          invoiceToPayload.constitution = invoiceTo.constitution.trim();
+        if (invoiceTo.gstin.trim()) invoiceToPayload.gstin = invoiceTo.gstin.trim().toUpperCase();
+        if (invoiceTo.pan.trim()) invoiceToPayload.pan = invoiceTo.pan.trim().toUpperCase();
+        if (invoiceTo.registeredAddress.trim())
+          invoiceToPayload.registeredAddress = invoiceTo.registeredAddress.trim();
+        if (Object.keys(invoiceToPayload).length > 0) data.invoiceTo = invoiceToPayload;
+        if (saveInvoiceToProfile && invoiceToPayload.legalName) {
+          data.saveInvoiceToProfile = true;
+        }
+      }
 
       const company = await createCompany(data);
 
@@ -177,6 +357,9 @@ export default function AggregatorCreateCompany() {
       ? `Create client & upload ${kycItems.length} document${kycItems.length === 1 ? '' : 's'}`
       : 'Create client';
 
+  const savedUnchanged =
+    savedInvoiceTo !== null && !customizeInvoiceTo && invoiceToEquals(invoiceTo, savedInvoiceTo);
+
   return (
     <div>
       <div style={{ marginBottom: '1rem' }}>
@@ -187,11 +370,13 @@ export default function AggregatorCreateCompany() {
 
       <h1>Create New Client</h1>
       <p style={{ marginTop: '-0.5rem', color: '#64748b', fontSize: '0.9rem' }}>
-        Register the client and upload their KYC documents in a single step. The client is created
-        directly at the KYC stage – no payment step is required for aggregator-onboarded clients.
+        Register the client, capture the booking details, confirm the Invoice-To entity, and
+        upload KYC documents – all in one step. The client starts directly at the KYC stage; no
+        payment step is required for aggregator-onboarded clients.
       </p>
 
-      <form onSubmit={handleSubmit} style={{ maxWidth: '720px', marginTop: '1.5rem' }}>
+      <form onSubmit={handleSubmit} style={{ maxWidth: '840px', marginTop: '1.5rem' }}>
+        {/* Section 1: Client details */}
         <section
           style={{
             border: '1px solid #e2e8f0',
@@ -203,7 +388,7 @@ export default function AggregatorCreateCompany() {
         >
           <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem' }}>1. Client details</h2>
           <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#64748b' }}>
-            Core contact and company information.
+            Core contact and company information for the client being onboarded.
           </p>
 
           <div style={{ marginBottom: '1rem' }}>
@@ -231,70 +416,87 @@ export default function AggregatorCreateCompany() {
             </div>
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="companyName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-              Company Name <span style={{ color: 'crimson' }}>*</span>
-            </label>
-            <input
-              id="companyName"
-              name="companyName"
-              type="text"
-              value={formData.companyName}
-              onChange={handleChange}
-              className={inputClass}
-              required
-              disabled={submitting}
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label
+                htmlFor="companyName"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Client Company Name <span style={{ color: 'crimson' }}>*</span>
+              </label>
+              <input
+                id="companyName"
+                name="companyName"
+                type="text"
+                value={formData.companyName}
+                onChange={handleChange}
+                className={inputClass}
+                required
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="contactEmail"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Contact Email <span style={{ color: 'crimson' }}>*</span>
+              </label>
+              <input
+                id="contactEmail"
+                name="contactEmail"
+                type="email"
+                value={formData.contactEmail}
+                onChange={handleChange}
+                className={inputClass}
+                required
+                disabled={submitting}
+              />
+            </div>
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="contactEmail" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-              Contact Email <span style={{ color: 'crimson' }}>*</span>
-            </label>
-            <input
-              id="contactEmail"
-              name="contactEmail"
-              type="email"
-              value={formData.contactEmail}
-              onChange={handleChange}
-              className={inputClass}
-              required
-              disabled={submitting}
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+            <div>
+              <label
+                htmlFor="contactPhone"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Contact Phone
+              </label>
+              <input
+                id="contactPhone"
+                name="contactPhone"
+                type="tel"
+                value={formData.contactPhone}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="taxId"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Tax ID
+              </label>
+              <input
+                id="taxId"
+                name="taxId"
+                type="text"
+                value={formData.taxId}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={submitting}
+              />
+            </div>
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="contactPhone" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-              Contact Phone
-            </label>
-            <input
-              id="contactPhone"
-              name="contactPhone"
-              type="tel"
-              value={formData.contactPhone}
-              onChange={handleChange}
-              className={inputClass}
-              disabled={submitting}
-            />
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="taxId" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-              Tax ID
-            </label>
-            <input
-              id="taxId"
-              name="taxId"
-              type="text"
-              value={formData.taxId}
-              onChange={handleChange}
-              className={inputClass}
-              disabled={submitting}
-            />
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="address" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+          <div style={{ marginTop: '1rem' }}>
+            <label
+              htmlFor="address"
+              style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+            >
               Address
             </label>
             <input
@@ -308,9 +510,16 @@ export default function AggregatorCreateCompany() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr 1fr',
+              gap: '1rem',
+              marginTop: '1rem',
+            }}
+          >
             <div>
-              <label htmlFor="city" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              <label htmlFor="city" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}>
                 City
               </label>
               <input
@@ -324,7 +533,7 @@ export default function AggregatorCreateCompany() {
               />
             </div>
             <div>
-              <label htmlFor="state" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              <label htmlFor="state" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}>
                 State
               </label>
               <input
@@ -337,11 +546,11 @@ export default function AggregatorCreateCompany() {
                 disabled={submitting}
               />
             </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div>
-              <label htmlFor="zipCode" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              <label
+                htmlFor="zipCode"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
                 Zip Code
               </label>
               <input
@@ -355,7 +564,10 @@ export default function AggregatorCreateCompany() {
               />
             </div>
             <div>
-              <label htmlFor="country" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              <label
+                htmlFor="country"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
                 Country
               </label>
               <input
@@ -370,8 +582,8 @@ export default function AggregatorCreateCompany() {
             </div>
           </div>
 
-          <div style={{ marginBottom: '0.25rem' }}>
-            <label htmlFor="notes" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+          <div style={{ marginTop: '1rem' }}>
+            <label htmlFor="notes" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}>
               Notes
             </label>
             <textarea
@@ -386,6 +598,7 @@ export default function AggregatorCreateCompany() {
           </div>
         </section>
 
+        {/* Section 2: Booking details */}
         <section
           style={{
             border: '1px solid #e2e8f0',
@@ -395,7 +608,586 @@ export default function AggregatorCreateCompany() {
             background: '#fff',
           }}
         >
-          <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem' }}>2. KYC documents</h2>
+          <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem' }}>2. Booking details</h2>
+          <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#64748b' }}>
+            Booking reference, plan, venue and commercial terms. All fields are optional and can
+            be updated later by Aspire admins.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label
+                htmlFor="bookingReference"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Booking ID / Reference
+              </label>
+              <input
+                id="bookingReference"
+                name="bookingReference"
+                type="text"
+                value={booking.bookingReference}
+                onChange={handleBookingChange}
+                className={inputClass}
+                placeholder="e.g. ISXVSBRKA1603"
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="planType"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Plan type
+              </label>
+              <input
+                id="planType"
+                name="planType"
+                type="text"
+                value={booking.planType}
+                onChange={handleBookingChange}
+                className={inputClass}
+                placeholder="e.g. BR"
+                list="plan-type-suggestions"
+                disabled={submitting}
+              />
+              <datalist id="plan-type-suggestions">
+                {PLAN_TYPE_SUGGESTIONS.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '1rem' }}>
+            <label
+              htmlFor="venueName"
+              style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+            >
+              Venue name
+            </label>
+            <input
+              id="venueName"
+              name="venueName"
+              type="text"
+              value={booking.venueName}
+              onChange={handleBookingChange}
+              className={inputClass}
+              placeholder="e.g. Aspire Coworks Koramangala"
+              disabled={submitting}
+            />
+          </div>
+
+          <div style={{ marginTop: '1rem' }}>
+            <label
+              htmlFor="venueAddress"
+              style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+            >
+              Venue address
+            </label>
+            <textarea
+              id="venueAddress"
+              name="venueAddress"
+              value={booking.venueAddress}
+              onChange={handleBookingChange}
+              className={inputClass}
+              rows={2}
+              disabled={submitting}
+            />
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '140px 160px 120px 1fr',
+              gap: '1rem',
+              marginTop: '1rem',
+              alignItems: 'end',
+            }}
+          >
+            <div>
+              <label
+                htmlFor="durationMonths"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Duration (months)
+              </label>
+              <input
+                id="durationMonths"
+                name="durationMonths"
+                type="number"
+                min={1}
+                max={120}
+                value={booking.durationMonths}
+                onChange={handleBookingChange}
+                className={inputClass}
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="amount"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Amount
+              </label>
+              <input
+                id="amount"
+                name="amount"
+                type="number"
+                min={0}
+                step="0.01"
+                value={booking.amount}
+                onChange={handleBookingChange}
+                className={inputClass}
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="currency"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Currency
+              </label>
+              <input
+                id="currency"
+                name="currency"
+                type="text"
+                maxLength={3}
+                value={booking.currency}
+                onChange={handleBookingChange}
+                className={inputClass}
+                style={{ textTransform: 'uppercase' }}
+                disabled={submitting}
+              />
+            </div>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.9rem',
+                color: '#334155',
+                paddingBottom: '0.55rem',
+              }}
+            >
+              <input
+                type="checkbox"
+                name="gstApplicable"
+                checked={booking.gstApplicable}
+                onChange={handleBookingChange}
+                disabled={submitting}
+              />
+              GST applicable
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+            <div>
+              <label
+                htmlFor="paymentTerms"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Payment terms
+              </label>
+              <textarea
+                id="paymentTerms"
+                name="paymentTerms"
+                value={booking.paymentTerms}
+                onChange={handleBookingChange}
+                className={inputClass}
+                rows={3}
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="signageTerms"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Signage terms
+              </label>
+              <textarea
+                id="signageTerms"
+                name="signageTerms"
+                value={booking.signageTerms}
+                onChange={handleBookingChange}
+                className={inputClass}
+                rows={3}
+                disabled={submitting}
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: '1rem',
+              marginTop: '1rem',
+            }}
+          >
+            <div>
+              <label
+                htmlFor="clientContactName"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Client contact name
+              </label>
+              <input
+                id="clientContactName"
+                name="clientContactName"
+                type="text"
+                value={booking.clientContactName}
+                onChange={handleBookingChange}
+                className={inputClass}
+                placeholder="Person at the client company"
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="pocName"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                POC name (at your org)
+              </label>
+              <input
+                id="pocName"
+                name="pocName"
+                type="text"
+                value={booking.pocName}
+                onChange={handleBookingChange}
+                className={inputClass}
+                disabled={submitting}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="pocContact"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                POC contact
+              </label>
+              <input
+                id="pocContact"
+                name="pocContact"
+                type="text"
+                value={booking.pocContact}
+                onChange={handleBookingChange}
+                className={inputClass}
+                placeholder="Phone or email"
+                disabled={submitting}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Section 3: Invoice To */}
+        <section
+          style={{
+            border: '1px solid #e2e8f0',
+            borderRadius: 8,
+            padding: '1rem 1.25rem',
+            marginBottom: '1.25rem',
+            background: '#fff',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.05rem' }}>3. Invoice To</h2>
+              <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                The legal entity invoices should be raised to for this booking.
+              </p>
+            </div>
+            {savedUnchanged && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  padding: '0.2rem 0.55rem',
+                  background: '#ecfdf5',
+                  color: '#065f46',
+                  borderRadius: 999,
+                  fontWeight: 600,
+                  border: '1px solid #a7f3d0',
+                }}
+              >
+                Using your saved invoicing details
+              </span>
+            )}
+          </div>
+
+          {profileLoading ? (
+            <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#64748b' }}>
+              Loading your saved invoicing details…
+            </p>
+          ) : (
+            <>
+              {savedInvoiceTo && !customizeInvoiceTo ? (
+                <div
+                  style={{
+                    marginTop: '0.75rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 6,
+                    padding: '0.75rem 0.9rem',
+                    background: '#f8fafc',
+                    fontSize: '0.88rem',
+                    color: '#0f172a',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{savedInvoiceTo.legalName}</div>
+                  {savedInvoiceTo.constitution && (
+                    <div style={{ color: '#475569' }}>{savedInvoiceTo.constitution}</div>
+                  )}
+                  {(savedInvoiceTo.gstin || savedInvoiceTo.pan) && (
+                    <div style={{ color: '#475569', marginTop: '0.25rem' }}>
+                      {savedInvoiceTo.gstin && <>GSTIN: <strong>{savedInvoiceTo.gstin}</strong></>}
+                      {savedInvoiceTo.gstin && savedInvoiceTo.pan && <span>{' · '}</span>}
+                      {savedInvoiceTo.pan && <>PAN: <strong>{savedInvoiceTo.pan}</strong></>}
+                    </div>
+                  )}
+                  {savedInvoiceTo.registeredAddress && (
+                    <div style={{ color: '#475569', marginTop: '0.25rem', whiteSpace: 'pre-line' }}>
+                      {savedInvoiceTo.registeredAddress}
+                    </div>
+                  )}
+                  <div style={{ marginTop: '0.65rem', display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCustomizeInvoiceTo(true)}
+                      disabled={submitting}
+                      style={{
+                        fontSize: '0.82rem',
+                        color: '#2563eb',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Customize for this booking
+                    </button>
+                    <Link
+                      to="/aggregator/invoice-profile"
+                      style={{
+                        fontSize: '0.82rem',
+                        color: '#64748b',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Edit my saved profile
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginTop: '0.75rem' }}>
+                  {!savedInvoiceTo && (
+                    <div
+                      style={{
+                        marginBottom: '0.75rem',
+                        padding: '0.55rem 0.75rem',
+                        background: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        color: '#92400e',
+                        borderRadius: 6,
+                        fontSize: '0.83rem',
+                      }}
+                    >
+                      You haven't saved an Invoice-To profile yet. Fill it in below – you can opt
+                      to save it as the default for future bookings.
+                    </div>
+                  )}
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label
+                      htmlFor="legalName"
+                      style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+                    >
+                      Company legal name
+                    </label>
+                    <input
+                      id="legalName"
+                      name="legalName"
+                      type="text"
+                      value={invoiceTo.legalName}
+                      onChange={handleInvoiceToChange}
+                      className={inputClass}
+                      placeholder="e.g. Instaspaces Realtech Private Limited"
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label
+                      htmlFor="constitution"
+                      style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+                    >
+                      Constitution
+                    </label>
+                    <input
+                      id="constitution"
+                      name="constitution"
+                      type="text"
+                      value={invoiceTo.constitution}
+                      onChange={handleInvoiceToChange}
+                      className={inputClass}
+                      placeholder="e.g. Private Limited Company"
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label
+                        htmlFor="gstin"
+                        style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+                      >
+                        GSTIN
+                      </label>
+                      <input
+                        id="gstin"
+                        name="gstin"
+                        type="text"
+                        value={invoiceTo.gstin}
+                        onChange={handleInvoiceToChange}
+                        className={inputClass}
+                        placeholder="15-character GSTIN"
+                        maxLength={15}
+                        style={{ textTransform: 'uppercase' }}
+                        disabled={submitting}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="pan"
+                        style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+                      >
+                        PAN
+                      </label>
+                      <input
+                        id="pan"
+                        name="pan"
+                        type="text"
+                        value={invoiceTo.pan}
+                        onChange={handleInvoiceToChange}
+                        className={inputClass}
+                        placeholder="AAAAA9999A"
+                        maxLength={10}
+                        style={{ textTransform: 'uppercase' }}
+                        disabled={submitting}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '1rem' }}>
+                    <label
+                      htmlFor="registeredAddress"
+                      style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+                    >
+                      Registered address
+                    </label>
+                    <textarea
+                      id="registeredAddress"
+                      name="registeredAddress"
+                      value={invoiceTo.registeredAddress}
+                      onChange={handleInvoiceToChange}
+                      className={inputClass}
+                      rows={3}
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        gap: '0.45rem',
+                        alignItems: 'center',
+                        fontSize: '0.85rem',
+                        color: '#334155',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={saveInvoiceToProfile}
+                        onChange={(e) => setSaveInvoiceToProfile(e.target.checked)}
+                        disabled={submitting}
+                      />
+                      Save these details to my profile for future bookings
+                    </label>
+                    {savedInvoiceTo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomizeInvoiceTo(false);
+                          setInvoiceTo(toInvoiceToState(
+                            // rehydrate: convert saved state to input shape
+                            {
+                              id: '',
+                              userId: '',
+                              legalName: savedInvoiceTo.legalName,
+                              constitution: savedInvoiceTo.constitution ?? null,
+                              gstin: savedInvoiceTo.gstin ?? null,
+                              pan: savedInvoiceTo.pan ?? null,
+                              registeredAddress: savedInvoiceTo.registeredAddress ?? null,
+                              createdAt: '',
+                              updatedAt: '',
+                            } as AggregatorInvoiceProfile,
+                          ));
+                          setSaveInvoiceToProfile(false);
+                        }}
+                        disabled={submitting}
+                        style={{
+                          fontSize: '0.82rem',
+                          color: '#64748b',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: submitting ? 'not-allowed' : 'pointer',
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        Use my saved invoicing details
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        {/* Section 4: KYC documents */}
+        <section
+          style={{
+            border: '1px solid #e2e8f0',
+            borderRadius: 8,
+            padding: '1rem 1.25rem',
+            marginBottom: '1.25rem',
+            background: '#fff',
+          }}
+        >
+          <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem' }}>4. KYC documents</h2>
           <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#64748b' }}>
             Attach the client's KYC documents (Aadhaar, PAN, or other supporting files). You can
             attach multiple files now, or skip this and upload later from the client detail page.
@@ -456,7 +1248,12 @@ export default function AggregatorCreateCompany() {
                     border: '1px solid #e2e8f0',
                     borderRadius: 6,
                     padding: '0.5rem 0.75rem',
-                    background: item.status === 'error' ? '#fef2f2' : item.status === 'done' ? '#f0fdf4' : '#fff',
+                    background:
+                      item.status === 'error'
+                        ? '#fef2f2'
+                        : item.status === 'done'
+                          ? '#f0fdf4'
+                          : '#fff',
                   }}
                 >
                   <div style={{ overflow: 'hidden' }}>

@@ -6,6 +6,7 @@ import {
   UserPlus,
   CreditCard,
   Receipt,
+  FileText,
   LogOut,
   Menu,
   X,
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/aggregator/companies/new', icon: UserPlus, label: 'Create New Client' },
   { to: '/aggregator/invoices', icon: Receipt, label: 'Invoices' },
   { to: '/aggregator/payments', icon: CreditCard, label: 'Payments' },
+  { to: '/aggregator/invoice-profile', icon: FileText, label: 'My Invoicing' },
 ];
 
 export default function AggregatorLayout() {

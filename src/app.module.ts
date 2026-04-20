@@ -22,6 +22,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { PublicBookingsModule } from './public-bookings/public-bookings.module';
 import { AdminBookingsModule } from './admin-bookings/admin-bookings.module';
 import { AggregatorUsersModule } from './aggregator-users/aggregator-users.module';
+import { AggregatorProfileModule } from './aggregator-profile/aggregator-profile.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -58,6 +59,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     PublicBookingsModule,
     AdminBookingsModule,
     AggregatorUsersModule,
+    AggregatorProfileModule,
   ],
   controllers: [],
   providers: [

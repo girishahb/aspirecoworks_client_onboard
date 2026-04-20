@@ -34,6 +34,7 @@ import AggregatorDashboard from './pages/AggregatorDashboard';
 import AggregatorCreateCompany from './pages/AggregatorCreateCompany';
 import AggregatorInvoices from './pages/AggregatorInvoices';
 import AggregatorPayments from './pages/AggregatorPayments';
+import AggregatorInvoiceProfile from './pages/AggregatorInvoiceProfile';
 import Book from './pages/Book';
 import BookListing from './pages/BookListing';
 import BookSuccess from './pages/BookSuccess';
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="companies/:companyId" element={<AdminCompanyDetail />} />
           <Route path="invoices" element={<AggregatorInvoices />} />
           <Route path="payments" element={<AggregatorPayments />} />
+          <Route path="invoice-profile" element={<AggregatorInvoiceProfile />} />
         </Route>
       </Route>
 

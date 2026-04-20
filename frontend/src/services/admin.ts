@@ -63,8 +63,35 @@ export async function getCompany(companyId: string): Promise<AdminCompany> {
 }
 
 /**
+ * Aggregator-only booking payload accepted on create-client.
+ */
+export interface CreateCompanyBookingInput {
+  bookingReference?: string;
+  planType?: string;
+  venueName?: string;
+  venueAddress?: string;
+  durationMonths?: number | null;
+  amount?: number | null;
+  currency?: string;
+  gstApplicable?: boolean;
+  paymentTerms?: string;
+  signageTerms?: string;
+  clientContactName?: string;
+  pocName?: string;
+  pocContact?: string;
+}
+
+export interface CreateCompanyInvoiceToInput {
+  legalName?: string;
+  constitution?: string;
+  gstin?: string;
+  pan?: string;
+  registeredAddress?: string;
+}
+
+/**
  * Create a new client profile (company).
- * Backend: POST /client-profiles (ADMIN, MANAGER).
+ * Backend: POST /client-profiles (ADMIN, MANAGER, AGGREGATOR).
  */
 export async function createCompany(data: {
   companyName: string;
@@ -79,6 +106,9 @@ export async function createCompany(data: {
   notes?: string;
   clientChannel?: ClientChannel;
   aggregatorName?: string;
+  booking?: CreateCompanyBookingInput;
+  invoiceTo?: CreateCompanyInvoiceToInput;
+  saveInvoiceToProfile?: boolean;
 }): Promise<AdminCompany> {
   return apiPost<AdminCompany>('/client-profiles', data);
 }

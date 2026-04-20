@@ -34,6 +34,10 @@ const POST_AGREEMENT_DOC_TYPES: { value: AdminPostAgreementDocumentType; label: 
 ];
 import { getCurrentUser } from '../services/auth';
 import { downloadDocumentFile, getDocumentViewUrl } from '../services/documents';
+import {
+  listCompanyBookings,
+  type AggregatorBooking,
+} from '../services/aggregatorProfile';
 import Badge from '../components/Badge';
 import DocumentViewer from '../components/DocumentViewer';
 import OnboardingStepper from '../components/OnboardingStepper';
@@ -129,6 +133,7 @@ export default function AdminCompanyDetail() {
   const [viewerFileName, setViewerFileName] = useState('');
   const [viewerLoading, setViewerLoading] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<CompanyPaymentHistory | null>(null);
+  const [bookings, setBookings] = useState<AggregatorBooking[] | null>(null);
   const [paymentCreating, setPaymentCreating] = useState(false);
   const [paymentResending, setPaymentResending] = useState<string | null>(null);
   const [markPaidBusy, setMarkPaidBusy] = useState<string | null>(null);
@@ -149,22 +154,26 @@ export default function AdminCompanyDetail() {
     if (!companyId) return;
     setError(null);
     try {
-      const [companyData, docsData, complianceData, paymentData] = await Promise.all([
-        getCompany(companyId),
-        listCompanyDocuments(companyId),
-        getComplianceStatus(companyId).catch(() => null),
-        getCompanyPaymentHistory(companyId).catch(() => null),
-      ]);
+      const [companyData, docsData, complianceData, paymentData, bookingsData] =
+        await Promise.all([
+          getCompany(companyId),
+          listCompanyDocuments(companyId),
+          getComplianceStatus(companyId).catch(() => null),
+          getCompanyPaymentHistory(companyId).catch(() => null),
+          listCompanyBookings(companyId).catch(() => [] as AggregatorBooking[]),
+        ]);
       setCompany(companyData);
       setDocuments(Array.isArray(docsData) ? docsData : []);
       setCompliance(complianceData);
       setPaymentHistory(paymentData);
+      setBookings(Array.isArray(bookingsData) ? bookingsData : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load company');
       setCompany(null);
       setDocuments([]);
       setCompliance(null);
       setPaymentHistory(null);
+      setBookings(null);
     } finally {
       setLoading(false);
     }
@@ -627,6 +636,10 @@ export default function AdminCompanyDetail() {
           {' to '}
           <strong>{company.contractEndDate ? formatDate(company.contractEndDate) : '—'}</strong>
         </p>
+      )}
+
+      {isAggregator && bookings && bookings.length > 0 && (
+        <BookingDetailsCard bookings={bookings} />
       )}
 
       {/* Visual onboarding progress stepper */}
@@ -1159,6 +1172,198 @@ export default function AdminCompanyDetail() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Read-only booking card for aggregator-channel clients. Shows all fields submitted by the
+ *  aggregator at registration, including the Invoice-To snapshot – so admins raising the invoice
+ *  see exactly what was requested. Renders nothing if the bookings array is empty. */
+function BookingDetailsCard({ bookings }: { bookings: AggregatorBooking[] }) {
+  return (
+    <section
+      style={{
+        marginTop: '1.5rem',
+        border: '1px solid #fde68a',
+        background: '#fffbeb',
+        borderRadius: 8,
+        padding: '1rem 1.25rem',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: '1.05rem', color: '#92400e' }}>Booking details</h2>
+        <span style={{ fontSize: '0.75rem', color: '#92400e' }}>
+          Submitted by the aggregator at client registration.
+        </span>
+      </div>
+
+      {bookings.map((b, idx) => (
+        <div
+          key={b.id}
+          style={{
+            marginTop: idx === 0 ? '0.75rem' : '1rem',
+            borderTop: idx === 0 ? 'none' : '1px dashed #fcd34d',
+            paddingTop: idx === 0 ? 0 : '0.85rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '0.6rem 1.25rem',
+              fontSize: '0.88rem',
+              color: '#0f172a',
+            }}
+          >
+            <BookingField label="Booking ID" value={b.bookingReference} />
+            <BookingField label="Plan type" value={b.planType} />
+            <BookingField label="Venue" value={b.venueName} />
+            <BookingField
+              label="Duration"
+              value={b.durationMonths != null ? `${b.durationMonths} month${b.durationMonths === 1 ? '' : 's'}` : null}
+            />
+            <BookingField
+              label="Amount"
+              value={
+                b.amount != null
+                  ? `${b.currency ?? 'INR'} ${b.amount}${b.gstApplicable ? ' + GST' : ''}`
+                  : null
+              }
+            />
+            <BookingField label="Client contact" value={b.clientContactName} />
+            <BookingField label="POC" value={b.pocName} />
+            <BookingField label="POC contact" value={b.pocContact} />
+          </div>
+
+          {b.venueAddress && (
+            <div style={{ marginTop: '0.65rem', fontSize: '0.85rem', color: '#334155' }}>
+              <div style={{ fontWeight: 600, color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Venue address
+              </div>
+              <div style={{ whiteSpace: 'pre-line' }}>{b.venueAddress}</div>
+            </div>
+          )}
+
+          {(b.paymentTerms || b.signageTerms) && (
+            <div
+              style={{
+                marginTop: '0.65rem',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '0.75rem',
+                fontSize: '0.85rem',
+                color: '#334155',
+              }}
+            >
+              {b.paymentTerms && (
+                <div>
+                  <div style={{ fontWeight: 600, color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    Payment terms
+                  </div>
+                  <div style={{ whiteSpace: 'pre-line' }}>{b.paymentTerms}</div>
+                </div>
+              )}
+              {b.signageTerms && (
+                <div>
+                  <div style={{ fontWeight: 600, color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    Signage terms
+                  </div>
+                  <div style={{ whiteSpace: 'pre-line' }}>{b.signageTerms}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(b.invoiceLegalName ||
+            b.invoiceGstin ||
+            b.invoicePan ||
+            b.invoiceConstitution ||
+            b.invoiceRegisteredAddress) && (
+            <div
+              style={{
+                marginTop: '0.85rem',
+                borderTop: '1px dashed #fde68a',
+                paddingTop: '0.75rem',
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: '#92400e',
+                  fontSize: '0.8rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.4,
+                  marginBottom: '0.35rem',
+                }}
+              >
+                Invoice to
+              </div>
+              <div style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>
+                {b.invoiceLegalName ?? '—'}
+              </div>
+              {b.invoiceConstitution && (
+                <div style={{ fontSize: '0.85rem', color: '#475569' }}>
+                  {b.invoiceConstitution}
+                </div>
+              )}
+              {(b.invoiceGstin || b.invoicePan) && (
+                <div style={{ fontSize: '0.85rem', color: '#475569', marginTop: '0.2rem' }}>
+                  {b.invoiceGstin && (
+                    <>
+                      GSTIN: <strong>{b.invoiceGstin}</strong>
+                    </>
+                  )}
+                  {b.invoiceGstin && b.invoicePan && <span>{' · '}</span>}
+                  {b.invoicePan && (
+                    <>
+                      PAN: <strong>{b.invoicePan}</strong>
+                    </>
+                  )}
+                </div>
+              )}
+              {b.invoiceRegisteredAddress && (
+                <div
+                  style={{
+                    fontSize: '0.85rem',
+                    color: '#475569',
+                    marginTop: '0.25rem',
+                    whiteSpace: 'pre-line',
+                  }}
+                >
+                  {b.invoiceRegisteredAddress}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function BookingField({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontWeight: 600,
+          color: '#92400e',
+          fontSize: '0.72rem',
+          textTransform: 'uppercase',
+          letterSpacing: 0.4,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ color: '#0f172a', fontSize: '0.9rem' }}>{value || '—'}</div>
     </div>
   );
 }
