@@ -34,8 +34,11 @@ export default function SetPassword() {
     setLoading(true);
     try {
       const data = await setPassword(token, password);
-      const isAdmin = data.user?.role && ADMIN_ROLES.includes(data.user.role);
-      navigate(isAdmin ? '/admin/dashboard' : '/dashboard', { replace: true });
+      const role = data.user?.role;
+      let target = '/dashboard';
+      if (role && ADMIN_ROLES.includes(role)) target = '/admin/dashboard';
+      else if (role === 'AGGREGATOR') target = '/aggregator/dashboard';
+      navigate(target, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set password');
     } finally {

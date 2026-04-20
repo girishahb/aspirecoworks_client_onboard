@@ -27,8 +27,11 @@ export default function Login() {
     try {
       await login(email.trim(), password);
       const user = getCurrentUser();
-      const isAdmin = user?.role && ADMIN_ROLES.includes(user.role);
-      navigate(isAdmin ? '/admin/dashboard' : '/dashboard', { replace: true });
+      const role = user?.role;
+      let target = '/dashboard';
+      if (role && ADMIN_ROLES.includes(role)) target = '/admin/dashboard';
+      else if (role === 'AGGREGATOR') target = '/aggregator/dashboard';
+      navigate(target, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

@@ -51,7 +51,7 @@ export default function AdminAggregatorUsers() {
       const res = await resendAggregatorInvite(id);
       setNotice(res.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to resend invite');
+      setError(err instanceof Error ? err.message : 'Failed to resend credentials');
     } finally {
       setResendingId(null);
     }
@@ -116,11 +116,11 @@ export default function AdminAggregatorUsers() {
                         borderRadius: 999,
                         fontSize: '0.72rem',
                         fontWeight: 600,
-                        background: u.isActivated ? '#ecfdf5' : '#fff7ed',
-                        color: u.isActivated ? '#065f46' : '#9a3412',
+                        background: '#ecfdf5',
+                        color: '#065f46',
                       }}
                     >
-                      {u.isActivated ? 'Active' : 'Invited'}
+                      Active
                     </span>
                   </td>
                   <td className="px-5 py-3 text-slate-700">{formatDate(u.createdAt)}</td>
@@ -128,10 +128,10 @@ export default function AdminAggregatorUsers() {
                     <button
                       type="button"
                       onClick={() => handleResend(u.id)}
-                      disabled={resendingId === u.id || u.isActivated}
+                      disabled={resendingId === u.id}
                       className="text-primary text-sm font-medium hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {resendingId === u.id ? 'Sending…' : 'Resend invite'}
+                      {resendingId === u.id ? 'Sending…' : 'Resend credentials'}
                     </button>
                   </td>
                 </tr>
@@ -160,7 +160,7 @@ export default function AdminAggregatorUsers() {
           onClose={() => setShowModal(false)}
           onCreated={() => {
             setShowModal(false);
-            setNotice('Aggregator user created and invite email sent.');
+            setNotice('Aggregator user created and credentials emailed (default password: Welcome2aspire).');
             void load();
           }}
         />
@@ -207,7 +207,8 @@ function CreateAggregatorModal({
       <div className="w-full max-w-md rounded-xl bg-white shadow-xl p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-1">Add aggregator user</h2>
         <p className="text-sm text-slate-500 mb-4">
-          An invite email will be sent so the user can set their password.
+          A credentials email will be sent with a default password (<code className="px-1 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-xs">Welcome2aspire</code>)
+          the user can change after first sign-in.
         </p>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -272,7 +273,7 @@ function CreateAggregatorModal({
               disabled={submitting}
               className="px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:opacity-90 disabled:opacity-60"
             >
-              {submitting ? 'Creating…' : 'Create and send invite'}
+              {submitting ? 'Creating…' : 'Create and email credentials'}
             </button>
           </div>
         </form>
