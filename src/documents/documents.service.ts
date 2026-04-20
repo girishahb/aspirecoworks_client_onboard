@@ -415,8 +415,8 @@ export class DocumentsService {
    * by ownership: company.clientChannel must be AGGREGATOR and company.createdById
    * must match the authenticated aggregator.
    *
-   * Does not trigger any stage transition – documents are attached to the client
-   * profile and become reviewable by admins once KYC is submitted.
+   * Transitions the company stage to KYC_REVIEW on first upload so the document
+   * lands in the admin's KYC review queue. Subsequent uploads are idempotent.
    */
   async uploadAggregatorKycProxy(
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
@@ -522,9 +522,10 @@ export class DocumentsService {
 
     try {
       await this.onboardingService.onKycUploaded(companyId);
+      await this.onboardingService.moveToKycReviewAfterUpload(companyId);
     } catch (err) {
       this.logger.warn(
-        `onKycUploaded skipped companyId=${companyId}: ${err instanceof Error ? err.message : err}`,
+        `KYC upload stage transition skipped companyId=${companyId}: ${err instanceof Error ? err.message : err}`,
       );
     }
 
@@ -1131,6 +1132,7 @@ export class DocumentsService {
       (updated.clientProfile?.onboardingStage as OnboardingStage) === OnboardingStage.KYC_REVIEW
     ) {
       const allKycApproved = await this.areAllKycDocumentsApproved(updated.clientProfileId);
+      let transitioned = allKycApproved;
       if (allKycApproved) {
         try {
           await this.onboardingService.onKycApproved(updated.clientProfileId);
@@ -1138,9 +1140,37 @@ export class DocumentsService {
             `Company ${updated.clientProfileId} moved to AGREEMENT_DRAFT_SHARED after all KYC documents verified`,
           );
         } catch (err) {
+          transitioned = false;
           this.logger.warn(
             `Failed to transition company ${updated.clientProfileId} to AGREEMENT_DRAFT_SHARED: ${err instanceof Error ? err.message : err}`,
           );
+        }
+      }
+
+      // AGGREGATOR clients upload KYC as AADHAAR/PAN/OTHER (not the legacy
+      // `KYC` document type), so the check above cannot find their documents.
+      // Evaluate the aggregator-specific approval state and advance the stage
+      // without affecting direct-client behavior.
+      if (!transitioned) {
+        const profile = await this.db.clientProfile.findUnique({
+          where: { id: updated.clientProfileId },
+          select: { clientChannel: true },
+        });
+        if (profile?.clientChannel === 'AGGREGATOR') {
+          const allAggregatorKycApproved =
+            await this.areAllAggregatorKycDocumentsApproved(updated.clientProfileId);
+          if (allAggregatorKycApproved) {
+            try {
+              await this.onboardingService.onKycApproved(updated.clientProfileId);
+              this.logger.log(
+                `Aggregator client ${updated.clientProfileId} moved to AGREEMENT_DRAFT_SHARED after all KYC documents verified`,
+              );
+            } catch (err) {
+              this.logger.warn(
+                `Failed to transition aggregator client ${updated.clientProfileId} to AGREEMENT_DRAFT_SHARED: ${err instanceof Error ? err.message : err}`,
+              );
+            }
+          }
         }
       }
     }
@@ -1407,6 +1437,45 @@ export class DocumentsService {
       latestKyc != null &&
       (latestKyc.status === DocumentStatus.APPROVED || latestKyc.status === DocumentStatus.VERIFIED)
     );
+  }
+
+  /**
+   * True when the client profile has at least one aggregator-uploaded KYC
+   * document (AADHAAR, PAN, or OTHER) and, for every such document type, the
+   * latest version is APPROVED or VERIFIED. Scoped to aggregator-channel
+   * clients; direct-client approvals are not evaluated by this helper.
+   */
+  private async areAllAggregatorKycDocumentsApproved(
+    clientProfileId: string,
+  ): Promise<boolean> {
+    const kycTypes: DocumentType[] = [
+      DocumentType.AADHAAR,
+      DocumentType.PAN,
+      DocumentType.OTHER,
+    ];
+    const docs = await this.db.document.findMany({
+      where: {
+        clientProfileId,
+        documentOwner: 'CLIENT',
+        documentType: { in: kycTypes },
+      },
+      select: { documentType: true, version: true, status: true },
+    });
+    if (docs.length === 0) return false;
+
+    const latestByType = new Map<string, { version: number; status: string }>();
+    for (const doc of docs) {
+      const existing = latestByType.get(doc.documentType);
+      if (!existing || doc.version > existing.version) {
+        latestByType.set(doc.documentType, { version: doc.version, status: doc.status });
+      }
+    }
+    for (const { status } of latestByType.values()) {
+      if (status !== DocumentStatus.APPROVED && status !== DocumentStatus.VERIFIED) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
