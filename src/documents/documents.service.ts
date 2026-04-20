@@ -651,6 +651,7 @@ export class DocumentsService {
         clientProfile: {
           select: {
             id: true,
+            createdById: true,
           },
         },
       },
@@ -673,8 +674,12 @@ export class DocumentsService {
       if (document.clientProfileId !== user.companyId) {
         throw new ForbiddenException('You do not have permission to access this document');
       }
+    } else if (user.role === UserRole.AGGREGATOR) {
+      if (document.clientProfile?.createdById !== user.id) {
+        throw new ForbiddenException('You do not have permission to access this document');
+      }
     } else {
-      throw new ForbiddenException('Only CLIENT, COMPANY_ADMIN, or admin roles can download documents');
+      throw new ForbiddenException('Only CLIENT, COMPANY_ADMIN, AGGREGATOR, or admin roles can download documents');
     }
 
     // Generate GET presigned URL (5 min expiry)
@@ -699,7 +704,7 @@ export class DocumentsService {
     const document = await this.db.document.findUnique({
       where: { id: documentId },
       include: {
-        clientProfile: { select: { id: true } },
+        clientProfile: { select: { id: true, createdById: true } },
       },
     });
 
@@ -720,8 +725,12 @@ export class DocumentsService {
       if (document.clientProfileId !== user.companyId) {
         throw new ForbiddenException('You do not have permission to access this document');
       }
+    } else if (user.role === UserRole.AGGREGATOR) {
+      if (document.clientProfile?.createdById !== user.id) {
+        throw new ForbiddenException('You do not have permission to access this document');
+      }
     } else {
-      throw new ForbiddenException('Only CLIENT, COMPANY_ADMIN, or admin roles can download documents');
+      throw new ForbiddenException('Only CLIENT, COMPANY_ADMIN, AGGREGATOR, or admin roles can download documents');
     }
 
     const keysToTry = this.getAlternateFileKeys(document.fileKey);
@@ -767,24 +776,33 @@ export class DocumentsService {
     companyId: string,
     user: { id: string; role: UserRole },
   ) {
-    // Allow SUPER_ADMIN, ADMIN, and MANAGER roles
+    // Allow SUPER_ADMIN, ADMIN, MANAGER, and AGGREGATOR (ownership-checked below)
     if (
       user.role !== UserRole.SUPER_ADMIN &&
       user.role !== UserRole.ADMIN &&
-      user.role !== UserRole.MANAGER
+      user.role !== UserRole.MANAGER &&
+      user.role !== UserRole.AGGREGATOR
     ) {
       throw new ForbiddenException(
-        'Only SUPER_ADMIN, ADMIN, and MANAGER can access documents by company ID',
+        'Only SUPER_ADMIN, ADMIN, MANAGER, or AGGREGATOR can access documents by company ID',
       );
     }
 
     // Verify company exists
     const company = await this.db.clientProfile.findUnique({
       where: { id: companyId },
+      select: { id: true, createdById: true },
     });
 
     if (!company) {
       throw new NotFoundException('Company not found');
+    }
+
+    // AGGREGATOR partners can only see documents of clients they onboarded.
+    if (user.role === UserRole.AGGREGATOR && company.createdById !== user.id) {
+      throw new ForbiddenException(
+        'You do not have permission to access documents for this company',
+      );
     }
 
     const documents = await this.db.document.findMany({

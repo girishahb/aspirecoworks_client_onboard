@@ -278,10 +278,11 @@ export class DocumentsController {
   }
 
   @Get('company/:companyId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({
-    summary: 'List documents for a company (SUPER_ADMIN, ADMIN, MANAGER)',
-    description: 'Returns documents for the given company. SUPER_ADMIN, ADMIN, and MANAGER roles can access.',
+    summary: 'List documents for a company (SUPER_ADMIN, ADMIN, MANAGER, AGGREGATOR)',
+    description:
+      'Returns documents for the given company. SUPER_ADMIN, ADMIN, and MANAGER can access any company. AGGREGATOR can only access companies they onboarded.',
   })
   @ApiResponse({ status: 200, description: 'List of documents' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
@@ -294,7 +295,14 @@ export class DocumentsController {
   }
 
   @Get(':id/file')
-  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(
+    UserRole.CLIENT,
+    UserRole.COMPANY_ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.AGGREGATOR,
+  )
   @ApiOperation({
     summary: 'Stream document file for download (proxy)',
     description:
@@ -317,7 +325,14 @@ export class DocumentsController {
   }
 
   @Get(':id/download')
-  @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(
+    UserRole.CLIENT,
+    UserRole.COMPANY_ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.AGGREGATOR,
+  )
   @ApiOperation({
     summary: 'Get presigned download URL for a document',
     description:

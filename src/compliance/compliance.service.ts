@@ -103,14 +103,33 @@ export class ComplianceService {
    */
   async getStatusByCompanyId(
     companyId: string,
-    user: { role: UserRole },
+    user: { id?: string; role: UserRole },
   ): Promise<ComplianceStatusResult> {
     if (
       user.role !== UserRole.SUPER_ADMIN &&
       user.role !== UserRole.ADMIN &&
-      user.role !== UserRole.MANAGER
+      user.role !== UserRole.MANAGER &&
+      user.role !== UserRole.AGGREGATOR
     ) {
-      throw new ForbiddenException('Only SUPER_ADMIN, ADMIN, or MANAGER can access compliance by company ID');
+      throw new ForbiddenException(
+        'Only SUPER_ADMIN, ADMIN, MANAGER, or AGGREGATOR can access compliance by company ID',
+      );
+    }
+
+    // AGGREGATOR partners can only see compliance for clients they onboarded.
+    if (user.role === UserRole.AGGREGATOR) {
+      const company = await this.db.clientProfile.findUnique({
+        where: { id: companyId },
+        select: { id: true, createdById: true },
+      });
+      if (!company) {
+        throw new ForbiddenException('Company not found');
+      }
+      if (company.createdById !== user.id) {
+        throw new ForbiddenException(
+          'You do not have permission to access compliance for this company',
+        );
+      }
     }
 
     return this.getComplianceStatus(companyId);

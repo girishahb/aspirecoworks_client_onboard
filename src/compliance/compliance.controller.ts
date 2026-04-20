@@ -34,11 +34,11 @@ export class ComplianceController {
   }
 
   @Get('company/:companyId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({
     summary: 'Get compliance status for a company',
     description:
-      'Returns compliance status for the given company. SUPER_ADMIN, ADMIN, and MANAGER can access when reviewing companies.',
+      'Returns compliance status for the given company. SUPER_ADMIN, ADMIN, and MANAGER can access any company when reviewing. AGGREGATOR can access companies they onboarded.',
   })
   @ApiResponse({ status: 200, description: 'Compliance status for the company' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
