@@ -7,6 +7,7 @@ import {
   rejectDocument,
   markDocumentPendingWithClient,
   uploadAgreementDraft,
+  generateAgreementDraftFromTemplate,
   uploadFinalAgreement,
   type AdminPostAgreementDocumentType,
   activateCompany,
@@ -124,6 +125,8 @@ export default function AdminCompanyDetail() {
   const [agreementDraftFiles, setAgreementDraftFiles] = useState<File[]>([]);
   const [agreementDraftUploading, setAgreementDraftUploading] = useState(false);
   const [agreementDraftError, setAgreementDraftError] = useState<string | null>(null);
+  const [templateDraftGenerating, setTemplateDraftGenerating] = useState(false);
+  const [templateDraftSuccess, setTemplateDraftSuccess] = useState<string | null>(null);
   const [finalAgreementFile, setFinalAgreementFile] = useState<File | null>(null);
   const [selectedFinalDocType, setSelectedFinalDocType] = useState<AdminPostAgreementDocumentType>('AGREEMENT_FINAL');
   const [finalAgreementUploading, setFinalAgreementUploading] = useState(false);
@@ -250,6 +253,26 @@ export default function AdminCompanyDetail() {
       setViewerOpen(false);
     } finally {
       setViewerLoading(false);
+    }
+  }
+
+  async function handleGenerateAgreementDraftFromTemplate() {
+    if (!companyId) return;
+    setAgreementDraftError(null);
+    setTemplateDraftSuccess(null);
+    setTemplateDraftGenerating(true);
+    try {
+      const res = await generateAgreementDraftFromTemplate(companyId);
+      setTemplateDraftSuccess(
+        `Generated draft v${res.version} (${res.fileName}). Review it below, then click "Notify draft shared".`,
+      );
+      await loadData();
+    } catch (err) {
+      setAgreementDraftError(
+        err instanceof Error ? err.message : 'Failed to generate draft from template',
+      );
+    } finally {
+      setTemplateDraftGenerating(false);
     }
   }
 
@@ -971,10 +994,65 @@ export default function AdminCompanyDetail() {
             >
               {agreementDraftUploading ? 'Uploading…' : (agreementDraftFiles.length > 0 ? `Upload ${agreementDraftFiles.length} file(s)` : 'Upload and notify client')}
             </button>
+            {company?.clientChannel === 'AGGREGATOR' && (() => {
+              const SUPPORTED_TEMPLATE_PLANS = ['GR', 'BR'] as const;
+              const latestBooking = bookings && bookings.length > 0 ? bookings[0] : null;
+              const planType = latestBooking?.planType ?? null;
+              const stage = company?.onboardingStage;
+              const planSupported =
+                planType !== null &&
+                (SUPPORTED_TEMPLATE_PLANS as readonly string[]).includes(planType);
+              const stageReady = stage === 'AGREEMENT_DRAFT_SHARED';
+              const hasBooking = !!latestBooking;
+              let tooltip = `Render the ${planType ?? ''} Leave & License template with this client\u2019s data in one click. Review before notifying.`;
+              if (!hasBooking) {
+                tooltip = 'No aggregator booking found for this client.';
+              } else if (!planSupported) {
+                tooltip = `Template available for plan types: ${SUPPORTED_TEMPLATE_PLANS.join(', ')} (current: ${planType ?? 'not set'}). Upload manually or switch to a supported plan.`;
+              } else if (!stageReady) {
+                tooltip = 'Available once stage reaches "Agreement draft shared" (after KYC approval).';
+              }
+              const disabled =
+                templateDraftGenerating || agreementDraftUploading || !hasBooking || !planSupported || !stageReady;
+              const buttonLabel = templateDraftGenerating
+                ? 'Generating\u2026'
+                : planSupported
+                ? `Generate draft from template (${planType})`
+                : 'Generate draft from template';
+              return (
+                <button
+                  type="button"
+                  onClick={handleGenerateAgreementDraftFromTemplate}
+                  disabled={disabled}
+                  title={tooltip}
+                  style={{
+                    background: disabled ? '#e5e7eb' : '#0f766e',
+                    color: disabled ? '#6b7280' : '#fff',
+                    border: '1px solid ' + (disabled ? '#d1d5db' : '#0f766e'),
+                    borderRadius: 4,
+                    padding: '0.4rem 0.8rem',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {buttonLabel}
+                </button>
+              );
+            })()}
           </div>
+          {company?.clientChannel === 'AGGREGATOR' && (
+            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: '#0f766e' }}>
+              Aggregator client: you can auto-generate the Leave &amp; License draft from the
+              packaged template (GR or BR) using this client&rsquo;s signatory details and booking.
+            </p>
+          )}
           {agreementDraftFiles.length > 0 && (
             <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#666' }}>
               Selected: {agreementDraftFiles.map((f) => f.name).join(', ')}
+            </p>
+          )}
+          {templateDraftSuccess && (
+            <p style={{ color: '#065f46', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+              {templateDraftSuccess}
             </p>
           )}
           {agreementDraftError && (
@@ -1179,6 +1257,15 @@ export default function AdminCompanyDetail() {
 /** Read-only booking card for aggregator-channel clients. Shows all fields submitted by the
  *  aggregator at registration, including the Invoice-To snapshot – so admins raising the invoice
  *  see exactly what was requested. Renders nothing if the bookings array is empty. */
+/** Mask all but the last 4 digits of an Aadhaar number for display. */
+function maskAadhaar(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 4) return value;
+  const last4 = digits.slice(-4);
+  return `XXXX XXXX ${last4}`;
+}
+
 function BookingDetailsCard({ bookings }: { bookings: AggregatorBooking[] }) {
   return (
     <section
@@ -1241,6 +1328,12 @@ function BookingDetailsCard({ bookings }: { bookings: AggregatorBooking[] }) {
             <BookingField label="Client contact" value={b.clientContactName} />
             <BookingField label="POC" value={b.pocName} />
             <BookingField label="POC contact" value={b.pocContact} />
+            <BookingField
+              label="Father / spouse name"
+              value={b.clientFatherOrSpouseName}
+            />
+            <BookingField label="Client PAN" value={b.clientPan} />
+            <BookingField label="Client Aadhaar" value={maskAadhaar(b.clientAadhaar)} />
           </div>
 
           {b.venueAddress && (

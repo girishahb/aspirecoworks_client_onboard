@@ -371,6 +371,10 @@ model AggregatorBooking {
   clientContactName        String?
   pocName                  String?
   pocContact               String?
+  // Signatory details (used to render the Leave & License agreement draft)
+  clientFatherOrSpouseName String?
+  clientPan                String?
+  clientAadhaar            String?
   // Invoice-To snapshot (copied from AggregatorInvoiceProfile or override)
   invoiceLegalName         String?
   invoiceConstitution      String?

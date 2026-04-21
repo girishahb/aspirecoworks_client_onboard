@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
+import { AgreementTemplateService } from './agreement-template.service';
 import { DocumentsController } from './documents.controller';
 import { AdminKycController } from './admin-kyc.controller';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
@@ -17,7 +18,7 @@ import { OnboardingModule } from '../onboarding/onboarding.module';
     OnboardingModule,
   ],
   controllers: [DocumentsController, AdminKycController],
-  providers: [DocumentsService],
-  exports: [DocumentsService],
+  providers: [DocumentsService, AgreementTemplateService],
+  exports: [DocumentsService, AgreementTemplateService],
 })
 export class DocumentsModule {}

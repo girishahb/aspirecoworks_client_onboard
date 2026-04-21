@@ -5,6 +5,9 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": true,
-    "tsConfigPath": "tsconfig.json"
+    "tsConfigPath": "tsconfig.json",
+    "assets": [
+      { "include": "documents/templates/**/*", "outDir": "dist", "watchAssets": true }
+    ]
   }
 }

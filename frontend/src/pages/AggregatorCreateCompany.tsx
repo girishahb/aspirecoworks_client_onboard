@@ -4,6 +4,8 @@ import { createCompany } from '../services/admin';
 import { uploadAggregatorKyc } from '../services/documents';
 import {
   getMyInvoiceProfile,
+  AGGREGATOR_BOOKING_PLAN_TYPES,
+  type AggregatorBookingPlanType,
   type AggregatorInvoiceProfile,
 } from '../services/aggregatorProfile';
 
@@ -17,8 +19,6 @@ const KYC_TYPE_OPTIONS: { value: KycDocType; label: string }[] = [
   { value: 'PAN', label: 'PAN' },
   { value: 'OTHER', label: 'Other' },
 ];
-
-const PLAN_TYPE_SUGGESTIONS = ['BR', 'Enterprise', 'Startup', 'Virtual Office', 'Day Pass'];
 
 const DEFAULT_PAYMENT_TERMS = '100% payment upfront in the next monthly billing cycle';
 const DEFAULT_SIGNAGE_TERMS =
@@ -36,7 +36,7 @@ interface KycItem {
 
 interface BookingState {
   bookingReference: string;
-  planType: string;
+  planType: AggregatorBookingPlanType | '';
   venueName: string;
   venueAddress: string;
   durationMonths: string;
@@ -48,6 +48,9 @@ interface BookingState {
   clientContactName: string;
   pocName: string;
   pocContact: string;
+  clientFatherOrSpouseName: string;
+  clientPan: string;
+  clientAadhaar: string;
 }
 
 interface InvoiceToState {
@@ -126,6 +129,9 @@ export default function AggregatorCreateCompany() {
     clientContactName: '',
     pocName: '',
     pocContact: '',
+    clientFatherOrSpouseName: '',
+    clientPan: '',
+    clientAadhaar: '',
   });
 
   const [invoiceTo, setInvoiceTo] = useState<InvoiceToState>(EMPTY_INVOICE_TO);
@@ -264,6 +270,12 @@ export default function AggregatorCreateCompany() {
         bookingPayload.clientContactName = booking.clientContactName.trim();
       if (booking.pocName.trim()) bookingPayload.pocName = booking.pocName.trim();
       if (booking.pocContact.trim()) bookingPayload.pocContact = booking.pocContact.trim();
+      if (booking.clientFatherOrSpouseName.trim())
+        bookingPayload.clientFatherOrSpouseName = booking.clientFatherOrSpouseName.trim();
+      if (booking.clientPan.trim())
+        bookingPayload.clientPan = booking.clientPan.trim().toUpperCase();
+      if (booking.clientAadhaar.trim())
+        bookingPayload.clientAadhaar = booking.clientAadhaar.replace(/[\s-]/g, '');
       if (Object.keys(bookingPayload).length > 0) data.booking = bookingPayload;
 
       // Invoice-To logic:
@@ -640,22 +652,21 @@ export default function AggregatorCreateCompany() {
               >
                 Plan type
               </label>
-              <input
+              <select
                 id="planType"
                 name="planType"
-                type="text"
                 value={booking.planType}
                 onChange={handleBookingChange}
                 className={inputClass}
-                placeholder="e.g. BR"
-                list="plan-type-suggestions"
                 disabled={submitting}
-              />
-              <datalist id="plan-type-suggestions">
-                {PLAN_TYPE_SUGGESTIONS.map((v) => (
-                  <option key={v} value={v} />
+              >
+                <option value="">Select plan type…</option>
+                {AGGREGATOR_BOOKING_PLAN_TYPES.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
           </div>
 
@@ -880,6 +891,71 @@ export default function AggregatorCreateCompany() {
                 placeholder="Phone or email"
                 disabled={submitting}
               />
+            </div>
+            <div>
+              <label
+                htmlFor="clientFatherOrSpouseName"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Father / spouse name
+              </label>
+              <input
+                id="clientFatherOrSpouseName"
+                name="clientFatherOrSpouseName"
+                type="text"
+                value={booking.clientFatherOrSpouseName}
+                onChange={handleBookingChange}
+                className={inputClass}
+                placeholder="As per Aadhaar / PAN"
+                disabled={submitting}
+              />
+              <small style={{ color: '#64748b' }}>
+                Used on the GR agreement draft signatory block.
+              </small>
+            </div>
+            <div>
+              <label
+                htmlFor="clientPan"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Client PAN (individual)
+              </label>
+              <input
+                id="clientPan"
+                name="clientPan"
+                type="text"
+                value={booking.clientPan}
+                onChange={handleBookingChange}
+                className={inputClass}
+                placeholder="AAAAA9999A"
+                maxLength={10}
+                style={{ textTransform: 'uppercase' }}
+                disabled={submitting}
+              />
+              <small style={{ color: '#64748b' }}>10 characters, format AAAAA9999A.</small>
+            </div>
+            <div>
+              <label
+                htmlFor="clientAadhaar"
+                style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
+              >
+                Client Aadhaar (individual)
+              </label>
+              <input
+                id="clientAadhaar"
+                name="clientAadhaar"
+                type="text"
+                inputMode="numeric"
+                value={booking.clientAadhaar}
+                onChange={handleBookingChange}
+                className={inputClass}
+                placeholder="12-digit Aadhaar number"
+                maxLength={12}
+                disabled={submitting}
+              />
+              <small style={{ color: '#64748b' }}>
+                Stored securely; shown masked on admin and listing screens.
+              </small>
             </div>
           </div>
         </section>

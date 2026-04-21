@@ -1,5 +1,20 @@
 import { apiDelete, apiGet, apiPut } from './api';
 
+/**
+ * Allowed plan types for an aggregator booking. Kept in sync with the backend
+ * Zod schema (see `aggregator-booking-input.ts`).
+ */
+export const AGGREGATOR_BOOKING_PLAN_TYPES = [
+  'GR',
+  'BR',
+  'Mailing Address',
+  'Dedicated desk',
+  'Shared desk',
+] as const;
+
+export type AggregatorBookingPlanType =
+  (typeof AGGREGATOR_BOOKING_PLAN_TYPES)[number];
+
 export interface AggregatorInvoiceProfile {
   id: string;
   userId: string;
@@ -39,7 +54,7 @@ export interface AggregatorBooking {
   clientProfileId: string;
   createdById: string;
   bookingReference: string | null;
-  planType: string | null;
+  planType: AggregatorBookingPlanType | null;
   venueName: string | null;
   venueAddress: string | null;
   durationMonths: number | null;
@@ -51,6 +66,9 @@ export interface AggregatorBooking {
   clientContactName: string | null;
   pocName: string | null;
   pocContact: string | null;
+  clientFatherOrSpouseName: string | null;
+  clientPan: string | null;
+  clientAadhaar: string | null;
   invoiceLegalName: string | null;
   invoiceConstitution: string | null;
   invoiceGstin: string | null;

@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiRequest } from './api';
+import type { AggregatorBookingPlanType } from './aggregatorProfile';
 
 export type ClientChannel = 'DIRECT' | 'AGGREGATOR';
 
@@ -67,7 +68,7 @@ export async function getCompany(companyId: string): Promise<AdminCompany> {
  */
 export interface CreateCompanyBookingInput {
   bookingReference?: string;
-  planType?: string;
+  planType?: AggregatorBookingPlanType;
   venueName?: string;
   venueAddress?: string;
   durationMonths?: number | null;
@@ -79,6 +80,9 @@ export interface CreateCompanyBookingInput {
   clientContactName?: string;
   pocName?: string;
   pocContact?: string;
+  clientFatherOrSpouseName?: string;
+  clientPan?: string;
+  clientAadhaar?: string;
 }
 
 export interface CreateCompanyInvoiceToInput {
@@ -189,6 +193,21 @@ export async function uploadAgreementDraft(companyId: string, file: File): Promi
         : res.statusText;
     throw new Error(message || `Upload failed (${res.status})`);
   }
+}
+
+/**
+ * One-click generate agreement draft from the packaged GR template for an
+ * aggregator-onboarded company. Aggregator-only, GR-plan only, stage must be
+ * AGREEMENT_DRAFT_SHARED. Does NOT notify the client -- admin still clicks
+ * "Notify draft shared" after reviewing the generated draft.
+ * Backend: POST /documents/admin/agreement-draft/generate-from-template/:companyId.
+ */
+export async function generateAgreementDraftFromTemplate(
+  companyId: string,
+): Promise<{ documentId: string; fileName: string; version: number }> {
+  return apiPost<{ documentId: string; fileName: string; version: number }>(
+    `/documents/admin/agreement-draft/generate-from-template/${companyId}`,
+  );
 }
 
 /**

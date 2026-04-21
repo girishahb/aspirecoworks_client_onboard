@@ -17,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
+import { AgreementTemplateService } from './agreement-template.service';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { AdminAgreementDraftUploadDto } from './dto/admin-agreement-draft-upload.dto';
 import { AdminAgreementFinalUploadDto } from './dto/admin-agreement-final-upload.dto';
@@ -33,7 +34,10 @@ import { DocumentType } from '../common/enums/document-type.enum';
 @Controller('documents')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly agreementTemplateService: AgreementTemplateService,
+  ) {}
 
   @SkipThrottle()
   @Post('upload')
@@ -200,6 +204,28 @@ export class DocumentsController {
       throw new BadRequestException('companyId is required');
     }
     return this.documentsService.uploadAdminAgreementDraftProxy(file, companyId, user);
+  }
+
+  @SkipThrottle()
+  @Post('admin/agreement-draft/generate-from-template/:companyId')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({
+    summary: 'Generate agreement draft from template (aggregator GR only)',
+    description:
+      'Renders the packaged GR Leave & License agreement .docx with live ClientProfile + AggregatorBooking data and stores it as a new AGREEMENT_DRAFT Document (versioned). Aggregator-onboarded clients only. Stage must be AGREEMENT_DRAFT_SHARED. Booking planType must be GR. Does NOT notify the client -- admin still clicks "Notify draft shared" after reviewing.',
+  })
+  @ApiResponse({ status: 201, description: 'Agreement draft generated' })
+  @ApiResponse({ status: 400, description: 'Invalid company, plan type, or stage' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  generateAgreementDraftFromTemplate(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException('companyId is required');
+    }
+    return this.agreementTemplateService.generateAgreementDraftFromTemplate(companyId, user);
   }
 
   @SkipThrottle()
