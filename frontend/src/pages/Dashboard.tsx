@@ -133,6 +133,7 @@ export default function Dashboard() {
         stage={stage}
         showPercentage
         clientChannel={company.clientChannel ?? null}
+        view="client"
       />
 
       {/* Next Action Card */}

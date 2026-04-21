@@ -35,7 +35,11 @@ const POST_AGREEMENT_DOC_TYPES: { value: AdminPostAgreementDocumentType; label: 
   { value: 'WIFI_BILL', label: 'Wifi Bill' },
 ];
 import { getCurrentUser } from '../services/auth';
-import { downloadDocumentFile, getDocumentViewUrl } from '../services/documents';
+import {
+  downloadDocumentFile,
+  getDocumentViewUrl,
+  uploadAggregatorSignedAgreement,
+} from '../services/documents';
 import {
   listCompanyBookings,
   type AggregatorBooking,
@@ -131,6 +135,10 @@ export default function AdminCompanyDetail() {
   const [notifyDraftBusyId, setNotifyDraftBusyId] = useState<string | null>(null);
   const [notifyDraftSuccess, setNotifyDraftSuccess] = useState<string | null>(null);
   const [notifyDraftError, setNotifyDraftError] = useState<string | null>(null);
+  const [aggregatorSignedFile, setAggregatorSignedFile] = useState<File | null>(null);
+  const [aggregatorSignedUploading, setAggregatorSignedUploading] = useState(false);
+  const [aggregatorSignedSuccess, setAggregatorSignedSuccess] = useState<string | null>(null);
+  const [aggregatorSignedError, setAggregatorSignedError] = useState<string | null>(null);
   const [finalAgreementFile, setFinalAgreementFile] = useState<File | null>(null);
   const [selectedFinalDocType, setSelectedFinalDocType] = useState<AdminPostAgreementDocumentType>('AGREEMENT_FINAL');
   const [finalAgreementUploading, setFinalAgreementUploading] = useState(false);
@@ -277,6 +285,27 @@ export default function AdminCompanyDetail() {
       );
     } finally {
       setNotifyDraftBusyId(null);
+    }
+  }
+
+  async function handleUploadAggregatorSignedAgreement() {
+    if (!companyId || !aggregatorSignedFile) return;
+    setAggregatorSignedError(null);
+    setAggregatorSignedSuccess(null);
+    setAggregatorSignedUploading(true);
+    try {
+      const res = await uploadAggregatorSignedAgreement(companyId, aggregatorSignedFile);
+      setAggregatorSignedSuccess(
+        `Signed agreement uploaded (v${res.version}, ${res.fileName}). Stage moved to "Signed Agreement Received" for admin review.`,
+      );
+      setAggregatorSignedFile(null);
+      await loadData();
+    } catch (err) {
+      setAggregatorSignedError(
+        err instanceof Error ? err.message : 'Failed to upload signed agreement',
+      );
+    } finally {
+      setAggregatorSignedUploading(false);
     }
   }
 
@@ -746,6 +775,7 @@ export default function AdminCompanyDetail() {
           stage={company.onboardingStage}
           showPercentage
           clientChannel={company.clientChannel ?? null}
+          view={isAggregatorView ? 'aggregator' : 'admin'}
         />
       </section>
 
@@ -1043,9 +1073,124 @@ export default function AdminCompanyDetail() {
         <h2>Documents</h2>
         <p style={{ margin: '0 0 1rem 0', fontSize: '0.875rem', color: '#555' }}>
           {isAggregatorView
-            ? 'Download or view any uploaded document. KYC review and agreement steps are handled by Aspire admins.'
+            ? 'Download or view any uploaded document. Once Aspire admins share the agreement draft, upload the client-signed copy below.'
             : 'Download any file; use Approve / Reject / Pending with client for documents awaiting review.'}
         </p>
+        {isAggregatorView && company?.clientChannel === 'AGGREGATOR' && (() => {
+          const stage = company?.onboardingStage;
+          const canUpload =
+            stage === 'AGREEMENT_DRAFT_SHARED' || stage === 'SIGNED_AGREEMENT_RECEIVED';
+          const alreadyReceived = stage === 'SIGNED_AGREEMENT_RECEIVED';
+          const latestSigned = documents
+            .filter((d) => d.documentType === 'AGREEMENT_SIGNED')
+            .reduce<{ fileName: string; version: number | null } | null>((acc, d) => {
+              const v = d.version ?? 0;
+              if (!acc || v > (acc.version ?? 0)) {
+                return { fileName: d.fileName, version: d.version ?? null };
+              }
+              return acc;
+            }, null);
+          if (!canUpload) {
+            // Once the stage has progressed past SIGNED_AGREEMENT_RECEIVED (Final
+            // Agreement Shared / Active / Completed), the card is read-only and
+            // simply confirms the upload already happened. Before draft shared,
+            // we don't render the card at all so the aggregator sees a cleaner
+            // page.
+            if (stage && ['FINAL_AGREEMENT_SHARED', 'ACTIVE', 'COMPLETED'].includes(stage)) {
+              return (
+                <div
+                  style={{
+                    marginBottom: '1rem',
+                    padding: '1rem',
+                    border: '1px solid #c7d2fe',
+                    borderRadius: 4,
+                    backgroundColor: '#eef2ff',
+                  }}
+                >
+                  <h3 style={{ marginTop: 0, fontSize: '1rem', color: '#1e3a8a' }}>
+                    Signed agreement already received
+                  </h3>
+                  {latestSigned && (
+                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#1e3a8a' }}>
+                      Latest on file: {latestSigned.fileName}
+                      {latestSigned.version != null ? ` (v${latestSigned.version})` : ''}
+                    </p>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          }
+          return (
+            <div
+              style={{
+                marginBottom: '1rem',
+                padding: '1rem',
+                border: '1px solid #0f766e',
+                borderRadius: 4,
+                backgroundColor: '#ecfdf5',
+              }}
+            >
+              <h3 style={{ marginTop: 0, fontSize: '1rem', color: '#064e3b' }}>
+                Upload signed agreement
+              </h3>
+              <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', color: '#065f46' }}>
+                {alreadyReceived
+                  ? 'A signed copy is already on record. Uploading a new file will replace it with a new version and re-send the confirmation email.'
+                  : 'Upload the scanned signed agreement from your client. This moves the onboarding to "Signed Agreement Received" for admin\u2019s final review.'}
+                {' '}Supports .pdf, .doc, .docx (max 10MB).
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => setAggregatorSignedFile(e.target.files?.[0] ?? null)}
+                  disabled={aggregatorSignedUploading}
+                />
+                <button
+                  type="button"
+                  onClick={handleUploadAggregatorSignedAgreement}
+                  disabled={!aggregatorSignedFile || aggregatorSignedUploading}
+                  style={{
+                    background: !aggregatorSignedFile || aggregatorSignedUploading ? '#e5e7eb' : '#0f766e',
+                    color: !aggregatorSignedFile || aggregatorSignedUploading ? '#6b7280' : '#fff',
+                    border: '1px solid ' + (!aggregatorSignedFile || aggregatorSignedUploading ? '#d1d5db' : '#0f766e'),
+                    borderRadius: 4,
+                    padding: '0.4rem 0.8rem',
+                    cursor: !aggregatorSignedFile || aggregatorSignedUploading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {aggregatorSignedUploading
+                    ? 'Uploading\u2026'
+                    : alreadyReceived
+                    ? 'Upload new version'
+                    : 'Upload signed agreement'}
+                </button>
+              </div>
+              {aggregatorSignedFile && (
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#065f46' }}>
+                  Selected: {aggregatorSignedFile.name}
+                </p>
+              )}
+              {latestSigned && (
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: '#065f46' }}>
+                  Latest on file: {latestSigned.fileName}
+                  {latestSigned.version != null ? ` (v${latestSigned.version})` : ''}
+                </p>
+              )}
+              {aggregatorSignedSuccess && (
+                <p style={{ color: '#065f46', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                  {aggregatorSignedSuccess}
+                </p>
+              )}
+              {aggregatorSignedError && (
+                <p style={{ color: 'crimson', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                  {aggregatorSignedError}
+                </p>
+              )}
+            </div>
+          );
+        })()}
         {!isAggregatorView && (
         <>
         <div style={{ marginBottom: '1rem', padding: '1rem', border: '1px solid #ddd', borderRadius: 4 }}>

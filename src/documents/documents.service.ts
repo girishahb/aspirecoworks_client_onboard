@@ -533,6 +533,171 @@ export class DocumentsService {
   }
 
   /**
+   * POST /documents/aggregator/signed-agreement-upload/:companyId
+   * Aggregator uploads the signed Leave & License agreement on behalf of a
+   * client they onboarded. Mirrors `uploadAggregatorKycProxy` for role /
+   * ownership and `confirmSignedAgreement` for stage transition + email.
+   *
+   * Scope: AGGREGATOR role only, company.clientChannel === AGGREGATOR, and
+   * company.createdById must equal the authenticated aggregator. Allowed
+   * only when stage is AGREEMENT_DRAFT_SHARED or SIGNED_AGREEMENT_RECEIVED.
+   * Versions auto-increment and `replacesId` is set on re-upload.
+   */
+  async uploadAggregatorSignedAgreementProxy(
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    companyId: string,
+    user: { id: string; role: UserRole },
+  ): Promise<{ documentId: string; version: number; fileName: string }> {
+    if (user.role !== UserRole.AGGREGATOR) {
+      throw new ForbiddenException('Only AGGREGATOR role can use this endpoint');
+    }
+
+    const company = await this.db.clientProfile.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        clientChannel: true,
+        createdById: true,
+        onboardingStage: true,
+        companyName: true,
+        contactEmail: true,
+      },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+    if (company.clientChannel !== 'AGGREGATOR' || company.createdById !== user.id) {
+      throw new ForbiddenException('You can only upload documents for clients you onboarded');
+    }
+
+    await this.onboardingService.assertNotActive(companyId);
+    await this.onboardingService.assertStage(
+      companyId,
+      [OnboardingStage.AGREEMENT_DRAFT_SHARED, OnboardingStage.SIGNED_AGREEMENT_RECEIVED],
+      'Signed agreement upload is only available after the agreement draft has been shared.',
+    );
+
+    const sanitizedFileName = (file.originalname || 'signed-agreement')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 255);
+    const ext = sanitizedFileName.toLowerCase().match(/\.[^.]+$/)?.[0];
+    const allowedExts = ['.pdf', '.doc', '.docx'];
+    if (!ext || !allowedExts.includes(ext)) {
+      throw new BadRequestException(
+        `Invalid file extension for signed agreement. Allowed: ${allowedExts.join(', ')}`,
+      );
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('File size exceeds maximum of 10MB');
+    }
+
+    const previousSigned = await this.db.document.findFirst({
+      where: {
+        clientProfileId: companyId,
+        documentType: DocumentType.AGREEMENT_SIGNED,
+      },
+      orderBy: { version: 'desc' },
+      select: { id: true, version: true },
+    });
+    const version = previousSigned ? previousSigned.version + 1 : 1;
+    const replacesId = previousSigned?.id ?? null;
+
+    const uuid = randomUUID();
+    const fileKey = this.r2Service.generateFileKey(
+      companyId,
+      DocumentType.AGREEMENT_SIGNED,
+      sanitizedFileName,
+      uuid,
+    );
+
+    await this.r2Service.uploadFile(
+      fileKey,
+      file.buffer,
+      file.mimetype || 'application/octet-stream',
+    );
+
+    let document;
+    try {
+      document = await this.db.document.create({
+        data: {
+          clientProfileId: companyId,
+          uploadedById: user.id,
+          ownerId: user.id,
+          fileName: file.originalname || 'signed-agreement',
+          fileKey,
+          documentType: DocumentType.AGREEMENT_SIGNED,
+          fileSize: file.size,
+          mimeType: file.mimetype || null,
+          status: DocumentStatus.REVIEW_PENDING,
+          version,
+          replacesId,
+          reviewNotes: null,
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `Aggregator signed agreement upload failed: ${err?.message}`,
+        err?.stack,
+      );
+      throw err;
+    }
+
+    await this.auditLogsService.create({
+      userId: user.id,
+      clientProfileId: companyId,
+      documentId: document.id,
+      action: 'UPLOAD_SIGNED_AGREEMENT',
+      entityType: 'Document',
+      entityId: document.id,
+      changes: {
+        fileName: file.originalname,
+        documentType: DocumentType.AGREEMENT_SIGNED,
+        fileSize: file.size,
+        fileKey,
+        version,
+        replacesId,
+        uploadedBy: 'AGGREGATOR',
+      },
+    });
+
+    const currentStage = company.onboardingStage as OnboardingStage;
+    const wasAlreadyReceived = currentStage === OnboardingStage.SIGNED_AGREEMENT_RECEIVED;
+    try {
+      await this.onboardingService.onSignedAgreementReceived(companyId);
+      if (!wasAlreadyReceived) {
+        this.logger.log(
+          `Company ${companyId} moved to SIGNED_AGREEMENT_RECEIVED after aggregator signed agreement upload`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Signed agreement stage transition skipped companyId=${companyId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+
+    const to = company.contactEmail?.trim();
+    if (to && !wasAlreadyReceived) {
+      try {
+        const { subject, html, text } = signedAgreementReceived({
+          companyName: company.companyName,
+          dashboardUrl: this.getDashboardUrl(),
+        });
+        await this.emailService.sendEmail({ to, subject, html, text });
+      } catch (emailErr) {
+        this.logger.warn(
+          `Signed agreement received email failed companyId=${companyId}: ${emailErr instanceof Error ? emailErr.message : emailErr}`,
+        );
+      }
+    }
+
+    return {
+      documentId: document.id,
+      version,
+      fileName: document.fileName,
+    };
+  }
+
+  /**
    * POST /documents/:id/confirm-signed-agreement
    * CLIENT only. Call after uploading the signed agreement file. Updates company stage to SIGNED_AGREEMENT_RECEIVED.
    */

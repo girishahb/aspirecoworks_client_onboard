@@ -4,6 +4,7 @@ import {
   getActionHint,
   getStepIcon,
   type ClientChannel,
+  type StepperView,
 } from '../onboardingSteps';
 import { Check } from 'lucide-react';
 
@@ -16,6 +17,13 @@ export interface OnboardingStepperProps {
   compact?: boolean;
   /** Client channel; AGGREGATOR hides the Payment step. */
   clientChannel?: ClientChannel | null;
+  /**
+   * Viewer context. 'aggregator' collapses the admin-only back-office stages
+   * (Signed Agreement Received / Final Agreement Ready) for AGGREGATOR-channel
+   * clients into the shared "Agreement Draft Shared" step. 'admin' and
+   * 'client' retain the full step list.
+   */
+  view?: StepperView | null;
 }
 
 export default function OnboardingStepper({
@@ -23,17 +31,18 @@ export default function OnboardingStepper({
   showPercentage = true,
   compact = false,
   clientChannel = null,
+  view = null,
 }: OnboardingStepperProps) {
-  const steps = getOnboardingSteps(clientChannel);
+  const steps = getOnboardingSteps(clientChannel, view);
   const totalSteps = steps.length;
-  const currentIndex = getStepIndex(stage, clientChannel);
+  const currentIndex = getStepIndex(stage, clientChannel, view);
   const safeIndex = currentIndex < 0 ? 0 : currentIndex;
   const displayPercent =
     totalSteps <= 1
       ? 0
       : Math.min(100, Math.round((safeIndex / (totalSteps - 1)) * 100));
 
-  const actionHint = getActionHint(stage);
+  const actionHint = getActionHint(stage, view);
 
   return (
     <div className="rounded-lg border border-border bg-white p-4 shadow-sm md:p-5">

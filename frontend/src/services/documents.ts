@@ -122,6 +122,50 @@ export async function uploadSignedAgreement(
 }
 
 /**
+ * Aggregator uploads the signed agreement on behalf of a client they
+ * onboarded. Mirrors `uploadAggregatorKyc`: multipart upload to the
+ * aggregator-scoped proxy endpoint. Allowed only for AGGREGATOR-channel
+ * clients owned by the authenticated aggregator, and only while the stage
+ * is AGREEMENT_DRAFT_SHARED or SIGNED_AGREEMENT_RECEIVED (backend enforced).
+ * On success, moves the company to SIGNED_AGREEMENT_RECEIVED.
+ */
+export async function uploadAggregatorSignedAgreement(
+  companyId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<{ documentId: string; version: number; fileName: string }> {
+  if (onProgress) onProgress(10);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await apiRequest(
+    `/documents/aggregator/signed-agreement-upload/${encodeURIComponent(companyId)}`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+  );
+
+  if (onProgress) onProgress(100);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const message =
+      typeof data === 'object' && data !== null && 'message' in data
+        ? String((data as { message: unknown }).message)
+        : res.statusText;
+    throw new Error(message || `Upload failed (${res.status})`);
+  }
+
+  return (await res.json()) as {
+    documentId: string;
+    version: number;
+    fileName: string;
+  };
+}
+
+/**
  * Submit all uploaded KYC documents for admin review.
  * Transitions company onboarding stage from KYC_IN_PROGRESS to KYC_REVIEW.
  * Idempotent when stage is already KYC_REVIEW.

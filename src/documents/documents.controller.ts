@@ -133,6 +133,46 @@ export class DocumentsController {
   }
 
   @SkipThrottle()
+  @Post('aggregator/signed-agreement-upload/:companyId')
+  @Roles(UserRole.AGGREGATOR)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Aggregator signed agreement upload (on behalf of an aggregator-onboarded client)',
+    description:
+      'Aggregator uploads the signed agreement for a client they onboarded. Multipart form: file (pdf | doc | docx, max 10MB). Enforces ownership: company.clientChannel must be AGGREGATOR and company.createdById must equal the authenticated aggregator. Allowed only when stage is AGREEMENT_DRAFT_SHARED or SIGNED_AGREEMENT_RECEIVED. Transitions the stage to SIGNED_AGREEMENT_RECEIVED on first upload and auto-increments the version on re-uploads.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Signed agreement uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid file or stage for signed agreement upload' })
+  @ApiResponse({ status: 403, description: 'Aggregator does not own this company' })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  async uploadAggregatorSignedAgreement(
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    if (!companyId) {
+      throw new BadRequestException('companyId is required');
+    }
+    return this.documentsService.uploadAggregatorSignedAgreementProxy(file, companyId, user);
+  }
+
+  @SkipThrottle()
   @Post('upload-url')
   @Roles(UserRole.CLIENT, UserRole.COMPANY_ADMIN)
   @ApiOperation({
