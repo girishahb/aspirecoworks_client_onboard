@@ -996,24 +996,36 @@ export default function AdminCompanyDetail() {
             </button>
             {company?.clientChannel === 'AGGREGATOR' && (() => {
               const SUPPORTED_TEMPLATE_PLANS = ['GR', 'BR'] as const;
+              // Aggregator drafts are rendered from registration data, so the
+              // button is enabled at every pre-signing stage. Once the client
+              // has signed / completed / is rejected, generation is blocked.
+              const BLOCKED_TEMPLATE_STAGES = [
+                'SIGNED_AGREEMENT_RECEIVED',
+                'FINAL_AGREEMENT_SHARED',
+                'ACTIVE',
+                'COMPLETED',
+                'REJECTED',
+              ] as const;
               const latestBooking = bookings && bookings.length > 0 ? bookings[0] : null;
               const planType = latestBooking?.planType ?? null;
               const stage = company?.onboardingStage;
               const planSupported =
                 planType !== null &&
                 (SUPPORTED_TEMPLATE_PLANS as readonly string[]).includes(planType);
-              const stageReady = stage === 'AGREEMENT_DRAFT_SHARED';
+              const stageBlocked =
+                !!stage &&
+                (BLOCKED_TEMPLATE_STAGES as readonly string[]).includes(stage);
               const hasBooking = !!latestBooking;
-              let tooltip = `Render the ${planType ?? ''} Leave & License template with this client\u2019s data in one click. Review before notifying.`;
+              let tooltip = `Render the ${planType ?? ''} Leave & License template with this client\u2019s data in one click. Review before notifying the client.`;
               if (!hasBooking) {
                 tooltip = 'No aggregator booking found for this client.';
               } else if (!planSupported) {
                 tooltip = `Template available for plan types: ${SUPPORTED_TEMPLATE_PLANS.join(', ')} (current: ${planType ?? 'not set'}). Upload manually or switch to a supported plan.`;
-              } else if (!stageReady) {
-                tooltip = 'Available once stage reaches "Agreement draft shared" (after KYC approval).';
+              } else if (stageBlocked) {
+                tooltip = 'Agreement draft can no longer be generated: the client has already signed or completed the agreement.';
               }
               const disabled =
-                templateDraftGenerating || agreementDraftUploading || !hasBooking || !planSupported || !stageReady;
+                templateDraftGenerating || agreementDraftUploading || !hasBooking || !planSupported || stageBlocked;
               const buttonLabel = templateDraftGenerating
                 ? 'Generating\u2026'
                 : planSupported
@@ -1041,8 +1053,10 @@ export default function AdminCompanyDetail() {
           </div>
           {company?.clientChannel === 'AGGREGATOR' && (
             <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: '#0f766e' }}>
-              Aggregator client: you can auto-generate the Leave &amp; License draft from the
-              packaged template (GR or BR) using this client&rsquo;s signatory details and booking.
+              Aggregator client: you can auto-generate the Leave &amp; License draft (GR or BR)
+              from the packaged template as soon as the client is registered &mdash; the draft
+              is populated from the registration &amp; booking signatory details. Click
+              &ldquo;Notify draft shared&rdquo; after KYC is approved to email the client.
             </p>
           )}
           {agreementDraftFiles.length > 0 && (

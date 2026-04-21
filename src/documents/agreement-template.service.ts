@@ -54,6 +54,36 @@ export class AgreementTemplateService {
     return Object.keys(AgreementTemplateService.TEMPLATE_BY_PLAN);
   }
 
+  /**
+   * Stages at which the agreement draft can be generated from a template.
+   *
+   * For aggregator-onboarded clients the draft is rendered purely from
+   * registration data captured at client-create time (company details + the
+   * booking's signatory fields), so generation must be possible right after
+   * registration, well before KYC is complete. We only block generation once
+   * the client has already signed a draft (SIGNED_AGREEMENT_RECEIVED or later)
+   * or the lifecycle is terminal / rejected.
+   *
+   * Stage transitions for notifying the client (POST /documents/:id/notify-
+   * agreement-draft-shared) remain unchanged -- admin still clicks that button
+   * once KYC is approved to advance the stage + email the client.
+   */
+  private static readonly DRAFT_GENERATION_ALLOWED_STAGES: OnboardingStage[] = [
+    OnboardingStage.ADMIN_CREATED,
+    OnboardingStage.PAYMENT_PENDING,
+    OnboardingStage.PENDING_DOCUMENTS,
+    OnboardingStage.DOCUMENTS_SUBMITTED,
+    OnboardingStage.UNDER_REVIEW,
+    OnboardingStage.PAYMENT_CONFIRMED,
+    OnboardingStage.KYC_IN_PROGRESS,
+    OnboardingStage.KYC_REVIEW,
+    OnboardingStage.AGREEMENT_DRAFT_SHARED,
+  ];
+
+  static getDraftGenerationAllowedStages(): OnboardingStage[] {
+    return [...AgreementTemplateService.DRAFT_GENERATION_ALLOWED_STAGES];
+  }
+
   constructor(
     private prisma: PrismaService,
     private r2Service: R2Service,
@@ -173,8 +203,8 @@ export class AgreementTemplateService {
     await this.onboardingService.assertNotActive(companyId);
     await this.onboardingService.assertStage(
       companyId,
-      [OnboardingStage.AGREEMENT_DRAFT_SHARED],
-      'Agreement draft can only be generated when stage is Agreement draft shared.',
+      AgreementTemplateService.DRAFT_GENERATION_ALLOWED_STAGES,
+      'Agreement draft can no longer be generated from the template: the client has already received, signed, or completed the agreement.',
     );
 
     const booking = await this.db.aggregatorBooking.findFirst({
