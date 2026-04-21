@@ -8,6 +8,7 @@ import {
   markDocumentPendingWithClient,
   uploadAgreementDraft,
   generateAgreementDraftFromTemplate,
+  notifyAgreementDraftShared,
   uploadFinalAgreement,
   type AdminPostAgreementDocumentType,
   activateCompany,
@@ -127,6 +128,9 @@ export default function AdminCompanyDetail() {
   const [agreementDraftError, setAgreementDraftError] = useState<string | null>(null);
   const [templateDraftGenerating, setTemplateDraftGenerating] = useState(false);
   const [templateDraftSuccess, setTemplateDraftSuccess] = useState<string | null>(null);
+  const [notifyDraftBusyId, setNotifyDraftBusyId] = useState<string | null>(null);
+  const [notifyDraftSuccess, setNotifyDraftSuccess] = useState<string | null>(null);
+  const [notifyDraftError, setNotifyDraftError] = useState<string | null>(null);
   const [finalAgreementFile, setFinalAgreementFile] = useState<File | null>(null);
   const [selectedFinalDocType, setSelectedFinalDocType] = useState<AdminPostAgreementDocumentType>('AGREEMENT_FINAL');
   const [finalAgreementUploading, setFinalAgreementUploading] = useState(false);
@@ -253,6 +257,26 @@ export default function AdminCompanyDetail() {
       setViewerOpen(false);
     } finally {
       setViewerLoading(false);
+    }
+  }
+
+  async function handleNotifyAgreementDraftShared(documentId: string) {
+    if (!companyId) return;
+    setNotifyDraftError(null);
+    setNotifyDraftSuccess(null);
+    setNotifyDraftBusyId(documentId);
+    try {
+      const res = await notifyAgreementDraftShared(documentId);
+      setNotifyDraftSuccess(
+        res.message || 'Client notified. Stage advanced to "Agreement draft shared".',
+      );
+      await loadData();
+    } catch (err) {
+      setNotifyDraftError(
+        err instanceof Error ? err.message : 'Failed to notify client about the agreement draft',
+      );
+    } finally {
+      setNotifyDraftBusyId(null);
     }
   }
 
@@ -509,6 +533,20 @@ export default function AdminCompanyDetail() {
 
   function renderDocumentSection(title: string, sectionDocs: AdminDocumentListItem[]) {
     if (sectionDocs.length === 0) return null;
+    // Context used by the aggregator-only "Notify draft shared" action below.
+    // We enable the action on the latest AGREEMENT_DRAFT row only, and only
+    // while the company stage is one that `onAgreementDraftShared` accepts
+    // (KYC_REVIEW -> AGREEMENT_DRAFT_SHARED, or already at AGREEMENT_DRAFT_SHARED).
+    const isAggregatorCompany = company?.clientChannel === 'AGGREGATOR';
+    const notifyAllowedStages = new Set(['KYC_REVIEW', 'AGREEMENT_DRAFT_SHARED']);
+    const notifyStageAllowed = !!company?.onboardingStage && notifyAllowedStages.has(company.onboardingStage);
+    const latestAgreementDraftId = sectionDocs
+      .filter((d) => d.documentType === 'AGREEMENT_DRAFT')
+      .reduce<{ id: string; version: number } | null>((acc, d) => {
+        const v = d.version ?? 0;
+        if (!acc || v > acc.version) return { id: d.id, version: v };
+        return acc;
+      }, null)?.id ?? null;
     return (
       <div key={title} style={{ marginBottom: '1.5rem' }}>
         <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1rem', fontWeight: 600 }}>{title}</h3>
@@ -596,6 +634,42 @@ export default function AdminCompanyDetail() {
                         </button>
                       </>
                     )}
+                    {!isAggregatorView &&
+                      isAggregatorCompany &&
+                      doc.documentType === 'AGREEMENT_DRAFT' &&
+                      doc.id === latestAgreementDraftId &&
+                      (() => {
+                        const alreadyNotified = company?.onboardingStage === 'AGREEMENT_DRAFT_SHARED';
+                        const stageBlocked = !notifyStageAllowed;
+                        const busy = notifyDraftBusyId !== null;
+                        const disabled = busy || stageBlocked;
+                        const label = notifyDraftBusyId === doc.id
+                          ? 'Notifying\u2026'
+                          : alreadyNotified
+                          ? 'Re-notify draft shared'
+                          : 'Notify draft shared';
+                        const tooltip = stageBlocked
+                          ? 'Draft can only be notified while the stage is "KYC review" or "Agreement draft shared".'
+                          : alreadyNotified
+                          ? 'Resend the agreement draft email to the client with the latest draft.'
+                          : 'Email this draft to the client and advance the stage to "Agreement draft shared".';
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleNotifyAgreementDraftShared(doc.id)}
+                            disabled={disabled}
+                            title={tooltip}
+                            style={{
+                              backgroundColor: disabled ? '#9e9e9e' : '#1565c0',
+                              color: '#fff',
+                              border: `1px solid ${disabled ? '#9e9e9e' : '#1565c0'}`,
+                              cursor: disabled ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })()}
                   </div>
                 </td>
               </tr>
@@ -1068,6 +1142,14 @@ export default function AdminCompanyDetail() {
             <p style={{ color: '#065f46', fontSize: '0.875rem', marginTop: '0.5rem' }}>
               {templateDraftSuccess}
             </p>
+          )}
+          {notifyDraftSuccess && (
+            <p style={{ color: '#065f46', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+              {notifyDraftSuccess}
+            </p>
+          )}
+          {notifyDraftError && (
+            <p style={{ color: 'crimson', fontSize: '0.875rem', marginTop: '0.5rem' }}>{notifyDraftError}</p>
           )}
           {agreementDraftError && (
             <p style={{ color: 'crimson', fontSize: '0.875rem', marginTop: '0.5rem' }}>{agreementDraftError}</p>

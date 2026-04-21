@@ -1126,50 +1126,36 @@ export class DocumentsService {
       }
     }
 
-    // When document is approved and company is in KYC_REVIEW, check if all KYC docs are verified → move to AGREEMENT_DRAFT_SHARED
+    // DIRECT clients: when all legacy KYC docs are approved at KYC_REVIEW,
+    // auto-advance to AGREEMENT_DRAFT_SHARED. This preserves historical direct-
+    // client behavior.
+    //
+    // AGGREGATOR clients: stage intentionally stays at KYC_REVIEW after all
+    // KYC docs are approved. The admin then generates the agreement draft and
+    // clicks "Notify draft shared", which is what advances the stage to
+    // AGREEMENT_DRAFT_SHARED and emails the client. See
+    // `notifyAgreementDraftShared` + `OnboardingService.onAgreementDraftShared`.
     if (
       dto.status === DocumentStatus.VERIFIED &&
       (updated.clientProfile?.onboardingStage as OnboardingStage) === OnboardingStage.KYC_REVIEW
     ) {
-      const allKycApproved = await this.areAllKycDocumentsApproved(updated.clientProfileId);
-      let transitioned = allKycApproved;
-      if (allKycApproved) {
-        try {
-          await this.onboardingService.onKycApproved(updated.clientProfileId);
-          this.logger.log(
-            `Company ${updated.clientProfileId} moved to AGREEMENT_DRAFT_SHARED after all KYC documents verified`,
-          );
-        } catch (err) {
-          transitioned = false;
-          this.logger.warn(
-            `Failed to transition company ${updated.clientProfileId} to AGREEMENT_DRAFT_SHARED: ${err instanceof Error ? err.message : err}`,
-          );
-        }
-      }
-
-      // AGGREGATOR clients upload KYC as AADHAAR/PAN/OTHER (not the legacy
-      // `KYC` document type), so the check above cannot find their documents.
-      // Evaluate the aggregator-specific approval state and advance the stage
-      // without affecting direct-client behavior.
-      if (!transitioned) {
-        const profile = await this.db.clientProfile.findUnique({
-          where: { id: updated.clientProfileId },
-          select: { clientChannel: true },
-        });
-        if (profile?.clientChannel === 'AGGREGATOR') {
-          const allAggregatorKycApproved =
-            await this.areAllAggregatorKycDocumentsApproved(updated.clientProfileId);
-          if (allAggregatorKycApproved) {
-            try {
-              await this.onboardingService.onKycApproved(updated.clientProfileId);
-              this.logger.log(
-                `Aggregator client ${updated.clientProfileId} moved to AGREEMENT_DRAFT_SHARED after all KYC documents verified`,
-              );
-            } catch (err) {
-              this.logger.warn(
-                `Failed to transition aggregator client ${updated.clientProfileId} to AGREEMENT_DRAFT_SHARED: ${err instanceof Error ? err.message : err}`,
-              );
-            }
+      const profile = await this.db.clientProfile.findUnique({
+        where: { id: updated.clientProfileId },
+        select: { clientChannel: true },
+      });
+      const isAggregator = profile?.clientChannel === 'AGGREGATOR';
+      if (!isAggregator) {
+        const allKycApproved = await this.areAllKycDocumentsApproved(updated.clientProfileId);
+        if (allKycApproved) {
+          try {
+            await this.onboardingService.onKycApproved(updated.clientProfileId);
+            this.logger.log(
+              `Direct client ${updated.clientProfileId} moved to AGREEMENT_DRAFT_SHARED after all KYC documents verified`,
+            );
+          } catch (err) {
+            this.logger.warn(
+              `Failed to transition direct client ${updated.clientProfileId} to AGREEMENT_DRAFT_SHARED: ${err instanceof Error ? err.message : err}`,
+            );
           }
         }
       }
@@ -1440,45 +1426,6 @@ export class DocumentsService {
   }
 
   /**
-   * True when the client profile has at least one aggregator-uploaded KYC
-   * document (AADHAAR, PAN, or OTHER) and, for every such document type, the
-   * latest version is APPROVED or VERIFIED. Scoped to aggregator-channel
-   * clients; direct-client approvals are not evaluated by this helper.
-   */
-  private async areAllAggregatorKycDocumentsApproved(
-    clientProfileId: string,
-  ): Promise<boolean> {
-    const kycTypes: DocumentType[] = [
-      DocumentType.AADHAAR,
-      DocumentType.PAN,
-      DocumentType.OTHER,
-    ];
-    const docs = await this.db.document.findMany({
-      where: {
-        clientProfileId,
-        documentOwner: 'CLIENT',
-        documentType: { in: kycTypes },
-      },
-      select: { documentType: true, version: true, status: true },
-    });
-    if (docs.length === 0) return false;
-
-    const latestByType = new Map<string, { version: number; status: string }>();
-    for (const doc of docs) {
-      const existing = latestByType.get(doc.documentType);
-      if (!existing || doc.version > existing.version) {
-        latestByType.set(doc.documentType, { version: doc.version, status: doc.status });
-      }
-    }
-    for (const { status } of latestByType.values()) {
-      if (status !== DocumentStatus.APPROVED && status !== DocumentStatus.VERIFIED) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /**
    * POST /documents/admin/agreement-draft-upload-url
    * Admin uploads AGREEMENT_DRAFT. Agreement flow starts only when stage = AGREEMENT_DRAFT_SHARED (reached after all KYC approved).
    * type = AGREEMENT_DRAFT, owner = ADMIN, status = APPROVED. Version auto-increments; replacesId set when replacing previous draft.
@@ -1505,10 +1452,16 @@ export class DocumentsService {
     }
 
     await this.onboardingService.assertNotActive(dto.companyId);
+    // Aggregator clients can receive an admin-uploaded draft from KYC_REVIEW
+    // onwards; direct-client behavior is unchanged.
+    const uploadUrlAllowedStages: OnboardingStage[] =
+      (company as unknown as { clientChannel?: string }).clientChannel === 'AGGREGATOR'
+        ? [OnboardingStage.KYC_REVIEW, OnboardingStage.AGREEMENT_DRAFT_SHARED]
+        : [OnboardingStage.AGREEMENT_DRAFT_SHARED];
     await this.onboardingService.assertStage(
       dto.companyId,
-      [OnboardingStage.AGREEMENT_DRAFT_SHARED],
-      'Agreement draft can only be uploaded when stage is Agreement draft shared.',
+      uploadUrlAllowedStages,
+      'Agreement draft cannot be uploaded at the current stage.',
     );
 
     const previousDraft = await this.db.document.findFirst({
@@ -1602,10 +1555,20 @@ export class DocumentsService {
     }
 
     await this.onboardingService.assertNotActive(companyId);
+    // Direct clients: admin uploads the agreement draft ONLY once the stage
+    // has reached AGREEMENT_DRAFT_SHARED (via onKycApproved in reviewDocument).
+    // Aggregator clients: stage stays at KYC_REVIEW after KYC approval; the
+    // admin generates/uploads the draft and then clicks "Notify draft shared"
+    // to advance the stage + email the client. Allow the upload from
+    // KYC_REVIEW too for aggregators, without widening direct-client behavior.
+    const draftUploadAllowedStages: OnboardingStage[] =
+      (company as unknown as { clientChannel?: string }).clientChannel === 'AGGREGATOR'
+        ? [OnboardingStage.KYC_REVIEW, OnboardingStage.AGREEMENT_DRAFT_SHARED]
+        : [OnboardingStage.AGREEMENT_DRAFT_SHARED];
     await this.onboardingService.assertStage(
       companyId,
-      [OnboardingStage.AGREEMENT_DRAFT_SHARED],
-      'Agreement draft can only be uploaded when stage is Agreement draft shared.',
+      draftUploadAllowedStages,
+      'Agreement draft cannot be uploaded at the current stage.',
     );
 
     const allowedExts = ['.pdf', '.doc', '.docx'];
