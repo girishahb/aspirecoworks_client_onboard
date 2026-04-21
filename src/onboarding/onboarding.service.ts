@@ -155,9 +155,25 @@ export class OnboardingService {
 
   /**
    * Admin uploaded and shared final agreement: move to FINAL_AGREEMENT_SHARED.
-   * Allowed only from SIGNED_AGREEMENT_RECEIVED.
+   * Allowed from SIGNED_AGREEMENT_RECEIVED. Idempotent when already FINAL_AGREEMENT_SHARED
+   * (additional final docs) or ACTIVE (reshare after activation).
    */
   async onFinalAgreementShared(companyId: string): Promise<void> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { id: companyId },
+      select: { onboardingStage: true },
+    });
+    if (!profile) {
+      throw new NotFoundException(`Company not found: ${companyId}`);
+    }
+    const current = profile.onboardingStage as OnboardingStage;
+    if (
+      current === OnboardingStage.FINAL_AGREEMENT_SHARED ||
+      current === OnboardingStage.ACTIVE ||
+      current === OnboardingStage.COMPLETED
+    ) {
+      return;
+    }
     await this.assertCurrentStage(companyId, [
       OnboardingStage.SIGNED_AGREEMENT_RECEIVED,
     ]);

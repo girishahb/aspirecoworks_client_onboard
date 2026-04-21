@@ -1303,7 +1303,9 @@ export default function AdminCompanyDetail() {
         <div style={{ marginBottom: '1rem', padding: '1rem', border: '1px solid #1565c0', borderRadius: 4, backgroundColor: '#e3f2fd' }}>
           <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Upload post-agreement documents</h3>
           <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', color: '#666' }}>
-            Choose document type, then select a file. Only &quot;Final Agreement&quot; triggers client email and stage change to &quot;Final agreement shared&quot;.
+            After the signed agreement is received, upload one or more files (each upload can use a different type).
+            Only &quot;Final Agreement&quot; sends the client email and moves the stage to &quot;Final agreement shared&quot; the first time.
+            You can upload additional final or supporting documents while the stage is &quot;Final agreement shared&quot; or after the company is activated (reshare).
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <select

@@ -160,6 +160,7 @@ export default function AggregatorDashboard() {
                 <th className="text-left px-5 py-3">Company</th>
                 <th className="text-left px-5 py-3">Contact</th>
                 <th className="text-left px-5 py-3">Stage</th>
+                <th className="text-left px-5 py-3">Contract start</th>
                 <th className="text-left px-5 py-3">Contract end</th>
                 <th className="text-left px-5 py-3">Days remaining</th>
                 <th className="text-left px-5 py-3">Actions</th>
@@ -180,6 +181,7 @@ export default function AggregatorDashboard() {
                     <td className="px-5 py-3">
                       <StageBadge stage={c.onboardingStage} />
                     </td>
+                    <td className="px-5 py-3 text-slate-700">{formatDate(c.contractStartDate)}</td>
                     <td className="px-5 py-3 text-slate-700">{formatDate(c.contractEndDate)}</td>
                     <td className="px-5 py-3 text-slate-700">
                       {remaining === null ? '—' : `${remaining} day${Math.abs(remaining) === 1 ? '' : 's'}`}
@@ -198,7 +200,7 @@ export default function AggregatorDashboard() {
               })}
               {!loading && (companies?.length ?? 0) === 0 && !error && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-500">
                     You haven't onboarded any clients yet.{' '}
                     <Link to="/aggregator/companies/new" className="text-primary font-medium">
                       Create your first client

@@ -32,6 +32,17 @@ import { ClientProfilesService } from '../client-profiles/client-profiles.servic
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { randomUUID } from 'crypto';
 
+/** Stages where admin may upload post–signed-agreement docs (incl. multiple files & reshare after activation). */
+const ADMIN_FINAL_DOCUMENT_UPLOAD_STAGES: OnboardingStage[] = [
+  OnboardingStage.SIGNED_AGREEMENT_RECEIVED,
+  OnboardingStage.FINAL_AGREEMENT_SHARED,
+  OnboardingStage.ACTIVE,
+  OnboardingStage.COMPLETED,
+];
+
+const ADMIN_FINAL_UPLOAD_STAGE_MESSAGE =
+  'Post-agreement uploads are allowed after the signed agreement is received, or to add or replace documents when the final agreement was already shared or the company is active or completed.';
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -1903,8 +1914,9 @@ export class DocumentsService {
 
   /**
    * POST /documents/admin/agreement-final-upload-url
-   * Admin uploads a post-agreement document (Final Agreement, NOC, bills, etc.) after client has uploaded signed agreement.
-   * Allowed only when stage is SIGNED_AGREEMENT_RECEIVED. Version auto-increments per (companyId, documentType).
+   * Admin uploads a post-agreement document (Final Agreement, NOC, bills, etc.) after signed agreement is on file.
+   * Allowed when stage is SIGNED_AGREEMENT_RECEIVED, FINAL_AGREEMENT_SHARED (more files), or ACTIVE (reshare).
+   * Version auto-increments per (companyId, documentType).
    */
   async generateAdminAgreementFinalUploadUrl(
     dto: AdminAgreementFinalUploadDto,
@@ -1934,11 +1946,10 @@ export class DocumentsService {
       throw new NotFoundException('Company not found');
     }
 
-    await this.onboardingService.assertNotActive(dto.companyId);
     await this.onboardingService.assertStage(
       dto.companyId,
-      [OnboardingStage.SIGNED_AGREEMENT_RECEIVED],
-      'Signed agreement required before final document upload',
+      ADMIN_FINAL_DOCUMENT_UPLOAD_STAGES,
+      ADMIN_FINAL_UPLOAD_STAGE_MESSAGE,
     );
 
     const previousDoc = await this.db.document.findFirst({
@@ -2035,11 +2046,10 @@ export class DocumentsService {
       throw new NotFoundException('Company not found');
     }
 
-    await this.onboardingService.assertNotActive(companyId);
     await this.onboardingService.assertStage(
       companyId,
-      [OnboardingStage.SIGNED_AGREEMENT_RECEIVED],
-      'Signed agreement required before final document upload',
+      ADMIN_FINAL_DOCUMENT_UPLOAD_STAGES,
+      ADMIN_FINAL_UPLOAD_STAGE_MESSAGE,
     );
 
     const allowedExts = ['.pdf', '.doc', '.docx'];
@@ -2162,8 +2172,6 @@ export class DocumentsService {
     if (!company) {
       throw new NotFoundException('Company not found for this document');
     }
-
-    await this.onboardingService.assertNotActive(company.id);
 
     const to = company.contactEmail?.trim();
     if (to) {

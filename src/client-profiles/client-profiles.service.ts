@@ -684,7 +684,7 @@ export class ClientProfilesService {
     id: string,
     userId: string,
     userRole: UserRole,
-    options?: { contractStartDate?: Date; contractEndDate?: Date },
+    options?: { contractStartDate?: Date | string; contractEndDate?: Date | string },
   ) {
     if (
       userRole !== UserRole.SUPER_ADMIN &&
@@ -693,6 +693,21 @@ export class ClientProfilesService {
     ) {
       throw new ForbiddenException('Only SUPER_ADMIN, ADMIN, or MANAGER can activate a company');
     }
+
+    // The global ValidationPipe is configured with `transform: false`, so Zod-based DTOs
+    // arrive as plain JSON (strings). Coerce contract dates here so downstream code can
+    // safely call Date methods.
+    const coerceDate = (v: Date | string | undefined): Date | undefined => {
+      if (v == null) return undefined;
+      if (v instanceof Date) return isNaN(v.getTime()) ? undefined : v;
+      const parsed = new Date(v);
+      if (isNaN(parsed.getTime())) {
+        throw new BadRequestException(`Invalid date value: ${String(v)}`);
+      }
+      return parsed;
+    };
+    const contractStartDate = coerceDate(options?.contractStartDate);
+    const contractEndDate = coerceDate(options?.contractEndDate);
 
     const existing = await this.findOne(id, userRole, userId);
     const current = existing.onboardingStage as OnboardingStage;
@@ -709,11 +724,15 @@ export class ClientProfilesService {
     }
 
     if (isAggregator) {
-      if (!options?.contractStartDate || !options?.contractEndDate) {
+      if (!contractStartDate || !contractEndDate) {
         throw new BadRequestException(
           'contractStartDate and contractEndDate are required to activate an aggregator company.',
         );
       }
+    }
+
+    if (contractStartDate && contractEndDate && contractEndDate.getTime() <= contractStartDate.getTime()) {
+      throw new BadRequestException('contractEndDate must be after contractStartDate.');
     }
 
     const canActivate = await this.onboardingService.canActivateCompany(id);
@@ -725,7 +744,7 @@ export class ClientProfilesService {
       );
     }
 
-    await this.onboardingService.activateCompany(id, options);
+    await this.onboardingService.activateCompany(id, { contractStartDate, contractEndDate });
 
     const updated = await this.findOne(id, userRole, userId);
 
@@ -738,11 +757,11 @@ export class ClientProfilesService {
       changes: {
         stage: { before: current, after: OnboardingStage.ACTIVE },
         activationDate: updated.activationDate?.toISOString() ?? new Date().toISOString(),
-        ...(options?.contractStartDate
-          ? { contractStartDate: options.contractStartDate.toISOString() }
+        ...(contractStartDate
+          ? { contractStartDate: contractStartDate.toISOString() }
           : {}),
-        ...(options?.contractEndDate
-          ? { contractEndDate: options.contractEndDate.toISOString() }
+        ...(contractEndDate
+          ? { contractEndDate: contractEndDate.toISOString() }
           : {}),
       },
     });
