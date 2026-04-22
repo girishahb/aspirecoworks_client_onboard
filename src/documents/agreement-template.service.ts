@@ -21,10 +21,10 @@ import { OnboardingStage } from '../common/enums/onboarding-stage.enum';
 import { UserRole } from '../common/enums/user-role.enum';
 
 /**
- * Service that renders the GR Leave & License agreement .docx template and
- * persists the output as an AGREEMENT_DRAFT Document for an aggregator-onboarded
- * client. Aggregator-only. Does NOT notify the client -- admin still clicks the
- * existing "Notify draft shared" button after reviewing the draft.
+ * Service that renders packaged agreement .docx templates (GR/BR Leave & License,
+ * Mailing Address Virtual Office, etc.) and persists the output as an AGREEMENT_DRAFT
+ * Document for an aggregator-onboarded client. Aggregator-only. Does NOT notify the
+ * client -- admin still clicks the existing "Notify draft shared" button after reviewing.
  */
 @Injectable()
 export class AgreementTemplateService {
@@ -34,15 +34,20 @@ export class AgreementTemplateService {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   /**
-   * Map of supported aggregator plan types to their packaged Leave & License
-   * agreement .docx template. Add a new entry here (and ship the .docx under
-   * `src/documents/templates/`) to enable template-based draft generation for
-   * another plan type. All supported templates share the same placeholder set
+   * Map of supported aggregator plan types (uppercase `planType` after trim)
+   * to their packaged .docx template. Add a new entry here (and ship the .docx
+   * under `src/documents/templates/`) to enable template-based draft generation.
+   * Templates should use the same placeholder set as GR/BR where possible
    * (see `buildTemplateContext` below).
    */
   private static readonly TEMPLATE_BY_PLAN: Record<string, { fileName: string; label: string }> = {
     GR: { fileName: 'leave-license-agreement-gr.docx', label: 'GR' },
     BR: { fileName: 'leave-license-agreement-br.docx', label: 'BR' },
+    /** planType from booking is normalized with `.toUpperCase()` → "MAILING ADDRESS" */
+    'MAILING ADDRESS': {
+      fileName: 'virtual-office-mailing-address.docx',
+      label: 'Mailing_Address',
+    },
   };
 
   /**
@@ -99,6 +104,25 @@ export class AgreementTemplateService {
    * Resolve the absolute path to the template, checking both compiled (`dist/`)
    * and source (`src/`) locations so it works in dev + prod.
    */
+  /**
+   * Calendar month arithmetic in the **server local** timezone.
+   * Month-end edge cases (e.g. 31 Jan + 1 month) follow native `Date#setMonth` behaviour.
+   */
+  private static addMonths(base: Date, months: number): Date {
+    const d = new Date(base.getTime());
+    d.setMonth(d.getMonth() + months);
+    return d;
+  }
+
+  /** One display format for all agreement date placeholders (en-IN style). */
+  private static formatAgreementDate(d: Date): string {
+    return d.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
   private resolveTemplatePath(fileName: string): string {
     const candidates = [
       path.join(__dirname, 'templates', fileName),
@@ -115,9 +139,11 @@ export class AgreementTemplateService {
 
   /**
    * Build the context object passed to docxtemplater. Keys match the EXACT
-   * placeholders in the shipped GR template (including spaces and the
-   * misspelling of "AAdhar"). Missing values fall back to empty string so
-   * rendering never throws.
+   * placeholders in the shipped templates (including spaces and the
+   * misspelling of "AAdhar"). Pro forma dates: `current date` and
+   * `contract start date` use `referenceAt`; `contract end date` is
+   * `referenceAt` + 11 calendar months. Missing non-date values fall back to
+   * empty string so rendering never throws.
    */
   private buildTemplateContext(input: {
     client: {
@@ -138,8 +164,10 @@ export class AgreementTemplateService {
       venueName: string | null;
       venueAddress: string | null;
     };
+    /** Single instant for pro forma contract term + "current date" in the Word template. */
+    referenceAt: Date;
   }): Record<string, string> {
-    const { client, booking } = input;
+    const { client, booking, referenceAt } = input;
     const addressParts = [
       client.address,
       client.city,
@@ -156,6 +184,9 @@ export class AgreementTemplateService {
       .filter((p) => p.length > 0);
     const composedVenue = venueParts.join(', ');
 
+    const currentFormatted = AgreementTemplateService.formatAgreementDate(referenceAt);
+    const contractEnd = AgreementTemplateService.addMonths(referenceAt, 11);
+
     return {
       'client company name': client.companyName ?? '',
       'client name': booking.clientContactName ?? '',
@@ -166,12 +197,15 @@ export class AgreementTemplateService {
       PAN: (booking.clientPan ?? '').toUpperCase(),
       AAdhar: booking.clientAadhaar ?? '',
       'venue & venue address': composedVenue,
+      'current date': currentFormatted,
+      'contract start date': currentFormatted,
+      'contract end date': AgreementTemplateService.formatAgreementDate(contractEnd),
     };
   }
 
   /**
-   * Render the GR template for the given aggregator-onboarded company and
-   * persist the output as a new AGREEMENT_DRAFT Document row (versioned).
+   * Render the plan-specific agreement template for the given aggregator-onboarded
+   * company and persist the output as a new AGREEMENT_DRAFT Document row (versioned).
    */
   async generateAgreementDraftFromTemplate(
     companyId: string,
@@ -225,6 +259,8 @@ export class AgreementTemplateService {
       );
     }
 
+    const referenceAt = new Date();
+
     const templatePath = this.resolveTemplatePath(templateEntry.fileName);
     const templateBytes = fs.readFileSync(templatePath);
     const zip = new PizZip(templateBytes);
@@ -259,6 +295,7 @@ export class AgreementTemplateService {
         venueName: booking.venueName ?? null,
         venueAddress: booking.venueAddress ?? null,
       },
+      referenceAt,
     });
 
     try {
@@ -332,11 +369,15 @@ export class AgreementTemplateService {
         fileName: originalFileName,
         fileKey,
         version,
+        proFormaContractStart: AgreementTemplateService.formatAgreementDate(referenceAt),
+        proFormaContractEnd: AgreementTemplateService.formatAgreementDate(
+          AgreementTemplateService.addMonths(referenceAt, 11),
+        ),
       },
     });
 
     this.logger.log(
-      `Generated agreement draft v${version} from ${templateEntry.label} template for company=${companyId} documentId=${document.id}`,
+      `Generated agreement draft v${version} from ${templateEntry.label} template for company=${companyId} documentId=${document.id} (pro forma term ${AgreementTemplateService.formatAgreementDate(referenceAt)}..${AgreementTemplateService.formatAgreementDate(AgreementTemplateService.addMonths(referenceAt, 11))})`,
     );
 
     return { documentId: document.id, fileName: originalFileName, version };

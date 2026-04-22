@@ -250,9 +250,9 @@ export class DocumentsController {
   @Post('admin/agreement-draft/generate-from-template/:companyId')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({
-    summary: 'Generate agreement draft from template (aggregator GR only)',
+    summary: 'Generate agreement draft from template (aggregator GR, BR, or Mailing Address)',
     description:
-      'Renders the packaged GR Leave & License agreement .docx with live ClientProfile + AggregatorBooking data and stores it as a new AGREEMENT_DRAFT Document (versioned). Aggregator-onboarded clients only. Stage must be AGREEMENT_DRAFT_SHARED. Booking planType must be GR. Does NOT notify the client -- admin still clicks "Notify draft shared" after reviewing.',
+      'Renders the packaged .docx for the booking planType (GR or BR Leave & License, or Mailing Address Virtual Office) with live ClientProfile + AggregatorBooking data and stores it as a new AGREEMENT_DRAFT Document (versioned). Aggregator-onboarded clients only. Allowed onboarding stages match AgreementTemplateService. Does NOT notify the client -- admin still clicks "Notify draft shared" after reviewing.',
   })
   @ApiResponse({ status: 201, description: 'Agreement draft generated' })
   @ApiResponse({ status: 400, description: 'Invalid company, plan type, or stage' })

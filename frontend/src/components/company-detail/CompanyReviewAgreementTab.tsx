@@ -73,7 +73,7 @@ export default function CompanyReviewAgreementTab({
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Agreements & uploads</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Upload drafts, generate from template (GR/BR), signed agreements, and post-agreement documents.
+          Upload drafts, generate from template (GR, BR, or Mailing Address), signed agreements, and post-agreement documents.
         </p>
       </div>
 
@@ -118,7 +118,7 @@ export default function CompanyReviewAgreementTab({
             </div>
             {isAggregatorChannel && (
               <p className="mt-2 text-xs text-teal-800">
-                Aggregator client: auto-generate Leave &amp; License draft (GR or BR) from registration data. Use
+                Aggregator client: auto-generate agreement draft (GR, BR, or Mailing Address template) from registration data. Use
                 &ldquo;Notify draft shared&rdquo; on the Documents tab after KYC is approved.
               </p>
             )}
@@ -190,7 +190,7 @@ function TemplateGenerateButton({
   agreementDraftUploading: boolean;
   onGenerateTemplate: () => void;
 }) {
-  const SUPPORTED_TEMPLATE_PLANS = ['GR', 'BR'] as const;
+  const SUPPORTED_TEMPLATE_PLANS = ['GR', 'BR', 'Mailing Address'] as const;
   const BLOCKED_TEMPLATE_STAGES = [
     'SIGNED_AGREEMENT_RECEIVED',
     'FINAL_AGREEMENT_SHARED',
