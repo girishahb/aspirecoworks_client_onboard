@@ -15,6 +15,40 @@ export const AGGREGATOR_BOOKING_PLAN_TYPES = [
 export type AggregatorBookingPlanType =
   (typeof AGGREGATOR_BOOKING_PLAN_TYPES)[number];
 
+/** Fixed venue brand for aggregator registrations (agreements / booking display). */
+export const DEFAULT_AGGREGATOR_VENUE_NAME = 'Aspire Coworks';
+
+export interface AggregatorVenueLocation {
+  id: string;
+  label: string;
+  address: string;
+}
+
+/**
+ * Selectable Aspire Coworks locations for aggregator booking venue address.
+ * `address` is stored on AggregatorBooking.venueAddress as the full legal line.
+ */
+export const AGGREGATOR_VENUE_LOCATIONS: readonly AggregatorVenueLocation[] = [
+  {
+    id: 'indiranagar-7th-main-3rd',
+    label: 'Indiranagar — 7th Main (3rd floor, Appareddy Palya)',
+    address:
+      'No. 39/7-1, Third (3rd) Floor, 7th Main, Opposite Dr. Ambedkar College Ground, Appareddy Palya, Indiranagar, Bengaluru North – 560038',
+  },
+  {
+    id: 'indiranagar-ii-stage',
+    label: 'Indiranagar — II Stage (7th Main Road)',
+    address:
+      'No. 17, 2nd floor, 7th Main Road, II Stage, Indiranagar, Bangalore 560038',
+  },
+  {
+    id: 'koramangala-ejipura',
+    label: 'Koramangala 4th Block — Ejipura / AVS Layout',
+    address:
+      'No. 472/7 Balaji Arcade, 2nd & 3rd Floor, A.V.S. Compound, 20th L Cross Road, AVS Layout, Ejipura, Koramangala 4th Block, Bengaluru, Karnataka – 560095',
+  },
+] as const;
+
 export interface AggregatorInvoiceProfile {
   id: string;
   userId: string;

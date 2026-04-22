@@ -5,6 +5,8 @@ import { uploadAggregatorKyc } from '../services/documents';
 import {
   getMyInvoiceProfile,
   AGGREGATOR_BOOKING_PLAN_TYPES,
+  AGGREGATOR_VENUE_LOCATIONS,
+  DEFAULT_AGGREGATOR_VENUE_NAME,
   type AggregatorBookingPlanType,
   type AggregatorInvoiceProfile,
 } from '../services/aggregatorProfile';
@@ -118,9 +120,9 @@ export default function AggregatorCreateCompany() {
   const [booking, setBooking] = useState<BookingState>({
     bookingReference: '',
     planType: '',
-    venueName: '',
+    venueName: DEFAULT_AGGREGATOR_VENUE_NAME,
     venueAddress: '',
-    durationMonths: '',
+    durationMonths: '11',
     amount: '',
     currency: 'INR',
     gstApplicable: true,
@@ -230,6 +232,27 @@ export default function AggregatorCreateCompany() {
       return;
     }
 
+    const venueAddrTrim = booking.venueAddress.trim();
+    if (!venueAddrTrim) {
+      setError('Please select a venue location.');
+      return;
+    }
+    const allowedVenueAddresses = new Set(AGGREGATOR_VENUE_LOCATIONS.map((l) => l.address));
+    if (!allowedVenueAddresses.has(venueAddrTrim)) {
+      setError('Please select a valid venue location.');
+      return;
+    }
+    const durationParsed = Number(booking.durationMonths);
+    if (
+      !Number.isFinite(durationParsed) ||
+      !Number.isInteger(durationParsed) ||
+      durationParsed < 1 ||
+      durationParsed > 120
+    ) {
+      setError('Duration (months) must be a whole number between 1 and 120.');
+      return;
+    }
+
     setSubmitting(true);
     setCurrentStep('creating');
 
@@ -247,23 +270,21 @@ export default function AggregatorCreateCompany() {
       if (formData.country.trim()) data.country = formData.country.trim();
       if (formData.notes.trim()) data.notes = formData.notes.trim();
 
-      // Booking payload – include only non-empty values.
-      const bookingPayload: Record<string, any> = {};
+      // Booking payload – venue name, location, duration, and GST flag are always sent (validated above).
+      const bookingPayload: Record<string, any> = {
+        venueName: DEFAULT_AGGREGATOR_VENUE_NAME,
+        venueAddress: venueAddrTrim,
+        durationMonths: durationParsed,
+        gstApplicable: booking.gstApplicable,
+      };
       if (booking.bookingReference.trim())
         bookingPayload.bookingReference = booking.bookingReference.trim();
       if (booking.planType.trim()) bookingPayload.planType = booking.planType.trim();
-      if (booking.venueName.trim()) bookingPayload.venueName = booking.venueName.trim();
-      if (booking.venueAddress.trim()) bookingPayload.venueAddress = booking.venueAddress.trim();
-      if (booking.durationMonths.trim()) {
-        const d = Number(booking.durationMonths);
-        if (Number.isFinite(d) && d > 0) bookingPayload.durationMonths = d;
-      }
       if (booking.amount.trim()) {
         const a = Number(booking.amount);
         if (Number.isFinite(a) && a >= 0) bookingPayload.amount = a;
       }
       if (booking.currency.trim()) bookingPayload.currency = booking.currency.trim().toUpperCase();
-      bookingPayload.gstApplicable = booking.gstApplicable;
       if (booking.paymentTerms.trim()) bookingPayload.paymentTerms = booking.paymentTerms.trim();
       if (booking.signageTerms.trim()) bookingPayload.signageTerms = booking.signageTerms.trim();
       if (booking.clientContactName.trim())
@@ -276,7 +297,7 @@ export default function AggregatorCreateCompany() {
         bookingPayload.clientPan = booking.clientPan.trim().toUpperCase();
       if (booking.clientAadhaar.trim())
         bookingPayload.clientAadhaar = booking.clientAadhaar.replace(/[\s-]/g, '');
-      if (Object.keys(bookingPayload).length > 0) data.booking = bookingPayload;
+      data.booking = bookingPayload;
 
       // Invoice-To logic:
       // - If user is not customizing and we have a saved profile, omit invoiceTo (server uses saved profile).
@@ -622,8 +643,8 @@ export default function AggregatorCreateCompany() {
         >
           <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem' }}>2. Booking details</h2>
           <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#64748b' }}>
-            Booking reference, plan, venue and commercial terms. All fields are optional and can
-            be updated later by Aspire admins.
+            Venue location and duration are required. Other booking fields are optional and can be
+            updated later by Aspire admins.
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -682,9 +703,10 @@ export default function AggregatorCreateCompany() {
               name="venueName"
               type="text"
               value={booking.venueName}
-              onChange={handleBookingChange}
               className={inputClass}
-              placeholder="e.g. Aspire Coworks Koramangala"
+              readOnly
+              aria-readonly="true"
+              title="Fixed for all Aspire Coworks registrations"
               disabled={submitting}
             />
           </div>
@@ -694,17 +716,24 @@ export default function AggregatorCreateCompany() {
               htmlFor="venueAddress"
               style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 500 }}
             >
-              Venue address
+              Venue address <span style={{ color: '#b91c1c' }}>*</span>
             </label>
-            <textarea
+            <select
               id="venueAddress"
               name="venueAddress"
               value={booking.venueAddress}
               onChange={handleBookingChange}
               className={inputClass}
-              rows={2}
+              required
               disabled={submitting}
-            />
+            >
+              <option value="">Select venue location…</option>
+              {AGGREGATOR_VENUE_LOCATIONS.map((loc) => (
+                <option key={loc.id} value={loc.address}>
+                  {loc.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div
