@@ -179,6 +179,8 @@ model ClientProfile {
   renewalReminders   RenewalReminder[]
   aggregatorBookings AggregatorBooking[]
 
+  @@index([createdById])
+  @@index([createdAt])
   @@map("client_profiles")
 }
 

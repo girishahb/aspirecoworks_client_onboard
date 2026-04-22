@@ -2,6 +2,7 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe, PipeTransform, ArgumentMetadata } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import compression from 'compression';
 import * as express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
@@ -10,37 +11,45 @@ import { SKIP_VALIDATION_KEY } from './common/pipes/zod-validation.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const isDev = process.env.NODE_ENV !== 'production';
 
   // Razorpay webhooks need raw body for signature verification - register first for specific paths
   app.use('/webhooks/razorpay', express.raw({ type: 'application/json' }));
   app.use('/public/webhook', express.raw({ type: 'application/json' }));
 
-  // JSON parser for all routes (must be before our debug middleware)
-  app.use(express.json({
-    verify: (req: Request, _res: Response, buf: Buffer) => {
-      // Store raw body for debugging
-      if (req.path === '/client-profiles' && req.method === 'POST') {
-        try {
-          const rawBody = buf.toString('utf8');
-          console.log('=== RAW REQUEST BODY (FROM BUFFER) ===');
-          console.log('Path:', req.path);
-          console.log('Method:', req.method);
-          console.log('Content-Type:', req.headers['content-type']);
-          console.log('Raw body string:', rawBody);
-          try {
-            const parsed = JSON.parse(rawBody);
-            console.log('Parsed body:', JSON.stringify(parsed, null, 2));
-            console.log('Parsed body keys:', Object.keys(parsed));
-          } catch (e) {
-            console.log('Failed to parse body:', e);
+  // JSON parser for all routes (optional dev-only verify hook — avoids prod CPU/log noise)
+  app.use(
+    express.json(
+      isDev
+        ? {
+            verify: (req: Request, _res: Response, buf: Buffer) => {
+              if (req.path === '/client-profiles' && req.method === 'POST') {
+                try {
+                  const rawBody = buf.toString('utf8');
+                  console.log('=== RAW REQUEST BODY (FROM BUFFER) ===');
+                  console.log('Path:', req.path);
+                  console.log('Method:', req.method);
+                  console.log('Content-Type:', req.headers['content-type']);
+                  console.log('Raw body string:', rawBody);
+                  try {
+                    const parsed = JSON.parse(rawBody);
+                    console.log('Parsed body:', JSON.stringify(parsed, null, 2));
+                    console.log('Parsed body keys:', Object.keys(parsed));
+                  } catch (e) {
+                    console.log('Failed to parse body:', e);
+                  }
+                  console.log('==========================================');
+                } catch (e) {
+                  console.error('Error in body parser verify:', e);
+                }
+              }
+            },
           }
-          console.log('==========================================');
-        } catch (e) {
-          console.error('Error in body parser verify:', e);
-        }
-      }
-    }
-  }));
+        : {},
+    ),
+  );
+
+  app.use(compression());
 
   // Security: Helmet for HTTP headers
   app.use(helmet({
@@ -65,7 +74,6 @@ async function bootstrap() {
   });
 
   // CORS: allowed origins for production deployment and local dev
-  const isDev = process.env.NODE_ENV !== 'production';
   app.enableCors({
     origin: isDev
       ? true

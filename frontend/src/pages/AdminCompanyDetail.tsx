@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   getCompany,
@@ -94,7 +94,7 @@ export default function AdminCompanyDetail() {
   const [activateEndDate, setActivateEndDate] = useState<string>('');
   const [activateError, setActivateError] = useState<string | null>(null);
 
-  const currentUser = getCurrentUser();
+  const currentUser = useMemo(() => getCurrentUser(), []);
   const canDeleteCompany = currentUser?.role === 'ADMIN';
   const isAggregatorView = currentUser?.role === 'AGGREGATOR';
   const [searchParams, setSearchParams] = useSearchParams();
