@@ -649,13 +649,13 @@ export default function Book() {
               {step === 5 && (
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Name (Individual/Company)</label>
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       onBlur={() => setNameTouched(true)}
-                      placeholder="Enter your full name"
+                      placeholder="Enter your name or company name"
                       className={cn(
                         'w-full rounded-xl border px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500',
                         nameTouched && !validName ? 'border-red-300' : 'border-slate-300'
