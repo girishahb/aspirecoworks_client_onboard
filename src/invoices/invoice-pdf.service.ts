@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
+import { resolveInvoiceLogo } from './invoice-logo.util';
 
 @Injectable()
 export class InvoicePdfService {
@@ -16,15 +17,8 @@ export class InvoicePdfService {
     const companyAddress = this.config.get<string>('COMPANY_ADDRESS') || '';
     const gstRate = parseFloat(this.config.get<string>('GST_RATE') || '18');
 
-    let logoBuffer: Buffer | null = null;
-    if (companyLogoUrl) {
-      try {
-        const res = await fetch(companyLogoUrl);
-        if (res.ok) logoBuffer = Buffer.from(await res.arrayBuffer());
-      } catch {
-        /* fallback to text-only */
-      }
-    }
+    const resolvedLogo = await resolveInvoiceLogo(companyLogoUrl);
+    const logoBuffer = resolvedLogo?.buffer ?? null;
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4' });

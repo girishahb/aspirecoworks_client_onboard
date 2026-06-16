@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as puppeteer from 'puppeteer';
+import { resolveInvoiceLogo, toLogoDataUrl } from './invoice-logo.util';
 
 export interface InvoiceForPdf {
   id: string;
@@ -95,8 +96,11 @@ export class InvoicePdfPuppeteerService {
 
     const billingLines = invoice.billingAddress.split(',').map((s) => s.trim()).filter(Boolean);
 
-    const companyHeaderLogo = companyLogoUrl ? `<img src="${escapeHtml(companyLogoUrl)}" class="logo" alt="${escapeHtml(companyName)}" />` : '';
-    const companyHeaderSvg = !companyLogoUrl
+    const resolvedLogo = await resolveInvoiceLogo(companyLogoUrl);
+    const companyHeaderLogo = resolvedLogo
+      ? `<img src="${toLogoDataUrl(resolvedLogo)}" class="logo" alt="${escapeHtml(companyName)}" />`
+      : '';
+    const companyHeaderSvg = !resolvedLogo
       ? (() => {
           const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 40' preserveAspectRatio='xMinYMid meet'><text x='0' y='28' font-family='Arial' font-weight='bold' font-size='18' fill='%23134b7f'>${escapeHtml(companyName)}</text></svg>`;
           return `<img src="data:image/svg+xml,${encodeURIComponent(svg)}" class="logo" alt="${escapeHtml(companyName)}" />`;
