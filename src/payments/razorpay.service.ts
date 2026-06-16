@@ -208,8 +208,9 @@ export class RazorpayService {
       };
     } catch (error) {
       this.logger.error(`Failed to create payment link for companyId=${params.companyId}`, error);
+      const msg = this.extractRazorpayError(error);
       throw new BadRequestException(
-        `Failed to create payment link: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to create payment link: ${msg}`,
       );
     }
   }
