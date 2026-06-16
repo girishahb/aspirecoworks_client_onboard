@@ -16,6 +16,7 @@ import { OnboardingService } from '../onboarding/onboarding.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PublicBookingsService } from '../public-bookings/public-bookings.service';
+import { ClientProfilesService } from '../client-profiles/client-profiles.service';
 import type { Request } from 'express';
 
 const HANDLED_EVENTS = ['payment.captured', 'order.paid', 'payment_link.paid'];
@@ -32,6 +33,7 @@ export class WebhooksController {
     private readonly invoicesService: InvoicesService,
     private readonly prisma: PrismaService,
     private readonly publicBookingsService: PublicBookingsService,
+    private readonly clientProfilesService: ClientProfilesService,
   ) {}
 
   @Post('razorpay')
@@ -233,6 +235,9 @@ export class WebhooksController {
       this.logger.error(`Razorpay webhook: invoice generation failed for paymentId=${payment.id}`, err);
       // Don't fail the webhook
     }
+
+    // 9. Fresh set-password invite if client has not activated yet (original invite may have expired)
+    await this.clientProfilesService.sendInviteAfterPaymentIfNeeded(companyIdForStage);
 
     this.logger.log(
       `Razorpay webhook: payment ${payment.id} marked PAID, companyId=${companyIdForStage}, event=${event}`,

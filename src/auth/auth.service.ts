@@ -28,8 +28,11 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
     if (!user) return null;
-    // Must be activated (set password complete or legacy user)
-    if (!user.isActivated) return null;
+    if (!user.isActivated) {
+      throw new UnauthorizedException(
+        'Your account is not set up yet. Use the set-password link from your invite email, or ask your administrator to resend it.',
+      );
+    }
     if (!user.passwordHash) return null;
     if (!(await bcrypt.compare(password, user.passwordHash))) return null;
     const { passwordHash, ...result } = user;

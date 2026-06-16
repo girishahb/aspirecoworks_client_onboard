@@ -285,9 +285,28 @@ export class ClientProfilesService {
     });
   }
 
+  private buildInviteTokenExpiry(): Date {
+    return new Date(Date.now() + INVITE_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+  }
+
+  private async sendSetPasswordInviteEmail(
+    companyName: string,
+    email: string,
+    token: string,
+  ): Promise<void> {
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
+    const setPasswordUrl = `${frontendUrl}/set-password?token=${encodeURIComponent(token)}`;
+    const { subject, html, text } = clientInviteSetPassword({
+      companyName,
+      setPasswordUrl,
+      expiryHours: INVITE_TOKEN_EXPIRY_HOURS,
+    });
+    await this.emailService.sendEmail({ to: email, subject, html, text });
+  }
+
   /**
    * Create a User linked to the client profile and send "Set Password" invite email.
-   * If a User with contactEmail already exists, skip creation (e.g. they signed up or were invited before).
+   * If a User with contactEmail already exists but is not activated, link them and resend invite.
    */
   private async createClientUserAndSendInvite(clientProfile: {
     id: string;
@@ -299,16 +318,36 @@ export class ClientProfilesService {
       where: { email },
     });
 
+    const token = randomBytes(32).toString('hex');
+    const inviteTokenExpiry = this.buildInviteTokenExpiry();
+
     if (existingUser) {
-      // User exists - if not activated and no companyId, we could send invite to link. For now, skip.
-      this.logger.log(
-        `Client user not created: email ${email} already exists (userId=${existingUser.id}). Consider using Resend Invite.`,
-      );
+      if (existingUser.isActivated) {
+        this.logger.log(
+          `Client invite skipped: email ${email} already activated (userId=${existingUser.id}).`,
+        );
+        return;
+      }
+
+      await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          companyId: clientProfile.id,
+          role: UserRole.CLIENT,
+          inviteToken: token,
+          inviteTokenExpiry,
+          isActive: true,
+        },
+      });
+
+      try {
+        await this.sendSetPasswordInviteEmail(clientProfile.companyName, email, token);
+        this.logger.log(`Invite email sent to existing user ${email} for company ${clientProfile.companyName}`);
+      } catch (err) {
+        this.logger.warn(`Failed to send invite email to ${email}: ${err instanceof Error ? err.message : err}`);
+      }
       return;
     }
-
-    const token = randomBytes(32).toString('hex');
-    const inviteTokenExpiry = new Date(Date.now() + INVITE_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
     await this.prisma.user.create({
       data: {
@@ -325,22 +364,8 @@ export class ClientProfilesService {
       },
     });
 
-    const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
-    const setPasswordUrl = `${frontendUrl}/set-password?token=${encodeURIComponent(token)}`;
-
-    const { subject, html, text } = clientInviteSetPassword({
-      companyName: clientProfile.companyName,
-      setPasswordUrl,
-      expiryHours: INVITE_TOKEN_EXPIRY_HOURS,
-    });
-
     try {
-      await this.emailService.sendEmail({
-        to: email,
-        subject,
-        html,
-        text,
-      });
+      await this.sendSetPasswordInviteEmail(clientProfile.companyName, email, token);
       this.logger.log(`Invite email sent to ${email} for company ${clientProfile.companyName}`);
     } catch (err) {
       this.logger.warn(`Failed to send invite email to ${email}: ${err instanceof Error ? err.message : err}`);
@@ -360,34 +385,34 @@ export class ClientProfilesService {
     }
 
     const email = company.contactEmail.trim().toLowerCase();
-    const existingUser = await this.prisma.user.findFirst({
+    let existingUser = await this.prisma.user.findFirst({
       where: { companyId, role: UserRole.CLIENT },
     });
+
+    if (!existingUser) {
+      existingUser = await this.prisma.user.findUnique({ where: { email } });
+      if (existingUser && !existingUser.companyId) {
+        await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: { companyId, role: UserRole.CLIENT },
+        });
+      }
+    }
 
     if (existingUser?.isActivated) {
       return { sent: false, message: 'Client has already set their password and can log in.' };
     }
 
     if (existingUser) {
-      // Regenerate token and resend
       const token = randomBytes(32).toString('hex');
-      const inviteTokenExpiry = new Date(Date.now() + INVITE_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+      const inviteTokenExpiry = this.buildInviteTokenExpiry();
       await this.prisma.user.update({
         where: { id: existingUser.id },
         data: { inviteToken: token, inviteTokenExpiry },
       });
 
-      const frontendUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://app.aspirecoworks.in').replace(/\/$/, '');
-      const setPasswordUrl = `${frontendUrl}/set-password?token=${encodeURIComponent(token)}`;
-
-      const { subject, html, text } = clientInviteSetPassword({
-        companyName: company.companyName,
-        setPasswordUrl,
-        expiryHours: INVITE_TOKEN_EXPIRY_HOURS,
-      });
-
       try {
-        await this.emailService.sendEmail({ to: email, subject, html, text });
+        await this.sendSetPasswordInviteEmail(company.companyName, email, token);
         this.logger.log(`Resend invite email sent to ${email} for company ${company.companyName}`);
         return { sent: true, message: 'Invite email sent.' };
       } catch (err) {
@@ -396,9 +421,26 @@ export class ClientProfilesService {
       }
     }
 
-    // No user exists - create and send (e.g. was skipped during create due to duplicate email)
+    // No user exists - create and send
     await this.createClientUserAndSendInvite(company);
     return { sent: true, message: 'Invite email sent.' };
+  }
+
+  /**
+   * After payment success: send a fresh set-password invite if the client has not activated yet.
+   * Safe for webhooks — logs and swallows errors so payment processing is not blocked.
+   */
+  async sendInviteAfterPaymentIfNeeded(companyId: string): Promise<void> {
+    try {
+      const result = await this.resendInvite(companyId);
+      this.logger.log(
+        `Post-payment invite for company ${companyId}: ${result.message} (sent=${result.sent})`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Post-payment invite failed for company ${companyId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   async findAll(userRole: UserRole, userId?: string) {

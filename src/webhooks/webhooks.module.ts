@@ -5,6 +5,7 @@ import { OnboardingModule } from '../onboarding/onboarding.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PublicBookingsModule } from '../public-bookings/public-bookings.module';
+import { ClientProfilesModule } from '../client-profiles/client-profiles.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { PublicBookingsModule } from '../public-bookings/public-bookings.module'
     OnboardingModule,
     InvoicesModule,
     PublicBookingsModule,
+    ClientProfilesModule,
   ],
   controllers: [WebhooksController],
 })

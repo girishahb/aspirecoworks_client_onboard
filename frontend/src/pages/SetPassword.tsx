@@ -52,8 +52,9 @@ export default function SetPassword() {
         <div className="mb-7">
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Set Password</h1>
           <p className="text-sm text-slate-500">
-            This invite link is invalid or has expired. Contact your administrator for a new one.
-          </p>
+          This invite link is invalid or has expired. After payment, check your inbox for a fresh
+          set-password email, or contact your administrator to resend the invite.
+        </p>
         </div>
         <Link to="/login" className="text-sm font-medium hover:underline" style={{ color: '#134b7f' }}>
           Go to sign in
