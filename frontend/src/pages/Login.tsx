@@ -88,6 +88,13 @@ export default function Login() {
             autoComplete="current-password"
             disabled={loading}
           />
+          <p className="mt-1 text-xs text-slate-400">
+            First time signing in? If your invite link expired, use{' '}
+            <Link to="/forgot-password" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
+              Forgot password
+            </Link>{' '}
+            with your company email to set a password.
+          </p>
         </div>
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
         <button type="submit" disabled={loading} className="btn-primary mt-1">

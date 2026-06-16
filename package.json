@@ -34,6 +34,7 @@
     "scripts:review-document": "ts-node scripts/review-document.ts",
     "scripts:test-renewals": "ts-node scripts/test-renewals.ts",
     "scripts:test-email": "ts-node scripts/test-email.ts",
+    "scripts:resend-invites-unactivated": "ts-node scripts/resend-invites-for-unactivated-paid-clients.ts",
     "scripts:test-razorpay-webhook": "ts-node scripts/test-razorpay-webhook.ts",
     "scripts:test-availability-api": "ts-node scripts/test-availability-api.ts",
     "scripts:test-booking-scenarios": "ts-node scripts/test-booking-scenarios.ts",

@@ -29,11 +29,18 @@ async function main() {
   const passwordHash = await bcrypt.hash(NEW_PASSWORD, 10);
   await prisma.user.update({
     where: { email: USER_EMAIL },
-    data: { passwordHash },
+    data: {
+      passwordHash,
+      isActivated: true,
+      inviteToken: null,
+      inviteTokenExpiry: null,
+      resetToken: null,
+      resetTokenExpiry: null,
+    },
   });
 
   console.log(`Password reset for ${USER_EMAIL}`);
-  console.log(`They can now log in with password: ${NEW_PASSWORD}`);
+  console.log(`Account activated. They can now log in with password: ${NEW_PASSWORD}`);
 }
 
 main()

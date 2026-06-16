@@ -28,7 +28,10 @@ export default function ForgotPassword() {
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-slate-900 mb-1">Forgot your password?</h1>
         <p className="text-sm text-slate-500">
-          Enter your email and we'll send you a link to reset your password.
+          Enter your company email and we&apos;ll send you a link to set or reset your password.
+        </p>
+        <p className="mt-2 text-xs text-slate-400">
+          First-time clients can use this page if their invite link expired after payment.
         </p>
       </div>
 

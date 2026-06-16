@@ -75,7 +75,13 @@ export default function CompanyReviewOverviewTab({
           <p>
             <strong className="text-slate-700">Contact email:</strong> {company.contactEmail}
           </p>
-          {(company.onboardingStage === 'ADMIN_CREATED' || company.onboardingStage === 'PAYMENT_PENDING') && (
+          {company.clientUser?.isActivated === false && (
+            <p className="text-amber-800">
+              Client has not set their password yet. They cannot log in until they complete the invite
+              link or use forgot password.
+            </p>
+          )}
+          {(company.clientUser?.isActivated === false || company.clientUser == null) && (
             <p>
               <button
                 type="button"

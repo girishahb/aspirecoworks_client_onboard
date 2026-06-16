@@ -29,6 +29,7 @@ export interface AdminCompany {
   createdBy?: { id: string; email: string; firstName?: string; lastName?: string };
   _count?: { documents?: number };
   documents?: AdminDocumentListItem[];
+  clientUser?: { isActivated: boolean } | null;
   [key: string]: unknown;
 }
 

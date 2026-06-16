@@ -522,10 +522,17 @@ export class ClientProfilesService {
     }
 
     const isActive = clientProfile.onboardingStage === OnboardingStage.ACTIVE;
+
+    const clientUser = await this.prisma.user.findFirst({
+      where: { companyId: id, role: UserRole.CLIENT },
+      select: { isActivated: true },
+    });
+
     return {
       ...clientProfile,
       isActive,
       onboardingLocked: isActive,
+      clientUser: clientUser ?? null,
     };
   }
 
