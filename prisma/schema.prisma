@@ -242,7 +242,7 @@ model Document {
 model Payment {
   id                     String        @id @default(uuid())
   clientProfileId        String
-  amount                 Float
+  amount                 Float // Total payable (inclusive of GST when applicable)
   currency               String        @default("INR")
   status                 PaymentStatus @default(CREATED)
   provider               String // e.g. Razorpay
@@ -250,6 +250,15 @@ model Payment {
   razorpayPaymentLinkId  String? // plink_xxx - for webhook matching when payment.captured has no notes
   paymentLink            String?
   paidAt                 DateTime?
+  // GST breakdown (null = legacy payment; amount is taxable base)
+  taxableAmount          Float?
+  gstMode                String? // NONE | CGST_SGST | IGST
+  cgstRate               Float?
+  sgstRate               Float?
+  igstRate               Float?
+  cgstAmount             Float?        @default(0)
+  sgstAmount             Float?        @default(0)
+  igstAmount             Float?        @default(0)
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
 

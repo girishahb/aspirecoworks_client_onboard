@@ -24,6 +24,7 @@ import {
   type AdminDocumentListItem,
   type ComplianceStatus,
   type CompanyPaymentHistory,
+  type PaymentGstMode,
 } from '../services/admin';
 
 import { getCurrentUser } from '../services/auth';
@@ -87,7 +88,6 @@ export default function AdminCompanyDetail() {
   const [markPaidBusy, setMarkPaidBusy] = useState<string | null>(null);
   const [inviteSentBanner, setInviteSentBanner] = useState(inviteSentFromCreate);
   const [resendInviteBusy, setResendInviteBusy] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState<string>('50000'); // Default â‚¹50,000
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [activateModalOpen, setActivateModalOpen] = useState(false);
   const [activateStartDate, setActivateStartDate] = useState<string>('');
@@ -296,17 +296,23 @@ export default function AdminCompanyDetail() {
     }
   }
 
-  async function handleGeneratePaymentLink() {
+  async function handleGeneratePaymentLink(payload: {
+    gstMode: PaymentGstMode;
+    amount?: number;
+    taxableAmount?: number;
+    cgstRate?: number;
+    sgstRate?: number;
+    igstRate?: number;
+  }) {
     if (!companyId) return;
-    const amount = Number.parseFloat(paymentAmount);
-    if (Number.isNaN(amount) || amount <= 0) {
-      setActionError('Please enter a valid amount (e.g. 50000 for â‚¹50,000)');
-      return;
-    }
     setActionError(null);
     setPaymentCreating(true);
     try {
-      await createPayment({ companyId, amount, currency: 'INR' });
+      await createPayment({
+        companyId,
+        currency: 'INR',
+        ...payload,
+      });
       await loadData();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to create payment link');
@@ -629,8 +635,6 @@ export default function AdminCompanyDetail() {
             canMarkKycComplete={!!canMarkKycComplete}
             activateBusy={activateBusy}
             kycCompleteBusy={kycCompleteBusy}
-            paymentAmount={paymentAmount}
-            setPaymentAmount={setPaymentAmount}
             paymentCreating={paymentCreating}
             paymentResending={paymentResending}
             markPaidBusy={markPaidBusy}

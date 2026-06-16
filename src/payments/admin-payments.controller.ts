@@ -44,11 +44,16 @@ export class AdminPaymentsController {
   @ApiResponse({ status: 404, description: 'Company not found' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async create(@Body() createPaymentDto: CreatePaymentDto) {
-    return this.paymentsService.create(
-      createPaymentDto.companyId,
-      createPaymentDto.amount,
-      createPaymentDto.currency,
-    );
+    return this.paymentsService.create({
+      companyId: createPaymentDto.companyId,
+      currency: createPaymentDto.currency,
+      gstMode: createPaymentDto.gstMode,
+      amount: createPaymentDto.amount,
+      taxableAmount: createPaymentDto.taxableAmount,
+      cgstRate: createPaymentDto.cgstRate,
+      sgstRate: createPaymentDto.sgstRate,
+      igstRate: createPaymentDto.igstRate,
+    });
   }
 
   @Get()

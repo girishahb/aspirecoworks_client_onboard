@@ -125,25 +125,46 @@ export class InvoicesService {
     const company = payment.clientProfile;
 
     // STEP 2-3: Taxable amount and GST logic
-    const taxableAmount = payment.amount;
-    const gstRate = parseFloat(this.config.get<string>('GST_RATE') || '18') / 100;
-    const isKarnataka = this.isKarnatakaState(company.state, company.gstNumber);
+    let taxableAmount: number;
     let cgstAmount = 0;
     let sgstAmount = 0;
     let igstAmount = 0;
-    if (isKarnataka) {
-      cgstAmount = taxableAmount * (gstRate / 2);
-      sgstAmount = taxableAmount * (gstRate / 2);
+    let gstAmount: number;
+    let totalAmount: number;
+
+    const hasStoredGst =
+      payment.taxableAmount != null && payment.gstMode && payment.gstMode !== 'NONE';
+
+    if (hasStoredGst) {
+      taxableAmount = payment.taxableAmount!;
+      cgstAmount = payment.cgstAmount ?? 0;
+      sgstAmount = payment.sgstAmount ?? 0;
+      igstAmount = payment.igstAmount ?? 0;
+      gstAmount = cgstAmount + sgstAmount + igstAmount;
+      totalAmount = payment.amount;
     } else {
-      igstAmount = taxableAmount * gstRate;
+      taxableAmount = payment.amount;
+      const gstRate = parseFloat(this.config.get<string>('GST_RATE') || '18') / 100;
+      const isKarnataka = this.isKarnatakaState(company.state, company.gstNumber);
+      if (isKarnataka) {
+        cgstAmount = taxableAmount * (gstRate / 2);
+        sgstAmount = taxableAmount * (gstRate / 2);
+      } else {
+        igstAmount = taxableAmount * gstRate;
+      }
+      gstAmount = cgstAmount + sgstAmount + igstAmount;
+      totalAmount = taxableAmount + gstAmount;
     }
-    const gstAmount = cgstAmount + sgstAmount + igstAmount;
 
     // STEP 5: TDS logic (if applicable)
     const tdsRate = parseFloat(this.config.get<string>('TDS_RATE') || '0');
     const tdsApplicable = this.config.get<string>('TDS_APPLICABLE') === 'true' && tdsRate > 0;
     const tdsAmount = tdsApplicable ? taxableAmount * (tdsRate / 100) : 0;
-    const totalAmount = taxableAmount + gstAmount - tdsAmount;
+    if (!hasStoredGst) {
+      totalAmount = taxableAmount + gstAmount - tdsAmount;
+    } else if (tdsApplicable && tdsAmount > 0) {
+      totalAmount = payment.amount - tdsAmount;
+    }
 
     const billingName = company.billingName || company.companyName;
     const billingAddress =

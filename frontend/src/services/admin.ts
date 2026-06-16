@@ -437,8 +437,21 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   return apiGet<DashboardStats>('/admin/dashboard/stats');
 }
 
+export type PaymentGstMode = 'NONE' | 'CGST_SGST' | 'IGST';
+
+export interface PaymentGstFields {
+  taxableAmount?: number | null;
+  gstMode?: PaymentGstMode | string | null;
+  cgstRate?: number | null;
+  sgstRate?: number | null;
+  igstRate?: number | null;
+  cgstAmount?: number | null;
+  sgstAmount?: number | null;
+  igstAmount?: number | null;
+}
+
 /** Payment as returned by admin payments list. */
-export interface AdminPayment {
+export interface AdminPayment extends PaymentGstFields {
   id: string;
   companyId: string;
   companyName: string;
@@ -477,7 +490,7 @@ export interface CompanyPaymentHistory {
     paymentLink?: string | null;
     paidAt?: string | null;
     createdAt: string;
-  }>;
+  } & PaymentGstFields>;
 }
 
 export interface ListPaymentsParams {
@@ -521,8 +534,13 @@ export async function getCompanyPaymentHistory(companyId: string): Promise<Compa
  */
 export async function createPayment(params: {
   companyId: string;
-  amount: number;
   currency?: string;
+  gstMode?: PaymentGstMode;
+  amount?: number;
+  taxableAmount?: number;
+  cgstRate?: number;
+  sgstRate?: number;
+  igstRate?: number;
 }): Promise<{
   id: string;
   clientProfileId: string;
@@ -531,7 +549,24 @@ export async function createPayment(params: {
   status: string;
   paymentLink: string | null;
   createdAt: string;
-}> {
+} & PaymentGstFields> {
+  const body: Record<string, unknown> = {
+    companyId: params.companyId,
+    currency: params.currency ?? 'INR',
+    gstMode: params.gstMode ?? 'NONE',
+  };
+  if (params.gstMode && params.gstMode !== 'NONE') {
+    body.taxableAmount = params.taxableAmount;
+    if (params.gstMode === 'CGST_SGST') {
+      body.cgstRate = params.cgstRate;
+      body.sgstRate = params.sgstRate;
+    } else if (params.gstMode === 'IGST') {
+      body.igstRate = params.igstRate;
+    }
+  } else {
+    body.amount = params.amount;
+  }
+
   return apiPost<{
     id: string;
     clientProfileId: string;
@@ -540,11 +575,7 @@ export async function createPayment(params: {
     status: string;
     paymentLink: string | null;
     createdAt: string;
-  }>('/admin/payments', {
-    companyId: params.companyId,
-    amount: params.amount,
-    currency: params.currency ?? 'INR',
-  });
+  } & PaymentGstFields>('/admin/payments', body);
 }
 
 /**

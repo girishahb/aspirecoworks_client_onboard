@@ -1,0 +1,9 @@
+-- AlterTable: GST breakdown fields on payments
+ALTER TABLE "payments" ADD COLUMN "taxableAmount" DOUBLE PRECISION;
+ALTER TABLE "payments" ADD COLUMN "gstMode" TEXT;
+ALTER TABLE "payments" ADD COLUMN "cgstRate" DOUBLE PRECISION;
+ALTER TABLE "payments" ADD COLUMN "sgstRate" DOUBLE PRECISION;
+ALTER TABLE "payments" ADD COLUMN "igstRate" DOUBLE PRECISION;
+ALTER TABLE "payments" ADD COLUMN "cgstAmount" DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE "payments" ADD COLUMN "sgstAmount" DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE "payments" ADD COLUMN "igstAmount" DOUBLE PRECISION DEFAULT 0;

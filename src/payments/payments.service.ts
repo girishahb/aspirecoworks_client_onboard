@@ -5,6 +5,47 @@ import { RazorpayService } from './razorpay.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { OnboardingStage } from '../common/enums/onboarding-stage.enum';
 import { paymentLinkEmail } from '../email/templates/payment-link';
+import {
+  computePaymentTotals,
+  formatPaymentAmountForEmail,
+  type PaymentGstMode,
+  type PaymentTotals,
+} from './payment-gst.util';
+
+export interface CreatePaymentOptions {
+  companyId: string;
+  currency?: string;
+  gstMode?: PaymentGstMode;
+  amount?: number;
+  taxableAmount?: number;
+  cgstRate?: number;
+  sgstRate?: number;
+  igstRate?: number;
+}
+
+function mapPaymentGstFields(p: {
+  amount: number;
+  taxableAmount: number | null;
+  gstMode: string | null;
+  cgstRate: number | null;
+  sgstRate: number | null;
+  igstRate: number | null;
+  cgstAmount: number | null;
+  sgstAmount: number | null;
+  igstAmount: number | null;
+}) {
+  return {
+    amount: p.amount,
+    taxableAmount: p.taxableAmount,
+    gstMode: p.gstMode,
+    cgstRate: p.cgstRate,
+    sgstRate: p.sgstRate,
+    igstRate: p.igstRate,
+    cgstAmount: p.cgstAmount,
+    sgstAmount: p.sgstAmount,
+    igstAmount: p.igstAmount,
+  };
+}
 
 @Injectable()
 export class PaymentsService {
@@ -17,12 +58,62 @@ export class PaymentsService {
     private onboardingService: OnboardingService,
   ) {}
 
+  private buildEmailBreakdown(
+    totals: PaymentTotals,
+    currency: string,
+    payment: {
+      amount: number;
+      taxableAmount: number | null;
+      gstMode: string | null;
+      cgstRate: number | null;
+      sgstRate: number | null;
+      igstRate: number | null;
+      cgstAmount: number | null;
+      sgstAmount: number | null;
+      igstAmount: number | null;
+    },
+  ) {
+    if (payment.gstMode && payment.gstMode !== 'NONE' && payment.taxableAmount != null) {
+      return formatPaymentAmountForEmail(
+        {
+          gstMode: payment.gstMode as PaymentGstMode,
+          taxableAmount: payment.taxableAmount,
+          cgstRate: payment.cgstRate,
+          sgstRate: payment.sgstRate,
+          igstRate: payment.igstRate,
+          cgstAmount: payment.cgstAmount ?? 0,
+          sgstAmount: payment.sgstAmount ?? 0,
+          igstAmount: payment.igstAmount ?? 0,
+          totalAmount: payment.amount,
+        },
+        currency,
+      );
+    }
+    return formatPaymentAmountForEmail(totals, currency);
+  }
+
   /**
    * Create a payment for a company.
    * Creates Razorpay payment link, saves payment record, updates company stage to PAYMENT_PENDING, and sends email.
    */
-  async create(companyId: string, amount: number, currency: string = 'INR') {
-    // Verify company exists
+  async create(options: CreatePaymentOptions) {
+    const currency = options.currency ?? 'INR';
+    const companyId = options.companyId;
+
+    let totals: PaymentTotals;
+    try {
+      totals = computePaymentTotals({
+        gstMode: options.gstMode ?? 'NONE',
+        amount: options.amount,
+        taxableAmount: options.taxableAmount,
+        cgstRate: options.cgstRate,
+        sgstRate: options.sgstRate,
+        igstRate: options.igstRate,
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Invalid payment amounts');
+    }
+
     const company = await this.prisma.clientProfile.findUnique({
       where: { id: companyId },
       select: {
@@ -38,7 +129,6 @@ export class PaymentsService {
       throw new NotFoundException(`Company with ID ${companyId} not found`);
     }
 
-    // Verify company is in a valid stage for payment creation
     const currentStage = company.onboardingStage as OnboardingStage;
     if (currentStage !== OnboardingStage.ADMIN_CREATED && currentStage !== OnboardingStage.PAYMENT_PENDING) {
       throw new BadRequestException(
@@ -46,11 +136,10 @@ export class PaymentsService {
       );
     }
 
-    // Create Razorpay payment link
     let paymentLinkData: { id: string; short_url: string };
     try {
       paymentLinkData = await this.razorpayService.createPaymentLink({
-        amount,
+        amount: totals.totalAmount,
         currency,
         companyId: company.id,
         companyName: company.companyName,
@@ -68,17 +157,24 @@ export class PaymentsService {
       );
     }
 
-    // Create payment record (store razorpayPaymentLinkId for webhook matching)
     const payment = await this.prisma.payment.create({
       data: {
         clientProfileId: companyId,
-        amount,
+        amount: totals.totalAmount,
         currency,
         status: 'CREATED',
         provider: 'Razorpay',
-        providerPaymentId: null, // Will be set when payment is captured
-        razorpayPaymentLinkId: paymentLinkData.id ?? undefined, // plink_xxx
+        providerPaymentId: null,
+        razorpayPaymentLinkId: paymentLinkData.id ?? undefined,
         paymentLink: paymentLinkData.short_url,
+        taxableAmount: totals.gstMode === 'NONE' ? null : totals.taxableAmount,
+        gstMode: totals.gstMode,
+        cgstRate: totals.cgstRate,
+        sgstRate: totals.sgstRate,
+        igstRate: totals.igstRate,
+        cgstAmount: totals.cgstAmount,
+        sgstAmount: totals.sgstAmount,
+        igstAmount: totals.igstAmount,
       },
       include: {
         clientProfile: {
@@ -91,25 +187,25 @@ export class PaymentsService {
       },
     });
 
-    // Update company stage to PAYMENT_PENDING if not already there
     if (currentStage === OnboardingStage.ADMIN_CREATED) {
       try {
         await this.onboardingService.updateStage(companyId, OnboardingStage.PAYMENT_PENDING);
         this.logger.log(`Company ${companyId} moved to PAYMENT_PENDING stage`);
       } catch (error) {
-        this.logger.warn(`Failed to update company stage to PAYMENT_PENDING: ${error instanceof Error ? error.message : error}`);
-        // Don't fail payment creation if stage update fails
+        this.logger.warn(
+          `Failed to update company stage to PAYMENT_PENDING: ${error instanceof Error ? error.message : error}`,
+        );
       }
     }
 
-    // Send payment link email
     if (company.contactEmail) {
       try {
+        const breakdown = this.buildEmailBreakdown(totals, currency, payment);
         const { subject, html, text } = paymentLinkEmail({
           companyName: company.companyName,
-          amount: amount.toLocaleString('en-IN'),
           currency,
           paymentLink: paymentLinkData.short_url,
+          breakdown,
         });
         await this.emailService.sendEmail({
           to: company.contactEmail,
@@ -120,17 +216,12 @@ export class PaymentsService {
         this.logger.log(`Payment link email sent to ${company.contactEmail}`);
       } catch (error) {
         this.logger.warn(`Failed to send payment link email: ${error instanceof Error ? error.message : error}`);
-        // Don't fail payment creation if email fails
       }
     }
 
     return payment;
   }
 
-  /**
-   * List all payments with optional filters.
-   * Supports filtering by status, companyId, and date range.
-   */
   async findAll(filters: {
     status?: 'CREATED' | 'PAID' | 'FAILED';
     companyId?: string;
@@ -170,7 +261,6 @@ export class PaymentsService {
         where.createdAt.gte = fromDate;
       }
       if (toDate) {
-        // Include the entire day
         const endOfDay = new Date(toDate);
         endOfDay.setHours(23, 59, 59, 999);
         where.createdAt.lte = endOfDay;
@@ -202,7 +292,6 @@ export class PaymentsService {
         id: p.id,
         companyId: p.clientProfileId,
         companyName: p.clientProfile.companyName,
-        amount: p.amount,
         currency: p.currency,
         status: p.status,
         provider: p.provider,
@@ -210,6 +299,7 @@ export class PaymentsService {
         paymentLink: p.paymentLink,
         paidAt: p.paidAt,
         createdAt: p.createdAt,
+        ...mapPaymentGstFields(p),
       })),
       pagination: {
         page,
@@ -220,9 +310,6 @@ export class PaymentsService {
     };
   }
 
-  /**
-   * Get all payments for a specific company.
-   */
   async findByCompanyId(companyId: string, createdById?: string) {
     const company = await this.prisma.clientProfile.findUnique({
       where: { id: companyId },
@@ -247,7 +334,6 @@ export class PaymentsService {
       companyName: company.companyName,
       payments: payments.map((p) => ({
         id: p.id,
-        amount: p.amount,
         currency: p.currency,
         status: p.status,
         provider: p.provider,
@@ -255,13 +341,11 @@ export class PaymentsService {
         paymentLink: p.paymentLink,
         paidAt: p.paidAt,
         createdAt: p.createdAt,
+        ...mapPaymentGstFields(p),
       })),
     };
   }
 
-  /**
-   * Mark payment as PAID.
-   */
   async markAsPaid(paymentId: string, providerPaymentId?: string): Promise<void> {
     await this.prisma.payment.update({
       where: { id: paymentId },
@@ -273,9 +357,6 @@ export class PaymentsService {
     });
   }
 
-  /**
-   * Find payment by company ID and provider payment ID.
-   */
   async findByCompanyAndProvider(
     companyId: string,
     providerPaymentId?: string,
@@ -291,9 +372,6 @@ export class PaymentsService {
     });
   }
 
-  /**
-   * Find payment by ID. Returns null if not found.
-   */
   async findById(
     paymentId: string,
   ): Promise<{ id: string; clientProfileId: string; status: string } | null> {
@@ -304,10 +382,6 @@ export class PaymentsService {
     return payment;
   }
 
-  /**
-   * Find payment by Razorpay payment ID (providerPaymentId) across all companies.
-   * Used by webhook to resolve payment from event payload.
-   */
   async findByProviderPaymentId(providerPaymentId: string): Promise<{
     id: string;
     clientProfileId: string;
@@ -328,10 +402,6 @@ export class PaymentsService {
     });
   }
 
-  /**
-   * Find first CREATED payment by Razorpay payment link ID (plink_xxx).
-   * Used when webhook has payment_link_id but payment.entity.notes is empty (e.g. payment.captured).
-   */
   async findByRazorpayPaymentLinkId(razorpayPaymentLinkId: string): Promise<{
     id: string;
     clientProfileId: string;
@@ -351,9 +421,6 @@ export class PaymentsService {
     });
   }
 
-  /**
-   * Find first CREATED payment for a company (for webhook fallback when providerPaymentId not yet set).
-   */
   async findFirstCreatedByCompanyId(companyId: string): Promise<{
     id: string;
     clientProfileId: string;
@@ -372,9 +439,6 @@ export class PaymentsService {
     });
   }
 
-  /**
-   * Resend payment link to company contact email.
-   */
   async resendPaymentLink(paymentId: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -406,11 +470,22 @@ export class PaymentsService {
       throw new BadRequestException('Company does not have a contact email');
     }
 
+    const gstMode = (payment.gstMode as PaymentGstMode | null) ?? 'NONE';
+    const totals = computePaymentTotals({
+      gstMode,
+      amount: gstMode === 'NONE' ? payment.amount : undefined,
+      taxableAmount: payment.taxableAmount ?? undefined,
+      cgstRate: payment.cgstRate ?? undefined,
+      sgstRate: payment.sgstRate ?? undefined,
+      igstRate: payment.igstRate ?? undefined,
+    });
+    const breakdown = this.buildEmailBreakdown(totals, payment.currency, payment);
+
     const { subject, html, text } = paymentLinkEmail({
       companyName: payment.clientProfile.companyName,
-      amount: payment.amount.toLocaleString('en-IN'),
       currency: payment.currency,
       paymentLink: payment.paymentLink,
+      breakdown,
     });
 
     const result = await this.emailService.sendEmail({
@@ -430,4 +505,3 @@ export class PaymentsService {
     };
   }
 }
-

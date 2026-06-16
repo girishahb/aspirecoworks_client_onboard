@@ -1,29 +1,42 @@
+import { useMemo, useState } from 'react';
 import Badge from '../Badge';
-import type { CompanyPaymentHistory } from '../../services/admin';
+import type { CompanyPaymentHistory, PaymentGstMode } from '../../services/admin';
+import { computePaymentTotals, formatInr } from '../../utils/paymentGst';
 import { formatCompanyDate } from './formatting';
 
 type Props = {
   isAggregatorView: boolean;
-  /** Direct channel payment section */
   showPaymentSection: boolean;
   canActivate: boolean;
   isAlreadyActive: boolean;
   canMarkKycComplete: boolean;
   activateBusy: boolean;
   kycCompleteBusy: boolean;
-  paymentAmount: string;
-  setPaymentAmount: (v: string) => void;
   paymentCreating: boolean;
   paymentResending: string | null;
   markPaidBusy: string | null;
   paymentHistory: CompanyPaymentHistory | null;
   onOpenActivateModal: () => void;
   onMarkKycComplete: () => void;
-  onGeneratePaymentLink: () => void;
+  onGeneratePaymentLink: (payload: {
+    gstMode: PaymentGstMode;
+    amount?: number;
+    taxableAmount?: number;
+    cgstRate?: number;
+    sgstRate?: number;
+    igstRate?: number;
+  }) => void;
   onCopyPaymentLink: (link: string) => void;
   onResendPaymentLink: (id: string) => void;
   onMarkAsPaid: (id: string) => void;
 };
+
+function paymentGstSubtext(payment: CompanyPaymentHistory['payments'][number]): string | null {
+  if (payment.gstMode && payment.gstMode !== 'NONE' && payment.taxableAmount != null) {
+    return `₹${formatInr(payment.taxableAmount)} + GST`;
+  }
+  return null;
+}
 
 export default function CompanyReviewActionsTab({
   isAggregatorView,
@@ -33,8 +46,6 @@ export default function CompanyReviewActionsTab({
   canMarkKycComplete,
   activateBusy,
   kycCompleteBusy,
-  paymentAmount,
-  setPaymentAmount,
   paymentCreating,
   paymentResending,
   markPaidBusy,
@@ -46,9 +57,73 @@ export default function CompanyReviewActionsTab({
   onResendPaymentLink,
   onMarkAsPaid,
 }: Props) {
+  const [includeGst, setIncludeGst] = useState(false);
+  const [taxMode, setTaxMode] = useState<'CGST_SGST' | 'IGST'>('CGST_SGST');
+  const [paymentAmount, setPaymentAmount] = useState('50000');
+  const [taxableAmount, setTaxableAmount] = useState('5000');
+  const [cgstRate, setCgstRate] = useState('5');
+  const [sgstRate, setSgstRate] = useState('5');
+  const [igstRate, setIgstRate] = useState('18');
+
+  const preview = useMemo(() => {
+    try {
+      if (!includeGst) {
+        const amount = Number.parseFloat(paymentAmount);
+        if (Number.isNaN(amount) || amount <= 0) return null;
+        return computePaymentTotals({ gstMode: 'NONE', amount });
+      }
+      const base = Number.parseFloat(taxableAmount);
+      if (Number.isNaN(base) || base <= 0) return null;
+      if (taxMode === 'CGST_SGST') {
+        const cgst = Number.parseFloat(cgstRate);
+        const sgst = Number.parseFloat(sgstRate);
+        if (Number.isNaN(cgst) || Number.isNaN(sgst)) return null;
+        return computePaymentTotals({
+          gstMode: 'CGST_SGST',
+          taxableAmount: base,
+          cgstRate: cgst,
+          sgstRate: sgst,
+        });
+      }
+      const igst = Number.parseFloat(igstRate);
+      if (Number.isNaN(igst)) return null;
+      return computePaymentTotals({
+        gstMode: 'IGST',
+        taxableAmount: base,
+        igstRate: igst,
+      });
+    } catch {
+      return null;
+    }
+  }, [includeGst, paymentAmount, taxableAmount, taxMode, cgstRate, sgstRate, igstRate]);
+
+  const canGenerate = preview != null && preview.totalAmount > 0;
+
   const pendingPayment = paymentHistory?.payments?.find((p) => p.status === 'CREATED');
   const paidPayment = paymentHistory?.payments?.find((p) => p.status === 'PAID');
   const latestPayment = paymentHistory?.payments?.[0];
+
+  function handleGenerate() {
+    if (!preview || !canGenerate) return;
+    if (!includeGst) {
+      onGeneratePaymentLink({ gstMode: 'NONE', amount: preview.totalAmount });
+      return;
+    }
+    if (taxMode === 'CGST_SGST') {
+      onGeneratePaymentLink({
+        gstMode: 'CGST_SGST',
+        taxableAmount: preview.taxableAmount,
+        cgstRate: Number.parseFloat(cgstRate),
+        sgstRate: Number.parseFloat(sgstRate),
+      });
+      return;
+    }
+    onGeneratePaymentLink({
+      gstMode: 'IGST',
+      taxableAmount: preview.taxableAmount,
+      igstRate: Number.parseFloat(igstRate),
+    });
+  }
 
   return (
     <section
@@ -129,23 +204,163 @@ export default function CompanyReviewActionsTab({
         <div className="rounded-lg border border-sky-200 bg-sky-50 p-5">
           <h3 className="mt-0 text-base font-semibold text-slate-900">Payment</h3>
           {!pendingPayment && !paidPayment && (
-            <div className="mb-4">
-              <label htmlFor="payment-amount-actions" className="mb-1 block text-sm text-slate-700">
-                Amount (₹)
+            <div className="mb-4 space-y-4">
+              <label className="flex items-center gap-2 text-sm text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={includeGst}
+                  onChange={(e) => setIncludeGst(e.target.checked)}
+                  disabled={paymentCreating}
+                />
+                Include GST in payment link
               </label>
-              <input
-                id="payment-amount-actions"
-                type="number"
-                min={1}
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                disabled={paymentCreating}
-                className="mr-2 w-48 rounded border border-slate-300 px-2 py-2"
-              />
+
+              {!includeGst ? (
+                <div>
+                  <label htmlFor="payment-amount-actions" className="mb-1 block text-sm text-slate-700">
+                    Amount (₹)
+                  </label>
+                  <input
+                    id="payment-amount-actions"
+                    type="number"
+                    min={1}
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    disabled={paymentCreating}
+                    className="w-48 rounded border border-slate-300 px-2 py-2"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium text-slate-700">Tax type</legend>
+                    <label className="mr-4 inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="payment-tax-mode"
+                        checked={taxMode === 'CGST_SGST'}
+                        onChange={() => setTaxMode('CGST_SGST')}
+                        disabled={paymentCreating}
+                      />
+                      CGST + SGST
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="payment-tax-mode"
+                        checked={taxMode === 'IGST'}
+                        onChange={() => setTaxMode('IGST')}
+                        disabled={paymentCreating}
+                      />
+                      IGST
+                    </label>
+                  </fieldset>
+
+                  <div>
+                    <label htmlFor="payment-taxable-amount" className="mb-1 block text-sm text-slate-700">
+                      Base amount (₹)
+                    </label>
+                    <input
+                      id="payment-taxable-amount"
+                      type="number"
+                      min={1}
+                      step="0.01"
+                      value={taxableAmount}
+                      onChange={(e) => setTaxableAmount(e.target.value)}
+                      disabled={paymentCreating}
+                      className="w-48 rounded border border-slate-300 px-2 py-2"
+                    />
+                  </div>
+
+                  {taxMode === 'CGST_SGST' ? (
+                    <div className="flex flex-wrap gap-4">
+                      <div>
+                        <label htmlFor="payment-cgst-rate" className="mb-1 block text-sm text-slate-700">
+                          CGST (%)
+                        </label>
+                        <input
+                          id="payment-cgst-rate"
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={cgstRate}
+                          onChange={(e) => setCgstRate(e.target.value)}
+                          disabled={paymentCreating}
+                          className="w-28 rounded border border-slate-300 px-2 py-2"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="payment-sgst-rate" className="mb-1 block text-sm text-slate-700">
+                          SGST (%)
+                        </label>
+                        <input
+                          id="payment-sgst-rate"
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={sgstRate}
+                          onChange={(e) => setSgstRate(e.target.value)}
+                          disabled={paymentCreating}
+                          className="w-28 rounded border border-slate-300 px-2 py-2"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label htmlFor="payment-igst-rate" className="mb-1 block text-sm text-slate-700">
+                        IGST (%)
+                      </label>
+                      <input
+                        id="payment-igst-rate"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        value={igstRate}
+                        onChange={(e) => setIgstRate(e.target.value)}
+                        disabled={paymentCreating}
+                        className="w-28 rounded border border-slate-300 px-2 py-2"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {preview && (
+                <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800">
+                  {includeGst && (
+                    <>
+                      <p>Base: ₹{formatInr(preview.taxableAmount)}</p>
+                      {preview.cgstAmount > 0 && (
+                        <p>
+                          CGST ({preview.cgstRate}%): ₹{formatInr(preview.cgstAmount)}
+                        </p>
+                      )}
+                      {preview.sgstAmount > 0 && (
+                        <p>
+                          SGST ({preview.sgstRate}%): ₹{formatInr(preview.sgstAmount)}
+                        </p>
+                      )}
+                      {preview.igstAmount > 0 && (
+                        <p>
+                          IGST ({preview.igstRate}%): ₹{formatInr(preview.igstAmount)}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <p className="font-semibold text-slate-900">
+                    Total payable: ₹{formatInr(preview.totalAmount)}
+                  </p>
+                </div>
+              )}
+
               <button
                 type="button"
-                onClick={onGeneratePaymentLink}
-                disabled={paymentCreating}
+                onClick={handleGenerate}
+                disabled={paymentCreating || !canGenerate}
                 className="rounded bg-sky-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {paymentCreating ? 'Generating…' : 'Generate Payment Link'}
@@ -175,6 +390,9 @@ export default function CompanyReviewActionsTab({
               <span className="text-sm">
                 ₹{latestPayment.amount.toLocaleString('en-IN')} {latestPayment.currency}
               </span>
+              {paymentGstSubtext(latestPayment) && (
+                <span className="text-xs text-slate-500">({paymentGstSubtext(latestPayment)})</span>
+              )}
             </div>
           )}
           {pendingPayment?.paymentLink && (
