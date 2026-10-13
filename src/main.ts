@@ -17,11 +17,12 @@ async function bootstrap() {
   app.use('/webhooks/razorpay', express.raw({ type: 'application/json' }));
   app.use('/public/webhook', express.raw({ type: 'application/json' }));
 
-  // JSON parser for all routes (optional dev-only verify hook — avoids prod CPU/log noise)
+  // JSON parser (12mb supports mobile mail-photo base64 payloads)
   app.use(
     express.json(
       isDev
         ? {
+            limit: '12mb',
             verify: (req: Request, _res: Response, buf: Buffer) => {
               if (req.path === '/client-profiles' && req.method === 'POST') {
                 try {
@@ -45,7 +46,7 @@ async function bootstrap() {
               }
             },
           }
-        : {},
+        : { limit: '12mb' },
     ),
   );
 

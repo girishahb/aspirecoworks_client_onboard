@@ -21,7 +21,7 @@ import { PrismaService } from '../prisma/prisma.service';
 @Controller('admin/time-slots')
 @Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
 export class AdminTimeSlotsController {
   constructor(private readonly prisma: PrismaService) {}
 

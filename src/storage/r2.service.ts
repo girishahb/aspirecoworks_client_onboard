@@ -140,7 +140,7 @@ export class R2Service {
   ): string {
     // Extract file extension from fileName (sanitized)
     const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
-    const kycExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+    const kycExts = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
     const agreementExts = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
     const allowedExts = documentType.includes('AGREEMENT') ? agreementExts : kycExts;
     const extension = ext && allowedExts.includes(`.${ext}`) ? `.${ext}` : '';
@@ -161,6 +161,8 @@ export class R2Service {
       folder = 'agreements/electricity-bill';
     } else if (documentType.includes('WIFI_BILL')) {
       folder = 'agreements/wifi-bill';
+    } else if (documentType.includes('RECEIVED_MAIL')) {
+      folder = 'mail-received';
     }
     
     // Format: company/{companyId}/{folder}/{uuid}.{ext}

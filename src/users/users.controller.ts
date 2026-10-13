@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateMobileOpsUserDto } from './dto/create-mobile-ops-user.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -27,7 +28,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create a new user (Admin only)' })
   @ApiResponse({ status: 201, description: 'User created successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
@@ -35,8 +36,31 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  @Post('mobile-ops')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.FINANCE)
+  @ApiOperation({
+    summary: 'Create Reception / Staff / Finance mobile user (hashes password)',
+  })
+  createMobileOps(@Body() dto: CreateMobileOpsUserDto) {
+    return this.usersService.createMobileOpsUser(dto);
+  }
+
+  @Get('mobile-ops')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.FINANCE, UserRole.MANAGER)
+  @ApiOperation({ summary: 'List Reception / Staff / Finance users' })
+  listMobileOps() {
+    return this.usersService.findMobileOpsUsers();
+  }
+
+  @Patch(':id/active')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.FINANCE)
+  @ApiOperation({ summary: 'Activate or deactivate a user' })
+  setActive(@Param('id') id: string, @Body() body: { isActive: boolean }) {
+    return this.usersService.setActive(id, !!body.isActive);
+  }
+
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.SUPER_ADMIN, UserRole.FINANCE)
   @ApiOperation({ summary: 'Get all users (Admin/Manager only)' })
   @ApiResponse({ status: 200, description: 'List of users' })
   findAll(@Query('role') role?: UserRole) {

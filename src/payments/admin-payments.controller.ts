@@ -33,7 +33,7 @@ export class AdminPaymentsController {
   ) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Create a new payment for a company',
     description:
@@ -57,7 +57,7 @@ export class AdminPaymentsController {
   }
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({
     summary: 'List all payments with filters',
     description: 'Returns paginated list of payments with optional filters for status, company, and date range.',
@@ -94,7 +94,7 @@ export class AdminPaymentsController {
   }
 
   @Get('companies/:companyId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({
     summary: 'Get payment history for a company',
     description: 'Returns all payments for a specific company.',
@@ -113,7 +113,7 @@ export class AdminPaymentsController {
   }
 
   @Post(':paymentId/mark-paid')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Manually mark payment as paid',
     description:
@@ -149,7 +149,7 @@ export class AdminPaymentsController {
   }
 
   @Post(':paymentId/resend-link')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Resend payment link',
     description: 'Resends the payment link to the company contact email.',

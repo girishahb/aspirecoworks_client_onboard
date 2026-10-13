@@ -23,6 +23,8 @@ import { PublicBookingsModule } from './public-bookings/public-bookings.module';
 import { AdminBookingsModule } from './admin-bookings/admin-bookings.module';
 import { AggregatorUsersModule } from './aggregator-users/aggregator-users.module';
 import { AggregatorProfileModule } from './aggregator-profile/aggregator-profile.module';
+import { ImportQaModule } from './import-qa/import-qa.module';
+import { MobileModule } from './mobile/mobile.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -60,6 +62,8 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AdminBookingsModule,
     AggregatorUsersModule,
     AggregatorProfileModule,
+    ImportQaModule,
+    MobileModule,
   ],
   controllers: [],
   providers: [

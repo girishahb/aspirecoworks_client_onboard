@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { login, getCurrentUser, logout, clearSessionExpired } from '../services/auth';
 
 const NON_ADMIN_ERROR = 'Access denied. Admin or aggregator accounts only.';
-const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'];
 
 /**
  * Admin login: email + password form, calls existing login API.

@@ -18,6 +18,9 @@ enum UserRole {
   MANAGER
   USER
   AGGREGATOR
+  FINANCE
+  STAFF
+  RECEPTION
 }
 
 enum OnboardingStage {
@@ -70,6 +73,7 @@ enum DocumentType {
   NOC_LANDLORD
   ELECTRICITY_BILL
   WIFI_BILL
+  RECEIVED_MAIL
   OTHER
 }
 
@@ -86,6 +90,13 @@ enum RenewalStatus {
 enum ClientChannel {
   DIRECT
   AGGREGATOR
+}
+
+enum OperationalStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  UNKNOWN
 }
 
 model User {
@@ -165,6 +176,21 @@ model ClientProfile {
   gstNumber       String?
   billingName     String?
   billingAddress  String?
+  // Excel / branch import fields
+  locationId          String?
+  vendorId            String?
+  membershipType      String?
+  officeType          String?           // e.g. Virtual
+  leadSource          String?           // e.g. Aggregator, Direct
+  contractMonths      Int?              // No of Months from Excel
+  operationalStatus   OperationalStatus @default(UNKNOWN)
+  contactPersonName   String?
+  contactPersonTitle  String?
+  contactPersonPhone  String?
+  externalBookingId   String?
+  legacyPaymentStatus String?
+  legacyCharges       Float?
+  lastContactedAt     DateTime?         @db.Date
   createdById     String
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -178,10 +204,52 @@ model ClientProfile {
   auditLogs          AuditLog[]
   renewalReminders   RenewalReminder[]
   aggregatorBookings AggregatorBooking[]
+  location           Location?           @relation(fields: [locationId], references: [id])
+  vendor             Vendor?             @relation(fields: [vendorId], references: [id])
 
   @@index([createdById])
   @@index([createdAt])
+  @@index([locationId])
+  @@index([vendorId])
+  @@index([externalBookingId])
+  @@index([operationalStatus])
   @@map("client_profiles")
+}
+
+model Vendor {
+  id          String   @id @default(uuid())
+  name        String
+  code        String
+  sourceSheet String?
+  locationId  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  location Location?       @relation(fields: [locationId], references: [id])
+  clients  ClientProfile[]
+
+  @@unique([locationId, code])
+  @@index([locationId])
+  @@map("vendors")
+}
+
+/// Aggregator rate card (GST-exclusive). Keyed by vendor code so one card
+/// applies across all location copies of the same aggregator.
+model VendorRateCard {
+  id                String   @id @default(uuid())
+  vendorCode        String
+  sourceCompanyName String?
+  membershipType    String
+  rateExclusive     Float
+  currency          String   @default("INR")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([vendorCode, membershipType])
+  @@index([vendorCode])
+  @@map("vendor_rate_cards")
 }
 
 model RenewalReminder {
@@ -425,11 +493,16 @@ enum BookingSource {
 }
 
 model Location {
-  id        String     @id @default(uuid())
+  id        String          @id @default(uuid())
   name      String
   address   String
+  code      String?         @unique // Indiranagar_1 | Platinum | Kormangala_1
+  area      String? // Indiranagar | Kormangala
+  isActive  Boolean         @default(true)
   resources Resource[]
-  createdAt DateTime   @default(now())
+  vendors   Vendor[]
+  clients   ClientProfile[]
+  createdAt DateTime        @default(now())
 
   @@map("locations")
 }

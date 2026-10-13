@@ -69,9 +69,7 @@ export class ClientProfilesController {
 
   @Get(':id/bookings')
   @Roles(
-    UserRole.SUPER_ADMIN,
-    UserRole.ADMIN,
-    UserRole.MANAGER,
+    UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE,
     UserRole.AGGREGATOR,
   )
   @ApiOperation({
@@ -119,7 +117,7 @@ export class ClientProfilesController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({ summary: 'Update client profile onboarding stage (Super Admin/Admin/Manager)' })
   @ApiResponse({ status: 200, description: 'Stage updated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid stage transition' })
@@ -143,7 +141,7 @@ export class ClientProfilesController {
   }
 
   @Post(':id/activate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Activate company (after agreement completion)',
     description:
@@ -164,7 +162,7 @@ export class ClientProfilesController {
   }
 
   @Post(':id/resend-invite')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Resend set-password invite to client' })
   @ApiResponse({ status: 200, description: 'Invite sent or already activated' })
   @ApiResponse({ status: 404, description: 'Company not found' })

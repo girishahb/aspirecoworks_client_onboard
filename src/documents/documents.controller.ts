@@ -191,7 +191,7 @@ export class DocumentsController {
 
   @SkipThrottle()
   @Post('admin/agreement-draft-upload-url')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Get upload URL for agreement draft (Admin/Manager)',
     description:
@@ -209,7 +209,7 @@ export class DocumentsController {
 
   @SkipThrottle()
   @Post('admin/agreement-draft-upload')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
@@ -248,7 +248,7 @@ export class DocumentsController {
 
   @SkipThrottle()
   @Post('admin/agreement-draft/generate-from-template/:companyId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Generate agreement draft from template (aggregator GR, BR, or Mailing Address)',
     description:
@@ -270,7 +270,7 @@ export class DocumentsController {
 
   @SkipThrottle()
   @Post('admin/agreement-final-upload-url')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Get upload URL for final agreement (Admin/Manager)',
     description:
@@ -288,7 +288,7 @@ export class DocumentsController {
 
   @SkipThrottle()
   @Post('admin/agreement-final-upload')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -373,7 +373,7 @@ export class DocumentsController {
   }
 
   @Get('agreement-complete')
-  @Roles(UserRole.CLIENT, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.CLIENT, UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Check if agreement process is complete (AGREEMENT_FINAL exists)',
     description:
@@ -384,7 +384,7 @@ export class DocumentsController {
     @CurrentUser() user: any,
     @Query('companyId') companyIdQuery?: string,
   ) {
-    const isAdmin = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER].includes(user.role);
+    const isAdmin = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE].includes(user.role);
     const companyId = user.companyId ?? (isAdmin ? companyIdQuery : null);
     if (!companyId) {
       throw new ForbiddenException('No company associated; or pass companyId for admin.');
@@ -394,7 +394,7 @@ export class DocumentsController {
   }
 
   @Get('company/:companyId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({
     summary: 'List documents for a company (SUPER_ADMIN, ADMIN, MANAGER, AGGREGATOR)',
     description:
@@ -414,9 +414,7 @@ export class DocumentsController {
   @Roles(
     UserRole.CLIENT,
     UserRole.COMPANY_ADMIN,
-    UserRole.SUPER_ADMIN,
-    UserRole.ADMIN,
-    UserRole.MANAGER,
+    UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE,
     UserRole.AGGREGATOR,
   )
   @ApiOperation({
@@ -444,9 +442,7 @@ export class DocumentsController {
   @Roles(
     UserRole.CLIENT,
     UserRole.COMPANY_ADMIN,
-    UserRole.SUPER_ADMIN,
-    UserRole.ADMIN,
-    UserRole.MANAGER,
+    UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE,
     UserRole.AGGREGATOR,
   )
   @ApiOperation({
@@ -462,7 +458,7 @@ export class DocumentsController {
   }
 
   @Patch(':id/review')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'KYC review document (SUPER_ADMIN, ADMIN, MANAGER)',
     description:
@@ -480,7 +476,7 @@ export class DocumentsController {
   }
 
   @Post(':id/notify-agreement-draft-shared')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Notify client and set stage after agreement draft upload',
     description:
@@ -508,7 +504,7 @@ export class DocumentsController {
   }
 
   @Post(':id/notify-agreement-final-shared')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
   @ApiOperation({
     summary: 'Notify client and set stage after final agreement upload',
     description:

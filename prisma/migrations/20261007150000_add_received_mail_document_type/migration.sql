@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "DocumentType" ADD VALUE IF NOT EXISTS 'RECEIVED_MAIL';

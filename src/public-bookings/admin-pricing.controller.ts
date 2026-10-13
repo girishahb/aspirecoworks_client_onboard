@@ -21,7 +21,7 @@ import { PrismaService } from '../prisma/prisma.service';
 @Controller('admin/pricing')
 @Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
 export class AdminPricingController {
   constructor(private readonly prisma: PrismaService) {}
 

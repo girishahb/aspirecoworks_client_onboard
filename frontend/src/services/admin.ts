@@ -111,6 +111,13 @@ export async function createCompany(data: {
   notes?: string;
   clientChannel?: ClientChannel;
   aggregatorName?: string;
+  locationId?: string;
+  vendorId?: string;
+  contactPersonName?: string;
+  membershipType?: string;
+  officeType?: string;
+  leadSource?: string;
+  contractMonths?: number;
   booking?: CreateCompanyBookingInput;
   invoiceTo?: CreateCompanyInvoiceToInput;
   saveInvoiceToProfile?: boolean;
@@ -681,4 +688,93 @@ export async function getInvoiceFile(invoiceId: string): Promise<{ fileUrl: stri
   if (match) fileName = match[1].replace(/\\"/g, '"');
   const fileUrl = URL.createObjectURL(blob);
   return { fileUrl, fileName };
+}
+
+/** Excel import QA */
+export interface ImportQaDateRow {
+  workbook: string;
+  sheet: string;
+  row: string;
+  column: string;
+  rawValue: string;
+  rawType: string;
+  cleaned: string;
+  flag: string;
+  locationCode: string;
+  companyName: string;
+}
+
+export interface ImportQaSummaryResponse {
+  runId: string;
+  summary: {
+    mode: string;
+    rowsRead: number;
+    imported: number;
+    updated: number;
+    quarantined: number;
+    flagCounts: Record<string, number>;
+  };
+  distributions: unknown;
+  files: string[];
+}
+
+export async function getImportQaRuns() {
+  return apiGet<{ latest: string | null; runs: string[] }>('/admin/import-qa/runs');
+}
+
+export async function getImportQaSummary(runId?: string) {
+  const qs = runId ? `?runId=${encodeURIComponent(runId)}` : '';
+  return apiGet<ImportQaSummaryResponse>(`/admin/import-qa/summary${qs}`);
+}
+
+export async function getImportQaDateRows(params: {
+  runId?: string;
+  locationCode?: string;
+  sheet?: string;
+  flag?: string;
+  column?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '') search.set(k, String(v));
+  });
+  const qs = search.toString();
+  return apiGet<{ runId: string; total: number; offset: number; limit: number; rows: ImportQaDateRow[] }>(
+    `/admin/import-qa/date-qa${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export async function downloadImportQaFile(file: string, runId?: string) {
+  const { apiUrl } = await import('../api/url');
+  const { getAuthHeaders } = await import('./auth');
+  const search = new URLSearchParams({ file });
+  if (runId) search.set('runId', runId);
+  const res = await fetch(apiUrl(`/admin/import-qa/download?${search}`), { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error((err as { message?: string }).message ?? `Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function getMobileLocations() {
+  return apiGet<{ id: string; name: string; code: string | null; area: string | null }[]>(
+    '/mobile/meta/locations',
+  );
+}
+
+export async function getMobileVendors(locationId?: string) {
+  const qs = locationId ? `?locationId=${encodeURIComponent(locationId)}` : '';
+  return apiGet<{ id: string; name: string; code: string; locationId: string | null }[]>(
+    `/mobile/meta/vendors${qs}`,
+  );
 }

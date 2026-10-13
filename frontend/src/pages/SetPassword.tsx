@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { setPassword } from '../services/auth';
 
-const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'];
 
 export default function SetPassword() {
   const [searchParams] = useSearchParams();

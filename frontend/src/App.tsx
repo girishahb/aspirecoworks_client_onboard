@@ -32,6 +32,8 @@ const AdminBookings = lazy(() => import('./pages/AdminBookings'));
 const AdminPricing = lazy(() => import('./pages/AdminPricing'));
 const AdminAggregatorUsers = lazy(() => import('./pages/AdminAggregatorUsers'));
 const AdminCustomers = lazy(() => import('./pages/AdminCustomers'));
+const AdminImportQa = lazy(() => import('./pages/AdminImportQa'));
+const AdminMobileUsers = lazy(() => import('./pages/AdminMobileUsers'));
 const AggregatorDashboard = lazy(() => import('./pages/AggregatorDashboard'));
 const AggregatorCreateCompany = lazy(() => import('./pages/AggregatorCreateCompany'));
 const AggregatorInvoices = lazy(() => import('./pages/AggregatorInvoices'));
@@ -95,6 +97,8 @@ export default function App() {
             <Route path="pricing" element={<AdminPricing />} />
             <Route path="invoices" element={<AdminInvoices />} />
             <Route path="aggregator-users" element={<AdminAggregatorUsers />} />
+            <Route path="mobile-users" element={<AdminMobileUsers />} />
+            <Route path="import-qa" element={<AdminImportQa />} />
           </Route>
         </Route>
 

@@ -36,6 +36,73 @@ async function main() {
     },
   });
 
+  // Mobile ops roles
+  const financePassword = await bcrypt.hash('Finance123!', 10);
+  const finance = await prisma.user.upsert({
+    where: { email: 'finance@aspirecoworks.com' },
+    update: {
+      passwordHash: financePassword,
+      role: 'FINANCE',
+      isActive: true,
+      isActivated: true,
+      inviteToken: null,
+      inviteTokenExpiry: null,
+    },
+    create: {
+      email: 'finance@aspirecoworks.com',
+      passwordHash: financePassword,
+      firstName: 'Finance',
+      lastName: 'User',
+      role: 'FINANCE',
+      isActive: true,
+      isActivated: true,
+    },
+  });
+
+  const staffPassword = await bcrypt.hash('Staff123!', 10);
+  const staff = await prisma.user.upsert({
+    where: { email: 'staff@aspirecoworks.com' },
+    update: {
+      passwordHash: staffPassword,
+      role: 'STAFF',
+      isActive: true,
+      isActivated: true,
+      inviteToken: null,
+      inviteTokenExpiry: null,
+    },
+    create: {
+      email: 'staff@aspirecoworks.com',
+      passwordHash: staffPassword,
+      firstName: 'Floor',
+      lastName: 'Staff',
+      role: 'STAFF',
+      isActive: true,
+      isActivated: true,
+    },
+  });
+
+  const receptionPassword = await bcrypt.hash('Reception123!', 10);
+  const reception = await prisma.user.upsert({
+    where: { email: 'reception@aspirecoworks.com' },
+    update: {
+      passwordHash: receptionPassword,
+      role: 'RECEPTION',
+      isActive: true,
+      isActivated: true,
+      inviteToken: null,
+      inviteTokenExpiry: null,
+    },
+    create: {
+      email: 'reception@aspirecoworks.com',
+      passwordHash: receptionPassword,
+      firstName: 'Front',
+      lastName: 'Desk',
+      role: 'RECEPTION',
+      isActive: true,
+      isActivated: true,
+    },
+  });
+
   // Create sample client profile (for Dashboard testing: COMPANY_ADMIN uses this)
   const clientProfile = await prisma.clientProfile.upsert({
     where: { taxId: 'TAX123456' },
@@ -126,11 +193,17 @@ async function main() {
     update: {
       name: 'Indiranagar – Aspire Coworks',
       address: '17, 7th Main Rd, Indira Nagar II Stage, Bengaluru',
+      code: 'Indiranagar_1',
+      area: 'Indiranagar',
+      isActive: true,
     },
     create: {
       id: '00000000-0000-0000-0000-000000000001',
       name: 'Indiranagar – Aspire Coworks',
       address: '17, 7th Main Rd, Indira Nagar II Stage, Bengaluru',
+      code: 'Indiranagar_1',
+      area: 'Indiranagar',
+      isActive: true,
     },
   });
   const loc2 = await prisma.location.upsert({
@@ -138,11 +211,17 @@ async function main() {
     update: {
       name: 'Indiranagar – Aspire Coworks Platinum',
       address: '39/7-1, 7th Main Rd, Indiranagar, Bengaluru',
+      code: 'Platinum',
+      area: 'Indiranagar',
+      isActive: true,
     },
     create: {
       id: '00000000-0000-0000-0000-000000000002',
       name: 'Indiranagar – Aspire Coworks Platinum',
       address: '39/7-1, 7th Main Rd, Indiranagar, Bengaluru',
+      code: 'Platinum',
+      area: 'Indiranagar',
+      isActive: true,
     },
   });
   const loc3 = await prisma.location.upsert({
@@ -150,11 +229,17 @@ async function main() {
     update: {
       name: 'Koramangala – Aspire Coworks',
       address: 'Balaji Arcade, 20th L Cross Rd, Koramangala',
+      code: 'Kormangala_1',
+      area: 'Kormangala',
+      isActive: true,
     },
     create: {
       id: '00000000-0000-0000-0000-000000000003',
       name: 'Koramangala – Aspire Coworks',
       address: 'Balaji Arcade, 20th L Cross Rd, Koramangala',
+      code: 'Kormangala_1',
+      area: 'Kormangala',
+      isActive: true,
     },
   });
 
@@ -250,9 +335,12 @@ async function main() {
 
   console.log('Seed data created:');
   console.log('- Admin user:', admin.email);
+  console.log('- Manager user:', manager.email);
+  console.log('- Finance user:', finance.email, '(Finance123!)');
+  console.log('- Staff user:', staff.email, '(Staff123!)');
+  console.log('- Reception user:', reception.email, '(Reception123!)');
   console.log('- Locations: Indiranagar, Indiranagar Platinum, Koramangala');
   console.log('- Time slots: 8 hourly + 1 full-day');
-  console.log('- Manager user:', manager.email);
   console.log('- Company admin (Dashboard):', companyAdmin.email, '→', clientProfile.companyName);
   console.log('- Client user:', client.email, '→', clientProfile.companyName);
   console.log('- Client profile:', clientProfile.companyName);

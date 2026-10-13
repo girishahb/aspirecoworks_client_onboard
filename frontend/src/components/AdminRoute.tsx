@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { isAuthenticated, getCurrentUser } from '../services/auth';
 
 /** Roles allowed to access admin routes. */
-const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'];
 
 /**
  * Protects child routes: requires authentication and an admin role (ADMIN, SUPER_ADMIN, or MANAGER).

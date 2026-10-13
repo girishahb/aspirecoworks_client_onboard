@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { login, getCurrentUser, clearSessionExpired } from '../services/auth';
 
-const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'];
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'];
 
 export default function Login() {
   const navigate = useNavigate();

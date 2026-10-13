@@ -1,11 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createCompany } from '../services/admin';
+import { createCompany, getMobileLocations, getMobileVendors } from '../services/admin';
 
 const inputClass =
   'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60';
 
+const OFFICE_TYPE_OPTIONS = ['Virtual', 'Physical'] as const;
+const LEAD_SOURCE_OPTIONS = ['Aggregator', 'Direct'] as const;
+const MEMBERSHIP_TYPE_OPTIONS = [
+  'GST Registration Plan (G.R)',
+  'Business Registration (B.R)',
+  'Mailing Address (M.A)',
+] as const;
 type ClientChannel = 'DIRECT' | 'AGGREGATOR';
+
+function leadSourceToChannel(leadSource: string): ClientChannel {
+  return leadSource.trim().toLowerCase() === 'direct' ? 'DIRECT' : 'AGGREGATOR';
+}
 
 interface AdminCreateCompanyProps {
   /** When set, hides the channel radio and aggregator name field, and locks the channel to this value. */
@@ -35,15 +46,47 @@ export default function AdminCreateCompany({
     notes: '',
     clientChannel: (lockChannel ?? 'DIRECT') as ClientChannel,
     aggregatorName: '',
+    locationId: '',
+    vendorId: '',
+    contactPersonName: '',
+    membershipType: '',
+    officeType: 'Virtual',
+    leadSource: 'Direct',
+    contractMonths: '',
   });
   const isLocked = !!lockChannel;
   const isAggregatorLocked = lockChannel === 'AGGREGATOR';
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [locations, setLocations] = useState<{ id: string; name: string; code: string | null }[]>([]);
+  const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  useEffect(() => {
+    getMobileLocations()
+      .then(setLocations)
+      .catch(() => setLocations([]));
+  }, []);
+
+  useEffect(() => {
+    if (!formData.locationId) {
+      setVendors([]);
+      return;
+    }
+    getMobileVendors(formData.locationId)
+      .then(setVendors)
+      .catch(() => setVendors([]));
+  }, [formData.locationId]);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'locationId' ? { vendorId: '' } : {}),
+      ...(name === 'leadSource' && value
+        ? { clientChannel: leadSourceToChannel(value) }
+        : {}),
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -81,6 +124,13 @@ export default function AdminCreateCompany({
       if (formData.zipCode.trim()) data.zipCode = formData.zipCode.trim();
       if (formData.country.trim()) data.country = formData.country.trim();
       if (formData.notes.trim()) data.notes = formData.notes.trim();
+      if (formData.locationId) data.locationId = formData.locationId;
+      if (formData.vendorId) data.vendorId = formData.vendorId;
+      if (formData.contactPersonName.trim()) data.contactPersonName = formData.contactPersonName.trim();
+      if (formData.membershipType.trim()) data.membershipType = formData.membershipType.trim();
+      if (formData.officeType.trim()) data.officeType = formData.officeType.trim();
+      if (formData.leadSource.trim()) data.leadSource = formData.leadSource.trim();
+      if (formData.contractMonths) data.contractMonths = Number(formData.contractMonths);
 
       const company = await createCompany(data);
       navigate(`${detailPathPrefix}/${company.id}`, { replace: true, state: { inviteSent: true } });
@@ -226,6 +276,143 @@ export default function AdminCreateCompany({
             disabled={loading}
           />
         </div>
+
+        {!isLocked && (
+          <>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="locationId" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Branch location
+              </label>
+              <select
+                id="locationId"
+                name="locationId"
+                value={formData.locationId}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={loading}
+              >
+                <option value="">(none)</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {(l.code ? `${l.code} — ` : '') + l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="vendorId" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Vendor
+              </label>
+              <select
+                id="vendorId"
+                name="vendorId"
+                value={formData.vendorId}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={loading || !formData.locationId}
+              >
+                <option value="">(none)</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="contactPersonName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Contact person
+              </label>
+              <input
+                id="contactPersonName"
+                name="contactPersonName"
+                type="text"
+                value={formData.contactPersonName}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={loading}
+              />
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="membershipType" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Membership type
+              </label>
+              <select
+                id="membershipType"
+                name="membershipType"
+                value={formData.membershipType}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={loading}
+              >
+                <option value="">(none)</option>
+                {MEMBERSHIP_TYPE_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="officeType" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Office type
+              </label>
+              <select
+                id="officeType"
+                name="officeType"
+                value={formData.officeType}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={loading}
+              >
+                <option value="">(none)</option>
+                {OFFICE_TYPE_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="leadSource" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Lead source
+              </label>
+              <select
+                id="leadSource"
+                name="leadSource"
+                value={formData.leadSource}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={loading}
+              >
+                <option value="">(none)</option>
+                {LEAD_SOURCE_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label htmlFor="contractMonths" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Contract months
+              </label>
+              <input
+                id="contractMonths"
+                name="contractMonths"
+                type="number"
+                min={1}
+                max={600}
+                step={1}
+                value={formData.contractMonths}
+                onChange={handleChange}
+                className={inputClass}
+                disabled={loading}
+                placeholder="e.g. 12"
+              />
+            </div>
+          </>
+        )}
 
         <div style={{ marginBottom: '1rem' }}>
           <label htmlFor="contactEmail" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>

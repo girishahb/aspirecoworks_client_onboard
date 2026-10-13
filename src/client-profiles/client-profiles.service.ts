@@ -23,6 +23,7 @@ import { onboardingStageChanged } from '../email/templates/onboarding-stage-chan
 import { clientInviteSetPassword } from '../email/templates/client-invite-set-password';
 import { assertValidTransition } from './onboarding-stage.helper';
 import { AggregatorProfileService } from '../aggregator-profile/aggregator-profile.service';
+import { leadSourceToClientChannel } from '../common/constants/client-ops-options';
 import type {
   AggregatorBookingInput,
   InvoiceToOverrideInput,
@@ -62,10 +63,15 @@ export class ClientProfilesService {
     // Resolve channel + aggregator from payload and actor context.
     // AGGREGATOR users cannot choose the channel; it is always forced to AGGREGATOR
     // and aggregatorName is taken from the authenticated user.
+    // leadSource (Aggregator/Direct) also drives clientChannel when provided.
     let clientChannel: 'DIRECT' | 'AGGREGATOR' =
       (createClientProfileDto.clientChannel as 'DIRECT' | 'AGGREGATOR' | undefined) ?? 'DIRECT';
     let aggregatorName: string | null =
       (createClientProfileDto.aggregatorName as string | undefined) ?? null;
+
+    if (createClientProfileDto.leadSource) {
+      clientChannel = leadSourceToClientChannel(createClientProfileDto.leadSource);
+    }
 
     if (actor?.role === UserRole.AGGREGATOR) {
       clientChannel = 'AGGREGATOR';

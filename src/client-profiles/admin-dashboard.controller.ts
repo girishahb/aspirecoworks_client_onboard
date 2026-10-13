@@ -13,7 +13,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 @Controller('admin/dashboard')
 @Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
 export class AdminDashboardController {
   constructor(private readonly clientProfilesService: ClientProfilesService) {}
 

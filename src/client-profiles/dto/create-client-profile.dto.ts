@@ -28,6 +28,18 @@ export const createClientProfileSchema = z.object({
   notes: optionalString,
   clientChannel: ClientChannelEnum.optional(),
   aggregatorName: optionalString,
+  locationId: z.string().uuid().optional(),
+  vendorId: z.string().uuid().optional(),
+  membershipType: optionalString,
+  officeType: optionalString,
+  leadSource: optionalString,
+  contractMonths: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? undefined : val),
+    z.coerce.number().int().positive().max(600).optional(),
+  ),
+  contactPersonName: optionalString,
+  contractStartDate: optionalString,
+  contractEndDate: optionalString,
   /**
    * Aggregator-only: optional booking details for this registration.
    * Silently ignored when the caller is not an AGGREGATOR.

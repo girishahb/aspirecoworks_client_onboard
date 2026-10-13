@@ -13,7 +13,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 @Controller('admin/invoices')
 @Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
 export class AdminInvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 

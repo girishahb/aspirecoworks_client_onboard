@@ -14,7 +14,7 @@ import { ActivateCompanyDto } from './dto/activate-company.dto';
 @Controller('admin/companies')
 @Throttle({ default: { limit: 500, ttl: 60000 } })
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE)
 export class AdminCompaniesController {
   constructor(private readonly clientProfilesService: ClientProfilesService) {}
 

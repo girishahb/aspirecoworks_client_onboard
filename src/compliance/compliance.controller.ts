@@ -34,7 +34,7 @@ export class ComplianceController {
   }
 
   @Get('company/:companyId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({
     summary: 'Get compliance status for a company',
     description:

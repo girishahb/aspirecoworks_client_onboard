@@ -6,4 +6,7 @@ export enum UserRole {
   MANAGER = 'MANAGER',
   USER = 'USER',
   AGGREGATOR = 'AGGREGATOR',
+  FINANCE = 'FINANCE',
+  STAFF = 'STAFF',
+  RECEPTION = 'RECEPTION',
 }
