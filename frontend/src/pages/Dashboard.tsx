@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getCurrentUser } from '../services/auth';
 import { getMyCompany, type CompanyProfile } from '../services/company';
 import { listMyDocuments, type DocumentListItem } from '../services/documents';
+import { getMyPayments } from '../services/payments';
 import Badge from '../components/Badge';
 import OnboardingStepper from '../components/OnboardingStepper';
 import NextActionCard from '../components/NextActionCard';
@@ -46,16 +47,25 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
     setLoading(true);
-    Promise.all([getMyCompany(), listMyDocuments()])
-      .then(([companyData, docsData]) => {
+    Promise.all([
+      getMyCompany(),
+      listMyDocuments(),
+      getMyPayments().catch(() => [] as Awaited<ReturnType<typeof getMyPayments>>),
+    ])
+      .then(([companyData, docsData, payments]) => {
         if (!cancelled) {
           setCompany(companyData);
           setDocuments(Array.isArray(docsData) ? docsData : []);
+          const pending = (payments || []).find(
+            (p) => p.status === 'CREATED' && !!p.paymentLink,
+          );
+          setPaymentLink(pending?.paymentLink ?? null);
         }
       })
       .catch((err) => {
@@ -63,6 +73,7 @@ export default function Dashboard() {
           setError(err instanceof Error ? err.message : 'Failed to load dashboard');
           setCompany(null);
           setDocuments([]);
+          setPaymentLink(null);
         }
       })
       .finally(() => {
@@ -101,9 +112,12 @@ export default function Dashboard() {
   }
 
   const stage = company.onboardingStage ?? null;
+  const isAggregator = company.clientChannel === 'AGGREGATOR';
   const rejectedDocs = documents.filter((d) => d.status === 'REJECTED');
   const agreementDraft = documents.find((d) => d.documentType === 'AGREEMENT_DRAFT');
   const finalAgreement = documents.find((d) => d.documentType === 'AGREEMENT_FINAL');
+  const hasAadhaar = documents.some((d) => d.documentType === 'AADHAAR');
+  const hasPan = documents.some((d) => d.documentType === 'PAN');
 
   // Determine notification
   const notification = getNotification(stage, rejectedDocs.length > 0, agreementDraft, finalAgreement);
@@ -139,15 +153,18 @@ export default function Dashboard() {
       {/* Next Action Card */}
       <NextActionCard
         stage={stage}
+        paymentLink={isAggregator ? null : paymentLink}
         agreementDraftId={agreementDraft?.id}
         finalAgreementId={finalAgreement?.id}
+        clientChannel={company.clientChannel ?? null}
+        hasRequiredKyc={hasAadhaar && hasPan}
       />
 
       {/* Summary Cards */}
-      <SummaryCards stage={stage} />
+      <SummaryCards stage={stage} hidePayment={isAggregator} />
 
       {/* Timeline View */}
-      <TimelineView stage={stage} />
+      <TimelineView stage={stage} hidePayment={isAggregator} />
 
       {/* Contract Period (when contract dates are set) */}
       {(company.contractStartDate || company.contractEndDate) && (() => {

@@ -28,7 +28,7 @@ export class ClientProfilesController {
   constructor(private readonly clientProfilesService: ClientProfilesService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Create a new client profile' })
   @ApiResponse({ status: 201, description: 'Client profile created successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
@@ -94,7 +94,7 @@ export class ClientProfilesController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Get all client profiles' })
   @ApiResponse({ status: 200, description: 'List of client profiles' })
   findAll(@CurrentUser() user: any) {
@@ -102,7 +102,7 @@ export class ClientProfilesController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Get client profile by ID' })
   @ApiResponse({ status: 200, description: 'Client profile found' })
   @ApiResponse({ status: 404, description: 'Client profile not found' })

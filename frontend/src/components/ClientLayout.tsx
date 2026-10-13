@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { getCurrentUser, logout } from '../services/auth';
+import { getMyCompany } from '../services/company';
 import {
   LayoutDashboard,
   FileText,
@@ -16,16 +17,23 @@ import {
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/client/documents', icon: FileText, label: 'Documents' },
-  { to: '/client/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/client/invoices', icon: Receipt, label: 'Invoices' },
+  { to: '/client/payments', icon: CreditCard, label: 'Payments', hideForAggregator: true },
+  { to: '/client/invoices', icon: Receipt, label: 'Invoices', hideForAggregator: true },
   { to: '/client/profile', icon: User, label: 'Profile' },
 ];
 
 export default function ClientLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAggregator, setIsAggregator] = useState(false);
   let user: ReturnType<typeof getCurrentUser> = null;
   try { user = getCurrentUser(); } catch { /* noop */ }
+
+  useEffect(() => {
+    getMyCompany()
+      .then((c) => setIsAggregator(c.clientChannel === 'AGGREGATOR'))
+      .catch(() => setIsAggregator(false));
+  }, []);
 
   function handleLogout() {
     logout();
@@ -59,7 +67,7 @@ export default function ClientLayout() {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-1">
-              {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+              {NAV_ITEMS.filter((item) => !(item.hideForAggregator && isAggregator)).map(({ to, icon: Icon, label }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -140,7 +148,7 @@ export default function ClientLayout() {
             </div>
 
             <nav className="flex-1 px-3 py-4 space-y-0.5">
-              {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+              {NAV_ITEMS.filter((item) => !(item.hideForAggregator && isAggregator)).map(({ to, icon: Icon, label }) => (
                 <NavLink
                   key={to}
                   to={to}

@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardingStage } from '../common/enums/onboarding-stage.enum';
 import { assertValidTransition } from '../client-profiles/onboarding-stage.helper';
+import { areRequiredKycTypesApproved } from '../common/constants/kyc-requirements';
 import type { OnboardingStage as PrismaOnboardingStage } from '@prisma/client';
 
 /**
@@ -207,21 +208,12 @@ export class OnboardingService {
       const hasPaidPayment = company.payments.some((p) => p.status === 'PAID');
       if (!hasPaidPayment) return false;
     }
-    const kycDocs = company.documents.filter(
-      (d) => d.documentType === 'KYC' && d.documentOwner === 'CLIENT',
-    );
-    if (kycDocs.length > 0) {
-      const latestVersion = Math.max(...kycDocs.map((d) => d.version));
-      const latestKyc = kycDocs.find((d) => d.version === latestVersion);
-      if (
-        !latestKyc ||
-        (latestKyc.status !== 'APPROVED' && latestKyc.status !== 'VERIFIED')
-      ) {
-        return false;
-      }
+    // Require latest Aadhaar + PAN approved (legacy single KYC type is not enough).
+    if (!areRequiredKycTypesApproved(company.documents)) {
+      return false;
     }
     const hasFinalAgreement = company.documents.some(
-      (d) => d.documentType === 'AGREEMENT_FINAL',
+      (d) => d.documentType === 'AGREEMENT_FINAL' && (d.status === 'APPROVED' || d.status === 'VERIFIED' || d.status === 'UPLOADED'),
     );
     if (!hasFinalAgreement) return false;
     return true;

@@ -14,7 +14,9 @@ type Props = {
   canEditProfile: boolean;
   inviteSentBanner: boolean;
   inviteSentFromCreate: boolean;
+  inviteStatusFromCreate?: 'sent' | 'already_activated' | 'failed' | null;
   inviteErrorFromCreate?: string | null;
+  inviteMessageFromCreate?: string | null;
   resendInviteBusy: boolean;
   onResendInvite: () => void;
   onDismissInviteBanner: () => void;
@@ -30,7 +32,9 @@ export default function CompanyReviewOverviewTab({
   canEditProfile,
   inviteSentBanner,
   inviteSentFromCreate,
+  inviteStatusFromCreate,
   inviteErrorFromCreate,
+  inviteMessageFromCreate,
   resendInviteBusy,
   onResendInvite,
   onDismissInviteBanner,
@@ -58,11 +62,24 @@ export default function CompanyReviewOverviewTab({
         )}
       </section>
 
-      {inviteErrorFromCreate && (
+      {inviteStatusFromCreate === 'already_activated' && (
+        <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          <p className="m-0 font-medium">
+            {inviteMessageFromCreate ||
+              'This email already has a client login. No invite was sent.'}
+          </p>
+          <p className="mt-1 mb-0 text-sky-900/80">
+            They can sign in with their existing password. For a fresh set-password email, use a
+            different contact email that has not been activated yet.
+          </p>
+        </div>
+      )}
+
+      {inviteStatusFromCreate === 'failed' && inviteErrorFromCreate && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
           <span className="font-medium text-amber-950">
-            Client was created, but the invite email failed: {inviteErrorFromCreate}. Use Resend Invite
-            after fixing email config (Resend domain / EMAIL_FROM).
+            Client was created, but the invite email failed: {inviteErrorFromCreate}. Check Resend /
+            EMAIL_FROM, then use Resend Invite.
           </span>
           <button
             type="button"
@@ -75,7 +92,7 @@ export default function CompanyReviewOverviewTab({
         </div>
       )}
 
-      {(inviteSentBanner || inviteSentFromCreate) && !inviteErrorFromCreate && (
+      {(inviteSentBanner || inviteSentFromCreate) && inviteStatusFromCreate !== 'failed' && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-green-300 bg-green-50 px-4 py-3">
           <span className="font-medium text-green-900">
             Invite email sent to client. They can set their password and log in.

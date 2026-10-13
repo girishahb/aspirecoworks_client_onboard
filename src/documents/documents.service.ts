@@ -30,6 +30,11 @@ import { OnboardingStage } from '../common/enums/onboarding-stage.enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { ClientProfilesService } from '../client-profiles/client-profiles.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
+import {
+  areRequiredKycTypesApproved,
+  hasRequiredKycUploads,
+  isClientKycType,
+} from '../common/constants/kyc-requirements';
 import { randomUUID } from 'crypto';
 
 /** Stages where admin may upload post–signed-agreement docs (incl. multiple files & reshare after activation). */
@@ -256,8 +261,8 @@ export class DocumentsService {
 
     if (!isSignedAgreement) {
       try {
+        // Stay at KYC_IN_PROGRESS until client explicitly submits for review.
         await this.onboardingService.onKycUploaded(user.companyId);
-        await this.onboardingService.moveToKycReviewAfterUpload(user.companyId);
       } catch (err) {
         this.logger.warn(
           `KYC upload stage transition skipped companyId=${user.companyId}: ${err instanceof Error ? err.message : err}`,
@@ -403,8 +408,8 @@ export class DocumentsService {
 
     if (!isSignedAgreement) {
       try {
+        // Stay at KYC_IN_PROGRESS until client explicitly submits for review.
         await this.onboardingService.onKycUploaded(user.companyId);
-        await this.onboardingService.moveToKycReviewAfterUpload(user.companyId);
       } catch (err) {
         this.logger.warn(
           `KYC upload stage transition skipped companyId=${user.companyId}: ${err instanceof Error ? err.message : err}`,
@@ -532,8 +537,8 @@ export class DocumentsService {
     });
 
     try {
+      // Aggregator uploads stay at KYC_IN_PROGRESS until submit-for-review (Aadhaar+PAN).
       await this.onboardingService.onKycUploaded(companyId);
-      await this.onboardingService.moveToKycReviewAfterUpload(companyId);
     } catch (err) {
       this.logger.warn(
         `KYC upload stage transition skipped companyId=${companyId}: ${err instanceof Error ? err.message : err}`,
@@ -839,15 +844,19 @@ export class DocumentsService {
         `KYC submission only allowed from KYC_IN_PROGRESS. Current stage: ${current}.`,
       );
     }
-    const hasKyc = await this.db.document.count({
+    const uploaded = await this.db.document.findMany({
       where: {
         clientProfileId: user.companyId,
-        documentType: { in: [DocumentType.AADHAAR, DocumentType.PAN, DocumentType.OTHER, DocumentType.KYC] },
+        documentOwner: 'CLIENT',
+        documentType: {
+          in: [DocumentType.AADHAAR, DocumentType.PAN, DocumentType.OTHER, DocumentType.KYC],
+        },
       },
+      select: { documentType: true, documentOwner: true },
     });
-    if (hasKyc === 0) {
+    if (!hasRequiredKycUploads(uploaded)) {
       throw new BadRequestException(
-        'Upload at least one KYC document before submitting for review.',
+        'Upload both Aadhaar and PAN before submitting KYC for review.',
       );
     }
     await this.onboardingService.moveToKycReviewAfterUpload(user.companyId);
@@ -1302,38 +1311,40 @@ export class DocumentsService {
       }
     }
 
-    // DIRECT clients: when all legacy KYC docs are approved at KYC_REVIEW,
-    // auto-advance to AGREEMENT_DRAFT_SHARED. This preserves historical direct-
-    // client behavior.
+    // After KYC approve: stay at KYC_REVIEW until admin shares agreement draft
+    // (same for DIRECT and AGGREGATOR). Do not jump client to "sign agreement"
+    // before a draft exists.
     //
-    // AGGREGATOR clients: stage intentionally stays at KYC_REVIEW after all
-    // KYC docs are approved. The admin then generates the agreement draft and
-    // clicks "Notify draft shared", which is what advances the stage to
-    // AGREEMENT_DRAFT_SHARED and emails the client. See
-    // `notifyAgreementDraftShared` + `OnboardingService.onAgreementDraftShared`.
+    // KYC reject / pending-with-client: return to KYC_IN_PROGRESS so client can re-upload.
     if (
-      dto.status === DocumentStatus.VERIFIED &&
-      (updated.clientProfile?.onboardingStage as OnboardingStage) === OnboardingStage.KYC_REVIEW
+      !isSignedAgreement &&
+      isClientKycType(existing.documentType) &&
+      (dto.status === DocumentStatus.REJECTED ||
+        dto.status === DocumentStatus.PENDING_WITH_CLIENT)
     ) {
-      const profile = await this.db.clientProfile.findUnique({
-        where: { id: updated.clientProfileId },
-        select: { clientChannel: true },
-      });
-      const isAggregator = profile?.clientChannel === 'AGGREGATOR';
-      if (!isAggregator) {
-        const allKycApproved = await this.areAllKycDocumentsApproved(updated.clientProfileId);
-        if (allKycApproved) {
-          try {
-            await this.onboardingService.onKycApproved(updated.clientProfileId);
-            this.logger.log(
-              `Direct client ${updated.clientProfileId} moved to AGREEMENT_DRAFT_SHARED after all KYC documents verified`,
-            );
-          } catch (err) {
-            this.logger.warn(
-              `Failed to transition direct client ${updated.clientProfileId} to AGREEMENT_DRAFT_SHARED: ${err instanceof Error ? err.message : err}`,
-            );
-          }
-        }
+      try {
+        await this.onboardingService.updateStage(
+          existing.clientProfileId,
+          OnboardingStage.KYC_IN_PROGRESS,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to return company ${existing.clientProfileId} to KYC_IN_PROGRESS: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    // Signed agreement rejected: return to AGREEMENT_DRAFT_SHARED so client can re-upload.
+    if (isSignedAgreement && dto.status === DocumentStatus.REJECTED) {
+      try {
+        await this.onboardingService.updateStage(
+          existing.clientProfileId,
+          OnboardingStage.AGREEMENT_DRAFT_SHARED,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to return company ${existing.clientProfileId} to AGREEMENT_DRAFT_SHARED after signed reject: ${err instanceof Error ? err.message : err}`,
+        );
       }
     }
 
@@ -1354,8 +1365,10 @@ export class DocumentsService {
     if (!document) {
       throw new NotFoundException(`Document with ID ${documentId} not found`);
     }
-    if (document.documentType !== DocumentType.KYC) {
-      throw new BadRequestException('Only KYC documents can be reviewed with this action.');
+    if (!isClientKycType(document.documentType)) {
+      throw new BadRequestException(
+        'Only KYC documents (Aadhaar, PAN, Other) can be reviewed with this action.',
+      );
     }
     if (document.documentOwner !== 'CLIENT') {
       throw new BadRequestException('Only client-uploaded KYC documents can be reviewed.');
@@ -1586,19 +1599,17 @@ export class DocumentsService {
    * Used to enforce "all KYC approved" before admin can upload agreement draft and for approve→stage transition.
    */
   private async areAllKycDocumentsApproved(clientProfileId: string): Promise<boolean> {
-    const latestKyc = await this.db.document.findFirst({
+    const docs = await this.db.document.findMany({
       where: {
         clientProfileId,
-        documentType: DocumentType.KYC,
         documentOwner: 'CLIENT',
+        documentType: {
+          in: [DocumentType.AADHAAR, DocumentType.PAN, DocumentType.OTHER, DocumentType.KYC],
+        },
       },
-      orderBy: { version: 'desc' },
-      select: { status: true },
+      select: { documentType: true, version: true, status: true, documentOwner: true },
     });
-    return (
-      latestKyc != null &&
-      (latestKyc.status === DocumentStatus.APPROVED || latestKyc.status === DocumentStatus.VERIFIED)
-    );
+    return areRequiredKycTypesApproved(docs);
   }
 
   /**
@@ -1628,16 +1639,11 @@ export class DocumentsService {
     }
 
     await this.onboardingService.assertNotActive(dto.companyId);
-    // Aggregator clients can receive an admin-uploaded draft from KYC_REVIEW
-    // onwards; direct-client behavior is unchanged.
-    const uploadUrlAllowedStages: OnboardingStage[] =
-      (company as unknown as { clientChannel?: string }).clientChannel === 'AGGREGATOR'
-        ? [OnboardingStage.KYC_REVIEW, OnboardingStage.AGREEMENT_DRAFT_SHARED]
-        : [OnboardingStage.AGREEMENT_DRAFT_SHARED];
+    // Both channels: upload draft once KYC is in review (or draft already shared for revisions).
     await this.onboardingService.assertStage(
       dto.companyId,
-      uploadUrlAllowedStages,
-      'Agreement draft cannot be uploaded at the current stage.',
+      [OnboardingStage.KYC_REVIEW, OnboardingStage.AGREEMENT_DRAFT_SHARED],
+      'Agreement draft can be uploaded after KYC is in review.',
     );
 
     const previousDraft = await this.db.document.findFirst({
@@ -1731,20 +1737,11 @@ export class DocumentsService {
     }
 
     await this.onboardingService.assertNotActive(companyId);
-    // Direct clients: admin uploads the agreement draft ONLY once the stage
-    // has reached AGREEMENT_DRAFT_SHARED (via onKycApproved in reviewDocument).
-    // Aggregator clients: stage stays at KYC_REVIEW after KYC approval; the
-    // admin generates/uploads the draft and then clicks "Notify draft shared"
-    // to advance the stage + email the client. Allow the upload from
-    // KYC_REVIEW too for aggregators, without widening direct-client behavior.
-    const draftUploadAllowedStages: OnboardingStage[] =
-      (company as unknown as { clientChannel?: string }).clientChannel === 'AGGREGATOR'
-        ? [OnboardingStage.KYC_REVIEW, OnboardingStage.AGREEMENT_DRAFT_SHARED]
-        : [OnboardingStage.AGREEMENT_DRAFT_SHARED];
+    // Both channels: admin uploads draft at KYC_REVIEW, then notifies to share with client.
     await this.onboardingService.assertStage(
       companyId,
-      draftUploadAllowedStages,
-      'Agreement draft cannot be uploaded at the current stage.',
+      [OnboardingStage.KYC_REVIEW, OnboardingStage.AGREEMENT_DRAFT_SHARED],
+      'Agreement draft can be uploaded after KYC is in review.',
     );
 
     const allowedExts = ['.pdf', '.doc', '.docx'];

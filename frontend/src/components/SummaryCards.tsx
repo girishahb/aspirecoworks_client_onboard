@@ -11,6 +11,8 @@ export interface SummaryCardsProps {
   agreementStatus?: 'pending' | 'draft_shared' | 'signed' | 'final' | 'none';
   /** Activation status */
   activationStatus?: 'pending' | 'active' | 'none';
+  /** Hide payment card for aggregator clients */
+  hidePayment?: boolean;
 }
 
 export default function SummaryCards({
@@ -19,6 +21,7 @@ export default function SummaryCards({
   kycStatus = 'none',
   agreementStatus = 'none',
   activationStatus = 'none',
+  hidePayment = false,
 }: SummaryCardsProps) {
   // Auto-determine statuses from stage if not provided
   const autoPaymentStatus = getPaymentStatus(stage);
@@ -27,12 +30,18 @@ export default function SummaryCards({
   const autoActivationStatus = getActivationStatus(stage);
 
   const cards = [
-    {
-      title: 'Payment Status',
-      icon: <CreditCard className="h-5 w-5" strokeWidth={2} />,
-      status: paymentStatus !== 'none' ? paymentStatus : autoPaymentStatus,
-      description: getPaymentDescription(paymentStatus !== 'none' ? paymentStatus : autoPaymentStatus),
-    },
+    ...(!hidePayment
+      ? [
+          {
+            title: 'Payment Status',
+            icon: <CreditCard className="h-5 w-5" strokeWidth={2} />,
+            status: paymentStatus !== 'none' ? paymentStatus : autoPaymentStatus,
+            description: getPaymentDescription(
+              paymentStatus !== 'none' ? paymentStatus : autoPaymentStatus,
+            ),
+          },
+        ]
+      : []),
     {
       title: 'KYC Status',
       icon: <FileCheck className="h-5 w-5" strokeWidth={2} />,
@@ -54,7 +63,7 @@ export default function SummaryCards({
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${hidePayment ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
       {cards.map((card) => (
         <div key={card.title} className="rounded-lg border border-border bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between">

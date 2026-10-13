@@ -9,6 +9,9 @@ export interface NextActionCardProps {
   agreementDraftId?: string | null;
   /** Optional: final agreement document ID if available */
   finalAgreementId?: string | null;
+  clientChannel?: 'DIRECT' | 'AGGREGATOR' | null;
+  /** True when Aadhaar + PAN are uploaded (ready to submit KYC). */
+  hasRequiredKyc?: boolean;
   /** Callback when action button is clicked */
   onActionClick?: () => void;
 }
@@ -18,6 +21,8 @@ export default function NextActionCard({
   paymentLink,
   agreementDraftId,
   finalAgreementId,
+  clientChannel,
+  hasRequiredKyc,
   onActionClick,
 }: NextActionCardProps) {
   if (!stage) {
@@ -36,7 +41,14 @@ export default function NextActionCard({
     );
   }
 
-  const actionConfig = getActionConfig(stage, paymentLink, agreementDraftId, finalAgreementId);
+  const actionConfig = getActionConfig(
+    stage,
+    paymentLink,
+    agreementDraftId,
+    finalAgreementId,
+    clientChannel,
+    hasRequiredKyc,
+  );
 
   return (
     <div
@@ -96,13 +108,31 @@ function getActionConfig(
   paymentLink?: string | null,
   agreementDraftId?: string | null,
   finalAgreementId?: string | null,
+  clientChannel?: 'DIRECT' | 'AGGREGATOR' | null,
+  hasRequiredKyc?: boolean,
 ) {
+  const isAggregator = clientChannel === 'AGGREGATOR';
+
   switch (stage) {
     case 'PAYMENT_PENDING':
+      if (isAggregator) {
+        return {
+          type: 'info' as const,
+          title: 'Payment handled by your aggregator',
+          description: 'You do not need to pay in this portal. Continue with KYC when prompted.',
+          icon: <Clock className="h-6 w-6 text-primary" strokeWidth={2} />,
+          button: {
+            label: 'Go to Documents',
+            icon: <Upload className="h-4 w-4" />,
+            href: '/client/documents',
+          },
+        };
+      }
       return {
         type: 'warning' as const,
         title: 'Complete Your Payment',
-        description: 'Complete your payment to begin onboarding. Once payment is confirmed, you can proceed with KYC document uploads.',
+        description:
+          'Complete your payment to begin onboarding. Once payment is confirmed, you can upload KYC documents.',
         icon: <CreditCard className="h-6 w-6 text-accent" strokeWidth={2} />,
         button: paymentLink
           ? {
@@ -111,8 +141,9 @@ function getActionConfig(
               onClick: () => window.open(paymentLink, '_blank', 'noopener,noreferrer'),
             }
           : {
-              label: 'Payment Link Coming Soon',
-              icon: <Clock className="h-4 w-4" />,
+              label: 'Open Payments',
+              icon: <CreditCard className="h-4 w-4" />,
+              href: '/client/payments',
             },
       };
 
@@ -120,11 +151,13 @@ function getActionConfig(
     case 'KYC_IN_PROGRESS':
       return {
         type: 'warning' as const,
-        title: 'Upload Your KYC Documents',
-        description: 'Upload your Aadhaar and PAN documents to proceed with onboarding.',
+        title: hasRequiredKyc ? 'Submit KYC for review' : 'Upload Your KYC Documents',
+        description: hasRequiredKyc
+          ? 'Aadhaar and PAN are uploaded. Submit them for admin review to continue.'
+          : 'Upload both Aadhaar and PAN, then submit for admin review.',
         icon: <Upload className="h-6 w-6 text-accent" strokeWidth={2} />,
         button: {
-          label: 'Upload Documents',
+          label: hasRequiredKyc ? 'Submit KYC' : 'Upload Documents',
           icon: <Upload className="h-4 w-4" />,
           href: '/client/documents',
         },

@@ -150,16 +150,19 @@ export default function CompanyReviewActionsTab({
 
       {!isAggregatorView && canMarkKycComplete && (
         <div className="rounded-lg border border-green-300 bg-green-50 p-4">
-          <p className="mb-3 text-sm text-green-900">
-            All KYC documents approved. Mark KYC review complete and move to Agreement draft stage.
+          <p className="m-0 text-sm text-green-900">
+            KYC looks ready. Next: open the <strong>Agreements</strong> tab, upload (or generate) the
+            agreement draft, then click <strong>Notify draft shared</strong>. That emails the client and
+            advances the stage — do not skip ahead without a draft.
           </p>
+          {/* Keep handler available for rare admin overrides via confirm dialog */}
           <button
             type="button"
             onClick={onMarkKycComplete}
             disabled={kycCompleteBusy}
-            className="rounded bg-green-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="mt-3 text-xs font-medium text-green-900/70 underline disabled:opacity-50"
           >
-            {kycCompleteBusy ? 'Updating…' : 'Mark KYC Review Complete'}
+            {kycCompleteBusy ? 'Updating…' : 'Force advance without draft (not recommended)'}
           </button>
         </div>
       )}

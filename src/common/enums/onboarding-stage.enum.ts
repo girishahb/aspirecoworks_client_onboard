@@ -46,7 +46,12 @@ export const ALLOWED_STAGE_TRANSITIONS: Record<OnboardingStage, OnboardingStage[
   [OnboardingStage.KYC_IN_PROGRESS]: [OnboardingStage.KYC_REVIEW, OnboardingStage.DOCUMENTS_SUBMITTED, OnboardingStage.REJECTED],
   [OnboardingStage.KYC_REVIEW]: [OnboardingStage.AGREEMENT_DRAFT_SHARED, OnboardingStage.KYC_IN_PROGRESS, OnboardingStage.REJECTED],
   [OnboardingStage.AGREEMENT_DRAFT_SHARED]: [OnboardingStage.SIGNED_AGREEMENT_RECEIVED, OnboardingStage.REJECTED],
-  [OnboardingStage.SIGNED_AGREEMENT_RECEIVED]: [OnboardingStage.FINAL_AGREEMENT_SHARED, OnboardingStage.REJECTED],
+  // Allow returning to draft-shared so client can re-upload after signed agreement is rejected.
+  [OnboardingStage.SIGNED_AGREEMENT_RECEIVED]: [
+    OnboardingStage.FINAL_AGREEMENT_SHARED,
+    OnboardingStage.AGREEMENT_DRAFT_SHARED,
+    OnboardingStage.REJECTED,
+  ],
   [OnboardingStage.FINAL_AGREEMENT_SHARED]: [OnboardingStage.ACTIVE, OnboardingStage.REJECTED],
   [OnboardingStage.ACTIVE]: [], // terminal (activated)
   [OnboardingStage.COMPLETED]: [], // terminal (legacy)
