@@ -1,22 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCompany, getMobileLocations, getMobileVendors } from '../services/admin';
+import {
+  LEAD_SOURCE_OPTIONS,
+  MEMBERSHIP_TYPE_OPTIONS,
+  OFFICE_TYPE_OPTIONS,
+  leadSourceToChannel,
+  type ClientChannel,
+} from '../constants/clientOpsOptions';
 
 const inputClass =
   'block w-full max-w-md rounded-md border border-border bg-white px-3 py-2 text-text text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60';
-
-const OFFICE_TYPE_OPTIONS = ['Virtual', 'Physical'] as const;
-const LEAD_SOURCE_OPTIONS = ['Aggregator', 'Direct'] as const;
-const MEMBERSHIP_TYPE_OPTIONS = [
-  'GST Registration Plan (G.R)',
-  'Business Registration (B.R)',
-  'Mailing Address (M.A)',
-] as const;
-type ClientChannel = 'DIRECT' | 'AGGREGATOR';
-
-function leadSourceToChannel(leadSource: string): ClientChannel {
-  return leadSource.trim().toLowerCase() === 'direct' ? 'DIRECT' : 'AGGREGATOR';
-}
 
 interface AdminCreateCompanyProps {
   /** When set, hides the channel radio and aggregator name field, and locks the channel to this value. */

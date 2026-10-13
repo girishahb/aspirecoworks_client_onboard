@@ -58,6 +58,15 @@ export class ClientProfilesController {
         notes: body?.notes,
         clientChannel: body?.clientChannel,
         aggregatorName: body?.aggregatorName,
+        locationId: body?.locationId,
+        vendorId: body?.vendorId,
+        membershipType: body?.membershipType,
+        officeType: body?.officeType,
+        leadSource: body?.leadSource,
+        contractMonths: body?.contractMonths,
+        contactPersonName: body?.contactPersonName,
+        contractStartDate: body?.contractStartDate,
+        contractEndDate: body?.contractEndDate,
         booking: body?.booking,
         invoiceTo: body?.invoiceTo,
         saveInvoiceToProfile: body?.saveInvoiceToProfile,
@@ -103,7 +112,7 @@ export class ClientProfilesController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGGREGATOR)
   @ApiOperation({ summary: 'Update client profile' })
   @ApiResponse({ status: 200, description: 'Client profile updated successfully' })
   @ApiResponse({ status: 404, description: 'Client profile not found' })

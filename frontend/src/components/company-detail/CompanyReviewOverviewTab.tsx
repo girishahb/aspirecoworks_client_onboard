@@ -2,6 +2,7 @@ import type { AdminCompany, ComplianceStatus } from '../../services/admin';
 import type { AggregatorBooking } from '../../services/aggregatorProfile';
 import OnboardingStepper from '../OnboardingStepper';
 import BookingDetailsCard from './BookingDetailsCard';
+import CompanyProfileEditSection from './CompanyProfileEditSection';
 import { formatCompanyDate } from './formatting';
 
 type Props = {
@@ -10,11 +11,13 @@ type Props = {
   bookings: AggregatorBooking[] | null;
   isAggregator: boolean;
   isAggregatorView: boolean;
+  canEditProfile: boolean;
   inviteSentBanner: boolean;
   inviteSentFromCreate: boolean;
   resendInviteBusy: boolean;
   onResendInvite: () => void;
   onDismissInviteBanner: () => void;
+  onCompanyUpdated: (company: AdminCompany) => void;
 };
 
 export default function CompanyReviewOverviewTab({
@@ -23,11 +26,13 @@ export default function CompanyReviewOverviewTab({
   bookings,
   isAggregator,
   isAggregatorView,
+  canEditProfile,
   inviteSentBanner,
   inviteSentFromCreate,
   resendInviteBusy,
   onResendInvite,
   onDismissInviteBanner,
+  onCompanyUpdated,
 }: Props) {
   return (
     <div
@@ -66,15 +71,30 @@ export default function CompanyReviewOverviewTab({
         </div>
       )}
 
+      {canEditProfile ? (
+        <CompanyProfileEditSection company={company} onSaved={onCompanyUpdated} />
+      ) : (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mt-0 text-lg font-semibold text-slate-900">Company profile</h2>
+          <div className="mt-3 space-y-2 text-sm text-slate-800">
+            <p>
+              <strong className="text-slate-700">Company name:</strong> {company.companyName}
+            </p>
+            <p>
+              <strong className="text-slate-700">Contact email:</strong> {company.contactEmail}
+            </p>
+            {company.contactPhone && (
+              <p>
+                <strong className="text-slate-700">Contact phone:</strong> {company.contactPhone}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mt-0 text-lg font-semibold text-slate-900">Company profile</h2>
+        <h2 className="mt-0 text-lg font-semibold text-slate-900">Portal & renewal</h2>
         <div className="mt-3 space-y-2 text-sm text-slate-800">
-          <p>
-            <strong className="text-slate-700">Company name:</strong> {company.companyName}
-          </p>
-          <p>
-            <strong className="text-slate-700">Contact email:</strong> {company.contactEmail}
-          </p>
           {company.clientUser?.isActivated === false && (
             <p className="text-amber-800">
               Client has not set their password yet. They cannot log in until they complete the invite
@@ -93,28 +113,12 @@ export default function CompanyReviewOverviewTab({
               </button>
             </p>
           )}
-          {company.contactPhone && (
-            <p>
-              <strong className="text-slate-700">Contact phone:</strong> {company.contactPhone}
-            </p>
-          )}
           <p>
             <strong className="text-slate-700">Renewal date:</strong> {formatCompanyDate(company.renewalDate)}
           </p>
           <p>
             <strong className="text-slate-700">Renewal status:</strong> {company.renewalStatus ?? '—'}
           </p>
-          {company.address && (
-            <p>
-              <strong className="text-slate-700">Address:</strong>{' '}
-              {[company.address, company.city, company.state, company.zipCode, company.country].filter(Boolean).join(', ')}
-            </p>
-          )}
-          {company.notes && (
-            <p>
-              <strong className="text-slate-700">Notes:</strong> {company.notes}
-            </p>
-          )}
           {compliance && (
             <p>
               <strong className="text-slate-700">Compliance:</strong>{' '}

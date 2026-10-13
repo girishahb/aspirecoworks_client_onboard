@@ -3,6 +3,8 @@ import type { AggregatorBookingPlanType } from './aggregatorProfile';
 
 export type ClientChannel = 'DIRECT' | 'AGGREGATOR';
 
+export type OperationalStatus = 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'UNKNOWN';
+
 /** Company (client profile) as returned by admin list/get. */
 export interface AdminCompany {
   id: string;
@@ -23,7 +25,21 @@ export interface AdminCompany {
   aggregatorName?: string | null;
   contractStartDate?: string | null;
   contractEndDate?: string | null;
+  contractMonths?: number | null;
   notes?: string | null;
+  locationId?: string | null;
+  vendorId?: string | null;
+  membershipType?: string | null;
+  officeType?: string | null;
+  leadSource?: string | null;
+  contactPersonName?: string | null;
+  contactPersonTitle?: string | null;
+  contactPersonPhone?: string | null;
+  gstNumber?: string | null;
+  externalBookingId?: string | null;
+  operationalStatus?: OperationalStatus | null;
+  location?: { id: string; name: string; code?: string | null; area?: string | null } | null;
+  vendor?: { id: string; name: string; code?: string | null } | null;
   createdAt?: string;
   updatedAt?: string;
   createdBy?: { id: string; email: string; firstName?: string; lastName?: string };
@@ -32,6 +48,35 @@ export interface AdminCompany {
   clientUser?: { isActivated: boolean } | null;
   [key: string]: unknown;
 }
+
+export type UpdateCompanyInput = {
+  companyName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  taxId?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  notes?: string;
+  clientChannel?: ClientChannel;
+  aggregatorName?: string;
+  locationId?: string;
+  vendorId?: string;
+  membershipType?: string;
+  officeType?: string;
+  leadSource?: string;
+  contractMonths?: number;
+  contactPersonName?: string;
+  contactPersonTitle?: string;
+  contactPersonPhone?: string;
+  gstNumber?: string;
+  externalBookingId?: string;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  operationalStatus?: OperationalStatus;
+};
 
 /** Document as returned by admin list. */
 export interface AdminDocumentListItem {
@@ -62,6 +107,14 @@ export async function listCompanies(): Promise<AdminCompany[]> {
  */
 export async function getCompany(companyId: string): Promise<AdminCompany> {
   return apiGet<AdminCompany>(`/client-profiles/${companyId}`);
+}
+
+/**
+ * Update client profile fields (admin portal).
+ * Backend: PATCH /client-profiles/:id
+ */
+export async function updateCompany(companyId: string, data: UpdateCompanyInput): Promise<AdminCompany> {
+  return apiPatch<AdminCompany>(`/client-profiles/${companyId}`, data);
 }
 
 /**

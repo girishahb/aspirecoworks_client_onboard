@@ -24,6 +24,7 @@ import { clientInviteSetPassword } from '../email/templates/client-invite-set-pa
 import { assertValidTransition } from './onboarding-stage.helper';
 import { AggregatorProfileService } from '../aggregator-profile/aggregator-profile.service';
 import { leadSourceToClientChannel } from '../common/constants/client-ops-options';
+import { ClientChannel, OperationalStatus, Prisma } from '@prisma/client';
 import type {
   AggregatorBookingInput,
   InvoiceToOverrideInput,
@@ -34,6 +35,13 @@ const INVITE_TOKEN_EXPIRY_HOURS = 48;
 @Injectable()
 export class ClientProfilesService {
   private readonly logger = new Logger(ClientProfilesService.name);
+
+  private parseDateOnly(iso?: string | null): Date | null {
+    if (!iso) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+    if (!m) throw new BadRequestException(`Invalid date (expected YYYY-MM-DD): ${iso}`);
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  }
 
   constructor(
     private prisma: PrismaService,
@@ -497,6 +505,12 @@ export class ClientProfilesService {
             lastName: true,
           },
         },
+        location: {
+          select: { id: true, name: true, code: true, area: true },
+        },
+        vendor: {
+          select: { id: true, name: true, code: true },
+        },
         documents: {
           select: {
             id: true,
@@ -564,6 +578,7 @@ export class ClientProfilesService {
     if (
       userRole !== UserRole.ADMIN &&
       userRole !== UserRole.MANAGER &&
+      userRole !== UserRole.SUPER_ADMIN &&
       userRole !== UserRole.AGGREGATOR &&
       existing.createdById !== userId
     ) {
@@ -575,16 +590,80 @@ export class ClientProfilesService {
       assertValidTransition(existing.onboardingStage, updateClientProfileDto.onboardingStage);
     }
 
-    // AGGREGATOR users cannot change channel or aggregatorName on an existing client.
-    const sanitizedDto: Record<string, unknown> = { ...updateClientProfileDto };
+    const dto = { ...updateClientProfileDto };
     if (userRole === UserRole.AGGREGATOR) {
-      delete sanitizedDto.clientChannel;
-      delete sanitizedDto.aggregatorName;
+      delete dto.clientChannel;
+      delete dto.aggregatorName;
+    }
+
+    if (dto.locationId) {
+      const location = await this.prisma.location.findUnique({ where: { id: dto.locationId } });
+      if (!location) throw new BadRequestException('Invalid locationId');
+    }
+    if (dto.vendorId && dto.vendorId !== '' && (dto.locationId || existing.locationId)) {
+      const locId = (dto.locationId && dto.locationId !== '' ? dto.locationId : null) || existing.locationId!;
+      const vendor = await this.prisma.vendor.findFirst({
+        where: { id: dto.vendorId, locationId: locId },
+      });
+      if (!vendor) throw new BadRequestException('Invalid vendorId for location');
+    }
+
+    const data: Prisma.ClientProfileUpdateInput = {};
+    if (dto.companyName !== undefined) data.companyName = dto.companyName;
+    if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
+    if (dto.contactPhone !== undefined) data.contactPhone = dto.contactPhone;
+    if (dto.contactPersonName !== undefined) data.contactPersonName = dto.contactPersonName;
+    if (dto.contactPersonTitle !== undefined) data.contactPersonTitle = dto.contactPersonTitle;
+    if (dto.contactPersonPhone !== undefined) data.contactPersonPhone = dto.contactPersonPhone;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.city !== undefined) data.city = dto.city;
+    if (dto.state !== undefined) data.state = dto.state;
+    if (dto.zipCode !== undefined) data.zipCode = dto.zipCode;
+    if (dto.country !== undefined) data.country = dto.country;
+    if (dto.taxId !== undefined) data.taxId = dto.taxId ? dto.taxId.replace(/\s+/g, '').toUpperCase() : null;
+    if (dto.gstNumber !== undefined) data.gstNumber = dto.gstNumber;
+    if (dto.membershipType !== undefined) data.membershipType = dto.membershipType;
+    if (dto.officeType !== undefined) data.officeType = dto.officeType;
+    if (dto.notes !== undefined) data.notes = dto.notes;
+    if (dto.externalBookingId !== undefined) data.externalBookingId = dto.externalBookingId;
+    if (dto.contractMonths !== undefined) data.contractMonths = dto.contractMonths ?? null;
+    if (dto.onboardingStage !== undefined) data.onboardingStage = dto.onboardingStage;
+    if (dto.clientChannel !== undefined) data.clientChannel = dto.clientChannel;
+    if (dto.aggregatorName !== undefined) data.aggregatorName = dto.aggregatorName;
+    if (dto.leadSource !== undefined) {
+      data.leadSource = dto.leadSource;
+      data.clientChannel =
+        leadSourceToClientChannel(dto.leadSource) === 'AGGREGATOR'
+          ? ClientChannel.AGGREGATOR
+          : ClientChannel.DIRECT;
+    }
+    if (dto.locationId !== undefined) {
+      data.location =
+        dto.locationId && dto.locationId !== ''
+          ? { connect: { id: dto.locationId } }
+          : { disconnect: true };
+    }
+    if (dto.vendorId !== undefined) {
+      data.vendor =
+        dto.vendorId && dto.vendorId !== ''
+          ? { connect: { id: dto.vendorId } }
+          : { disconnect: true };
+    }
+    if (dto.contractStartDate !== undefined) {
+      data.contractStartDate = this.parseDateOnly(dto.contractStartDate);
+    }
+    if (dto.contractEndDate !== undefined) {
+      const end = this.parseDateOnly(dto.contractEndDate);
+      data.contractEndDate = end;
+      data.renewalDate = end;
+    }
+    if (dto.operationalStatus !== undefined) {
+      data.operationalStatus = dto.operationalStatus as OperationalStatus;
     }
 
     const updated = await this.prisma.clientProfile.update({
       where: { id },
-      data: sanitizedDto,
+      data,
       include: {
         createdBy: {
           select: {
@@ -593,6 +672,12 @@ export class ClientProfilesService {
             firstName: true,
             lastName: true,
           },
+        },
+        location: {
+          select: { id: true, name: true, code: true, area: true },
+        },
+        vendor: {
+          select: { id: true, name: true, code: true },
         },
       },
     });
@@ -609,7 +694,7 @@ export class ClientProfilesService {
       },
     });
 
-    return updated;
+    return this.findOne(id, userRole, userId);
   }
 
   /**

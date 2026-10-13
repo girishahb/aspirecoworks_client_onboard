@@ -97,6 +97,11 @@ export default function AdminCompanyDetail() {
   const currentUser = useMemo(() => getCurrentUser(), []);
   const canDeleteCompany = currentUser?.role === 'ADMIN';
   const isAggregatorView = currentUser?.role === 'AGGREGATOR';
+  const canEditProfile =
+    !isAggregatorView &&
+    (currentUser?.role === 'ADMIN' ||
+      currentUser?.role === 'MANAGER' ||
+      currentUser?.role === 'SUPER_ADMIN');
   const [searchParams, setSearchParams] = useSearchParams();
   const dashboardPath = isAggregatorView ? '/aggregator/dashboard' : '/admin/dashboard';
 
@@ -570,6 +575,7 @@ export default function AdminCompanyDetail() {
             bookings={bookings}
             isAggregator={!!isAggregator}
             isAggregatorView={isAggregatorView}
+            canEditProfile={canEditProfile}
             inviteSentBanner={inviteSentBanner}
             inviteSentFromCreate={inviteSentFromCreate}
             resendInviteBusy={resendInviteBusy}
@@ -578,6 +584,7 @@ export default function AdminCompanyDetail() {
               setInviteSentBanner(false);
               navigate(location.pathname, { replace: true });
             }}
+            onCompanyUpdated={setCompany}
           />
         )}
         {activeTab === 'documents' && (
