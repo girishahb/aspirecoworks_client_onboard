@@ -14,6 +14,7 @@ type Props = {
   canEditProfile: boolean;
   inviteSentBanner: boolean;
   inviteSentFromCreate: boolean;
+  inviteErrorFromCreate?: string | null;
   resendInviteBusy: boolean;
   onResendInvite: () => void;
   onDismissInviteBanner: () => void;
@@ -29,6 +30,7 @@ export default function CompanyReviewOverviewTab({
   canEditProfile,
   inviteSentBanner,
   inviteSentFromCreate,
+  inviteErrorFromCreate,
   resendInviteBusy,
   onResendInvite,
   onDismissInviteBanner,
@@ -56,7 +58,24 @@ export default function CompanyReviewOverviewTab({
         )}
       </section>
 
-      {(inviteSentBanner || inviteSentFromCreate) && (
+      {inviteErrorFromCreate && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
+          <span className="font-medium text-amber-950">
+            Client was created, but the invite email failed: {inviteErrorFromCreate}. Use Resend Invite
+            after fixing email config (Resend domain / EMAIL_FROM).
+          </span>
+          <button
+            type="button"
+            onClick={onResendInvite}
+            disabled={resendInviteBusy}
+            className="rounded bg-amber-800 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          >
+            {resendInviteBusy ? 'Sending…' : 'Resend Invite'}
+          </button>
+        </div>
+      )}
+
+      {(inviteSentBanner || inviteSentFromCreate) && !inviteErrorFromCreate && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-green-300 bg-green-50 px-4 py-3">
           <span className="font-medium text-green-900">
             Invite email sent to client. They can set their password and log in.

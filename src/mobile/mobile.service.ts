@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ClientChannel,
   DocumentOwner,
@@ -29,6 +30,7 @@ export class MobileService {
     private readonly r2: R2Service,
     private readonly emailService: EmailService,
     private readonly auditLogs: AuditLogsService,
+    private readonly config: ConfigService,
   ) {}
 
   private parseDateOnly(iso?: string | null): Date | null {
@@ -583,11 +585,16 @@ export class MobileService {
       note: note?.trim() || null,
     });
 
+    const mailFrom =
+      this.config.get<string>('EMAIL_FROM_MAIL')?.trim() ||
+      this.config.get<string>('EMAIL_FROM')?.trim() ||
+      undefined;
     const sendResult = await this.emailService.sendEmail({
       to,
       subject,
       html,
       text,
+      from: mailFrom,
       attachments: [{ filename: fileName, content: file.buffer }],
     });
 

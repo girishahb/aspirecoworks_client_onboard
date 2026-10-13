@@ -13,6 +13,8 @@ export interface SendEmailOptions {
   html: string;
   text?: string;
   attachments?: EmailAttachment[];
+  /** Override default EMAIL_FROM (e.g. courier mailbox for mail-notify). */
+  from?: string;
 }
 
 export interface SendEmailResult {
@@ -40,12 +42,14 @@ export class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
-    const { to, subject, html, text, attachments } = options;
+    const { to, subject, html, text, attachments, from } = options;
     const toList = Array.isArray(to) ? to : [to];
+    const fromAddress = (from?.trim() || this.from).trim();
 
     if (!this.resend) {
       this.logger.log('Email (no Resend client):', {
         to: toList,
+        from: fromAddress,
         subject,
         html: html?.slice(0, 200) + ((html?.length ?? 0) > 200 ? '…' : ''),
         text: text?.slice(0, 200) + ((text?.length ?? 0) > 200 ? '…' : ''),
@@ -63,7 +67,7 @@ export class EmailService {
 
     try {
       const { data, error } = await this.resend.emails.send({
-        from: this.from,
+        from: fromAddress,
         to: toList,
         subject,
         html,
@@ -72,14 +76,19 @@ export class EmailService {
       });
 
       if (error) {
-        this.logger.error(`Resend error: ${error.message}`, error);
+        this.logger.error(
+          `Resend error (from=${fromAddress} to=${toList.join(', ')}): ${error.message}`,
+          error,
+        );
         return {
           success: false,
           error: error.message,
         };
       }
 
-      this.logger.log(`Email sent to ${toList.join(', ')} id=${data?.id ?? 'unknown'}`);
+      this.logger.log(
+        `Email sent from=${fromAddress} to=${toList.join(', ')} id=${data?.id ?? 'unknown'}`,
+      );
       return {
         success: true,
         messageId: data?.id,

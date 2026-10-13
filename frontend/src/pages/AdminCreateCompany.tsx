@@ -127,7 +127,13 @@ export default function AdminCreateCompany({
       if (formData.contractMonths) data.contractMonths = Number(formData.contractMonths);
 
       const company = await createCompany(data);
-      navigate(`${detailPathPrefix}/${company.id}`, { replace: true, state: { inviteSent: true } });
+      navigate(`${detailPathPrefix}/${company.id}`, {
+        replace: true,
+        state: {
+          inviteSent: company.inviteSent === true,
+          inviteError: company.inviteError ?? null,
+        },
+      });
     } catch (err: any) {
       // Extract error message - it should already include details from apiPost
       let errorMessage = 'Failed to create company';

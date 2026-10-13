@@ -46,6 +46,9 @@ export interface AdminCompany {
   _count?: { documents?: number };
   documents?: AdminDocumentListItem[];
   clientUser?: { isActivated: boolean } | null;
+  /** Present on create response when invite was attempted. */
+  inviteSent?: boolean;
+  inviteError?: string | null;
   [key: string]: unknown;
 }
 

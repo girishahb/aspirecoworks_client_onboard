@@ -51,7 +51,9 @@ export default function AdminCompanyDetail() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const inviteSentFromCreate = (location.state as { inviteSent?: boolean })?.inviteSent === true;
+  const createState = location.state as { inviteSent?: boolean; inviteError?: string | null } | null;
+  const inviteSentFromCreate = createState?.inviteSent === true;
+  const inviteErrorFromCreate = createState?.inviteError ?? null;
   const [company, setCompany] = useState<AdminCompany | null>(null);
   const [documents, setDocuments] = useState<AdminDocumentListItem[]>([]);
   const [compliance, setCompliance] = useState<ComplianceStatus | null>(null);
@@ -578,6 +580,7 @@ export default function AdminCompanyDetail() {
             canEditProfile={canEditProfile}
             inviteSentBanner={inviteSentBanner}
             inviteSentFromCreate={inviteSentFromCreate}
+            inviteErrorFromCreate={inviteErrorFromCreate}
             resendInviteBusy={resendInviteBusy}
             onResendInvite={handleResendInvite}
             onDismissInviteBanner={() => {

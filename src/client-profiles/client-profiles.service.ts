@@ -211,9 +211,19 @@ export class ClientProfilesService {
 
     // Create User for client login + send invite email (outside the transaction to avoid
     // slow email sends holding DB locks; creation of the client is already committed).
-    await this.createClientUserAndSendInvite(result);
+    // Do not fail the create API if email delivery fails — company/user already exist.
+    const invite = await this.createClientUserAndSendInvite(result);
+    if (!invite.sent && invite.error) {
+      this.logger.warn(
+        `Client ${result.id} created but invite email failed: ${invite.error}`,
+      );
+    }
 
-    return result;
+    return {
+      ...result,
+      inviteSent: invite.sent,
+      inviteError: invite.error,
+    };
   }
 
   /**
@@ -315,7 +325,23 @@ export class ClientProfilesService {
       setPasswordUrl,
       expiryHours: INVITE_TOKEN_EXPIRY_HOURS,
     });
-    await this.emailService.sendEmail({ to: email, subject, html, text });
+    // Prefer invite-specific from; fall back to EMAIL_FROM (do not use courier mailbox for invites).
+    const inviteFrom =
+      this.config.get<string>('EMAIL_FROM_INVITE')?.trim() ||
+      this.config.get<string>('EMAIL_FROM')?.trim() ||
+      undefined;
+    const result = await this.emailService.sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+      from: inviteFrom,
+    });
+    if (!result.success) {
+      throw new BadRequestException(
+        result.error || 'Failed to send invite email. Check Resend domain / recipient limits.',
+      );
+    }
   }
 
   /**
@@ -326,7 +352,7 @@ export class ClientProfilesService {
     id: string;
     companyName: string;
     contactEmail: string;
-  }) {
+  }): Promise<{ sent: boolean; error: string | null }> {
     const email = clientProfile.contactEmail.trim().toLowerCase();
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -335,54 +361,57 @@ export class ClientProfilesService {
     const token = randomBytes(32).toString('hex');
     const inviteTokenExpiry = this.buildInviteTokenExpiry();
 
-    if (existingUser) {
-      if (existingUser.isActivated) {
+    try {
+      if (existingUser) {
+        if (existingUser.isActivated) {
+          this.logger.log(
+            `Client invite skipped: email ${email} already activated (userId=${existingUser.id}).`,
+          );
+          return {
+            sent: false,
+            error: 'Client email is already activated; no invite was sent.',
+          };
+        }
+
+        await this.prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            companyId: clientProfile.id,
+            role: UserRole.CLIENT,
+            inviteToken: token,
+            inviteTokenExpiry,
+            isActive: true,
+          },
+        });
+
+        await this.sendSetPasswordInviteEmail(clientProfile.companyName, email, token);
         this.logger.log(
-          `Client invite skipped: email ${email} already activated (userId=${existingUser.id}).`,
+          `Invite email sent to existing user ${email} for company ${clientProfile.companyName}`,
         );
-        return;
+        return { sent: true, error: null };
       }
 
-      await this.prisma.user.update({
-        where: { id: existingUser.id },
+      await this.prisma.user.create({
         data: {
-          companyId: clientProfile.id,
+          email,
+          passwordHash: null,
+          firstName: clientProfile.companyName,
+          lastName: '',
           role: UserRole.CLIENT,
+          companyId: clientProfile.id,
+          isActive: true,
           inviteToken: token,
           inviteTokenExpiry,
-          isActive: true,
+          isActivated: false,
         },
       });
 
-      try {
-        await this.sendSetPasswordInviteEmail(clientProfile.companyName, email, token);
-        this.logger.log(`Invite email sent to existing user ${email} for company ${clientProfile.companyName}`);
-      } catch (err) {
-        this.logger.warn(`Failed to send invite email to ${email}: ${err instanceof Error ? err.message : err}`);
-      }
-      return;
-    }
-
-    await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash: null,
-        firstName: clientProfile.companyName,
-        lastName: '',
-        role: UserRole.CLIENT,
-        companyId: clientProfile.id,
-        isActive: true,
-        inviteToken: token,
-        inviteTokenExpiry,
-        isActivated: false,
-      },
-    });
-
-    try {
       await this.sendSetPasswordInviteEmail(clientProfile.companyName, email, token);
       this.logger.log(`Invite email sent to ${email} for company ${clientProfile.companyName}`);
+      return { sent: true, error: null };
     } catch (err) {
-      this.logger.warn(`Failed to send invite email to ${email}: ${err instanceof Error ? err.message : err}`);
+      const message = err instanceof Error ? err.message : String(err);
+      return { sent: false, error: message };
     }
   }
 
@@ -425,18 +454,16 @@ export class ClientProfilesService {
         data: { inviteToken: token, inviteTokenExpiry },
       });
 
-      try {
-        await this.sendSetPasswordInviteEmail(company.companyName, email, token);
-        this.logger.log(`Resend invite email sent to ${email} for company ${company.companyName}`);
-        return { sent: true, message: 'Invite email sent.' };
-      } catch (err) {
-        this.logger.warn(`Failed to resend invite to ${email}: ${err instanceof Error ? err.message : err}`);
-        throw new BadRequestException('Failed to send invite email');
-      }
+      await this.sendSetPasswordInviteEmail(company.companyName, email, token);
+      this.logger.log(`Resend invite email sent to ${email} for company ${company.companyName}`);
+      return { sent: true, message: 'Invite email sent.' };
     }
 
     // No user exists - create and send
-    await this.createClientUserAndSendInvite(company);
+    const invite = await this.createClientUserAndSendInvite(company);
+    if (!invite.sent) {
+      throw new BadRequestException(invite.error || 'Failed to send invite email');
+    }
     return { sent: true, message: 'Invite email sent.' };
   }
 
