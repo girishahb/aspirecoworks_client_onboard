@@ -29,17 +29,30 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 function documentStatusVariant(status: string): 'approved' | 'rejected' | 'pending' {
-  if (status === 'VERIFIED') return 'approved';
+  if (status === 'VERIFIED' || status === 'APPROVED') return 'approved';
   if (status === 'REJECTED') return 'rejected';
   return 'pending';
 }
 
 function documentStatusLabel(status: string): string {
-  if (status === 'VERIFIED') return 'Approved';
+  if (status === 'VERIFIED' || status === 'APPROVED') return 'Approved';
   if (status === 'REJECTED') return 'Rejected';
   if (status === 'UPLOADED' || status === 'REVIEW_PENDING') return 'Under Review';
   if (status === 'PENDING_WITH_CLIENT') return 'Action Required';
   return 'Pending';
+}
+
+/** Admin-shared docs (final agreement, NOCs, bills) — not for client review. */
+const ADMIN_SHARED_DOC_TYPES = new Set([
+  'AGREEMENT_FINAL',
+  'NOC_ASPIRE_COWORKS',
+  'NOC_LANDLORD',
+  'ELECTRICITY_BILL',
+  'WIFI_BILL',
+]);
+
+function adminSharedStatusLabel(): string {
+  return 'Shared';
 }
 
 export default function ClientDocuments() {
@@ -834,8 +847,10 @@ export default function ClientDocuments() {
                         ) : null}
                       </div>
                       <div className="mt-1 flex items-center gap-2">
-                        <Badge variant={documentStatusVariant(doc.status)}>
-                          {documentStatusLabel(doc.status)}
+                        <Badge variant="approved">
+                          {ADMIN_SHARED_DOC_TYPES.has(type)
+                            ? adminSharedStatusLabel()
+                            : documentStatusLabel(doc.status)}
                         </Badge>
                         <span className="text-xs text-muted">{formatDate(doc.createdAt)}</span>
                       </div>
