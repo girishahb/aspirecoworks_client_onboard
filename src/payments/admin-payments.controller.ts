@@ -19,6 +19,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { InvoicesService } from '../invoices/invoices.service';
+import { ClientProfilesService } from '../client-profiles/client-profiles.service';
 
 @ApiTags('Admin Payments')
 @ApiBearerAuth()
@@ -30,6 +31,7 @@ export class AdminPaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly onboardingService: OnboardingService,
     private readonly invoicesService: InvoicesService,
+    private readonly clientProfilesService: ClientProfilesService,
   ) {}
 
   @Post()
@@ -144,6 +146,12 @@ export class AdminPaymentsController {
       await this.invoicesService.generateInvoiceForPayment(paymentId);
     } catch (err) {
       // Log but don't fail
+    }
+    // Same as Razorpay webhook: refresh set-password invite after payment.
+    try {
+      await this.clientProfilesService.sendInviteAfterPaymentIfNeeded(companyId);
+    } catch {
+      // non-blocking
     }
     return { success: true, message: 'Payment marked as PAID; stage updated; invoice generated' };
   }

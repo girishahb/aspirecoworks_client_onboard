@@ -131,7 +131,9 @@ export default function AdminCreateCompany({
         replace: true,
         state: {
           inviteSent: company.inviteSent === true,
+          inviteStatus: company.inviteStatus ?? (company.inviteSent ? 'sent' : null),
           inviteError: company.inviteError ?? null,
+          inviteMessage: company.inviteMessage ?? null,
         },
       });
     } catch (err: any) {

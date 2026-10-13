@@ -51,9 +51,16 @@ export default function AdminCompanyDetail() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const createState = location.state as { inviteSent?: boolean; inviteError?: string | null } | null;
+  const createState = location.state as {
+    inviteSent?: boolean;
+    inviteStatus?: 'sent' | 'already_activated' | 'failed' | null;
+    inviteError?: string | null;
+    inviteMessage?: string | null;
+  } | null;
   const inviteSentFromCreate = createState?.inviteSent === true;
+  const inviteStatusFromCreate = createState?.inviteStatus ?? null;
   const inviteErrorFromCreate = createState?.inviteError ?? null;
+  const inviteMessageFromCreate = createState?.inviteMessage ?? null;
   const [company, setCompany] = useState<AdminCompany | null>(null);
   const [documents, setDocuments] = useState<AdminDocumentListItem[]>([]);
   const [compliance, setCompliance] = useState<ComplianceStatus | null>(null);
@@ -394,7 +401,12 @@ export default function AdminCompanyDetail() {
       company?.onboardingStage === 'PAYMENT_PENDING');
   async function handleMarkKycComplete() {
     if (!companyId || !canMarkKycComplete) return;
-    if (!window.confirm('Mark KYC review as complete and move to Agreement draft stage?')) return;
+    if (
+      !window.confirm(
+        'Force stage to “Agreement draft shared” without notifying the client of a draft? Prefer Agreements → Notify draft shared instead.',
+      )
+    )
+      return;
     setActionError(null);
     setKycCompleteBusy(true);
     try {
@@ -526,7 +538,7 @@ export default function AdminCompanyDetail() {
           onClick={() => navigate(dashboardPath)}
           className="text-sm font-medium text-sky-800 hover:underline"
         >
-          â† Back to dashboard
+          ← Back to dashboard
         </button>
         {canDeleteCompany && (
           <button
@@ -535,7 +547,7 @@ export default function AdminCompanyDetail() {
             disabled={deleteBusy}
             className="rounded-md border border-red-800 bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {deleteBusy ? 'Deletingâ€¦' : 'Delete company'}
+            {deleteBusy ? 'Deleting…' : 'Delete company'}
           </button>
         )}
       </div>
@@ -557,9 +569,9 @@ export default function AdminCompanyDetail() {
       {(company.contractStartDate || company.contractEndDate) && (
         <p className="mt-2 text-sm text-slate-600">
           Contract:{' '}
-          <strong>{company.contractStartDate ? formatCompanyDate(company.contractStartDate) : 'â€”'}</strong>
+          <strong>{company.contractStartDate ? formatCompanyDate(company.contractStartDate) : '—'}</strong>
           {' to '}
-          <strong>{company.contractEndDate ? formatCompanyDate(company.contractEndDate) : 'â€”'}</strong>
+          <strong>{company.contractEndDate ? formatCompanyDate(company.contractEndDate) : '—'}</strong>
         </p>
       )}
 
@@ -580,7 +592,9 @@ export default function AdminCompanyDetail() {
             canEditProfile={canEditProfile}
             inviteSentBanner={inviteSentBanner}
             inviteSentFromCreate={inviteSentFromCreate}
+            inviteStatusFromCreate={inviteStatusFromCreate}
             inviteErrorFromCreate={inviteErrorFromCreate}
+            inviteMessageFromCreate={inviteMessageFromCreate}
             resendInviteBusy={resendInviteBusy}
             onResendInvite={handleResendInvite}
             onDismissInviteBanner={() => {
@@ -790,7 +804,7 @@ export default function AdminCompanyDetail() {
                   cursor: activateBusy ? 'not-allowed' : 'pointer',
                 }}
               >
-                {activateBusy ? 'Activatingâ€¦' : 'Confirm activation'}
+                {activateBusy ? 'Activating…' : 'Confirm activation'}
               </button>
             </div>
           </div>

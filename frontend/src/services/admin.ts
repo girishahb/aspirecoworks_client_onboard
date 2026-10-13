@@ -48,7 +48,9 @@ export interface AdminCompany {
   clientUser?: { isActivated: boolean } | null;
   /** Present on create response when invite was attempted. */
   inviteSent?: boolean;
+  inviteStatus?: 'sent' | 'already_activated' | 'failed';
   inviteError?: string | null;
+  inviteMessage?: string | null;
   [key: string]: unknown;
 }
 

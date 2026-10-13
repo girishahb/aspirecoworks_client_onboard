@@ -213,16 +213,18 @@ export class ClientProfilesService {
     // slow email sends holding DB locks; creation of the client is already committed).
     // Do not fail the create API if email delivery fails — company/user already exist.
     const invite = await this.createClientUserAndSendInvite(result);
-    if (!invite.sent && invite.error) {
+    if (invite.status === 'failed') {
       this.logger.warn(
-        `Client ${result.id} created but invite email failed: ${invite.error}`,
+        `Client ${result.id} created but invite email failed: ${invite.message}`,
       );
     }
 
     return {
       ...result,
-      inviteSent: invite.sent,
-      inviteError: invite.error,
+      inviteSent: invite.status === 'sent',
+      inviteStatus: invite.status,
+      inviteError: invite.status === 'failed' ? invite.message : null,
+      inviteMessage: invite.message,
     };
   }
 
@@ -352,7 +354,10 @@ export class ClientProfilesService {
     id: string;
     companyName: string;
     contactEmail: string;
-  }): Promise<{ sent: boolean; error: string | null }> {
+  }): Promise<{
+    status: 'sent' | 'already_activated' | 'failed';
+    message: string;
+  }> {
     const email = clientProfile.contactEmail.trim().toLowerCase();
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -367,9 +372,33 @@ export class ClientProfilesService {
           this.logger.log(
             `Client invite skipped: email ${email} already activated (userId=${existingUser.id}).`,
           );
+          // Only attach login when it is not already bound to a different company.
+          if (!existingUser.companyId) {
+            await this.prisma.user.update({
+              where: { id: existingUser.id },
+              data: {
+                companyId: clientProfile.id,
+                role: UserRole.CLIENT,
+                isActive: true,
+              },
+            });
+            return {
+              status: 'already_activated',
+              message:
+                'This email already has a password set. Login was linked to this client — they can sign in with their existing password (no invite sent).',
+            };
+          }
+          if (existingUser.companyId === clientProfile.id) {
+            return {
+              status: 'already_activated',
+              message:
+                'This email already has a client login with a password set. No invite was sent — they can sign in with their existing password.',
+            };
+          }
           return {
-            sent: false,
-            error: 'Client email is already activated; no invite was sent.',
+            status: 'already_activated',
+            message:
+              'This email is already used by another activated client account. Use a different contact email for a new invite, or sign in with that account’s existing password.',
           };
         }
 
@@ -388,7 +417,7 @@ export class ClientProfilesService {
         this.logger.log(
           `Invite email sent to existing user ${email} for company ${clientProfile.companyName}`,
         );
-        return { sent: true, error: null };
+        return { status: 'sent', message: 'Invite email sent.' };
       }
 
       await this.prisma.user.create({
@@ -408,10 +437,10 @@ export class ClientProfilesService {
 
       await this.sendSetPasswordInviteEmail(clientProfile.companyName, email, token);
       this.logger.log(`Invite email sent to ${email} for company ${clientProfile.companyName}`);
-      return { sent: true, error: null };
+      return { status: 'sent', message: 'Invite email sent.' };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return { sent: false, error: message };
+      return { status: 'failed', message };
     }
   }
 
@@ -461,8 +490,11 @@ export class ClientProfilesService {
 
     // No user exists - create and send
     const invite = await this.createClientUserAndSendInvite(company);
-    if (!invite.sent) {
-      throw new BadRequestException(invite.error || 'Failed to send invite email');
+    if (invite.status === 'already_activated') {
+      return { sent: false, message: invite.message };
+    }
+    if (invite.status !== 'sent') {
+      throw new BadRequestException(invite.message || 'Failed to send invite email');
     }
     return { sent: true, message: 'Invite email sent.' };
   }

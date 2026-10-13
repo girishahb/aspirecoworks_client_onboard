@@ -3,21 +3,26 @@ import { getStepIndex, ONBOARDING_STEPS } from '../onboardingSteps';
 
 export interface TimelineViewProps {
   stage: string | null | undefined;
+  hidePayment?: boolean;
 }
 
-export default function TimelineView({ stage }: TimelineViewProps) {
+export default function TimelineView({ stage, hidePayment = false }: TimelineViewProps) {
   const currentIndex = getStepIndex(stage);
   const safeIndex = currentIndex < 0 ? 0 : currentIndex;
+  const steps = hidePayment
+    ? ONBOARDING_STEPS.filter((s) => s.stepIndex !== 1)
+    : ONBOARDING_STEPS;
 
   return (
     <div className="rounded-lg border border-border bg-white p-5 shadow-sm">
       <h3 className="mb-4 text-lg font-semibold text-text">Your Onboarding Timeline</h3>
       <div className="space-y-4">
-        {ONBOARDING_STEPS.map((step, index) => {
+        {steps.map((step) => {
           const label = step.getTitle(stage as Parameters<typeof step.getTitle>[0]);
-          const isLastTwoSteps = index >= ONBOARDING_STEPS.length - 2;
-          const isCompleted = index < safeIndex || (index === safeIndex && isLastTwoSteps);
-          const isCurrent = index === safeIndex && !isCompleted;
+          const isLastTwoSteps = step.stepIndex >= ONBOARDING_STEPS.length - 2;
+          const isCompleted =
+            step.stepIndex < safeIndex || (step.stepIndex === safeIndex && isLastTwoSteps);
+          const isCurrent = step.stepIndex === safeIndex && !isCompleted;
           const isReached = isCompleted || isCurrent;
 
           return (

@@ -248,6 +248,7 @@ export default function ClientDocuments() {
         'NOC_LANDLORD',
         'ELECTRICITY_BILL',
         'WIFI_BILL',
+        'RECEIVED_MAIL',
       ].includes(d.documentType),
   );
 
@@ -474,21 +475,28 @@ export default function ClientDocuments() {
                       Clear list
                     </button>
                   )}
-                  {company?.onboardingStage === 'KYC_IN_PROGRESS' &&
-                    bulkItems.some((it) => it.status === 'done') && (
-                      <button
-                        type="button"
-                        onClick={handleSubmitKycForReview}
-                        disabled={submittingReview}
-                        className="ml-auto rounded-lg border border-success bg-success/10 px-3 py-2 text-xs font-semibold text-success disabled:opacity-50"
-                      >
-                        {submittingReview ? 'Submitting…' : 'Submit for admin review'}
-                      </button>
-                    )}
                 </div>
                 {submitMessage && <p className="mt-2 text-xs text-success">{submitMessage}</p>}
               </div>
             )}
+            {company?.onboardingStage === 'KYC_IN_PROGRESS' &&
+              documents.some((d) => d.documentType === 'AADHAAR') &&
+              documents.some((d) => d.documentType === 'PAN') && (
+                <div className="mt-4 rounded-lg border border-success/40 bg-success/5 p-4">
+                  <p className="mb-2 text-sm text-slate-800">
+                    Aadhaar and PAN are uploaded. Submit them for admin review to continue.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSubmitKycForReview}
+                    disabled={submittingReview}
+                    className="rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {submittingReview ? 'Submitting…' : 'Submit for admin review'}
+                  </button>
+                  {submitMessage && <p className="mt-2 text-xs text-success">{submitMessage}</p>}
+                </div>
+              )}
           </div>
         )}
 
