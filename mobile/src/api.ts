@@ -13,7 +13,8 @@ export type AuthUser = {
   role: MobileRole;
 };
 
-const DEFAULT_API = 'http://localhost:3000';
+/** Fallback for release builds if env was missing at bundle time. */
+const DEFAULT_API = 'https://api.aspirecoworks.in';
 
 export function getApiBase(): string {
   return process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || DEFAULT_API;

@@ -187,7 +187,7 @@ model ClientProfile {
   contactPersonName   String?
   contactPersonTitle  String?
   contactPersonPhone  String?
-  externalBookingId   String?
+  externalBookingId   String?           @unique
   legacyPaymentStatus String?
   legacyCharges       Float?
   lastContactedAt     DateTime?         @db.Date
@@ -211,7 +211,6 @@ model ClientProfile {
   @@index([createdAt])
   @@index([locationId])
   @@index([vendorId])
-  @@index([externalBookingId])
   @@index([operationalStatus])
   @@map("client_profiles")
 }

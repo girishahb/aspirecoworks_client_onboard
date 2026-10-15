@@ -29,7 +29,11 @@ export const createMobileClientSchema = z.object({
   contractStartDate: z.string().optional(), // YYYY-MM-DD
   contractEndDate: z.string().optional(),
   operationalStatus: z.enum(['ACTIVE', 'INACTIVE', 'PENDING', 'UNKNOWN']).optional(),
-  notes: optionalString,
+  /** Allow empty string so staff can clear notes on edit. */
+  notes: z.preprocess(
+    (val) => (val === undefined ? undefined : val === null ? '' : String(val)),
+    z.string().optional(),
+  ),
   externalBookingId: optionalString,
   aggregatorName: optionalString,
 });

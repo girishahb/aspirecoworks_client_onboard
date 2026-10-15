@@ -148,8 +148,9 @@ export class UsersService {
   }
 
   async findByEmail(email: string) {
+    const normalized = (email || '').trim().toLowerCase();
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalized },
     });
   }
 

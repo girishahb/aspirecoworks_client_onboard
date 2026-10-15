@@ -38,6 +38,7 @@ export const createClientProfileSchema = z.object({
     z.coerce.number().int().positive().max(600).optional(),
   ),
   contactPersonName: optionalString,
+  externalBookingId: optionalString,
   contractStartDate: optionalString,
   contractEndDate: optionalString,
   /**

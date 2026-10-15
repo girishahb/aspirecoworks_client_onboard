@@ -29,6 +29,12 @@ import type {
   AggregatorBookingInput,
   InvoiceToOverrideInput,
 } from './dto/aggregator-booking-input';
+import {
+  assertExternalBookingIdAvailable,
+  DUPLICATE_EXTERNAL_BOOKING_ID_MESSAGE,
+  isExternalBookingIdUniqueViolation,
+  normalizeExternalBookingId,
+} from './external-booking-id.helper';
 
 const INVITE_TOKEN_EXPIRY_HOURS = 48;
 
@@ -67,6 +73,11 @@ export class ClientProfilesService {
         throw new ConflictException('Client profile with this tax ID already exists');
       }
     }
+
+    const externalBookingId = await assertExternalBookingIdAvailable(
+      this.prisma,
+      createClientProfileDto.externalBookingId,
+    );
 
     // Resolve channel + aggregator from payload and actor context.
     // AGGREGATOR users cannot choose the channel; it is always forced to AGGREGATOR
@@ -142,63 +153,73 @@ export class ClientProfilesService {
       booking: _b,
       invoiceTo: _it,
       saveInvoiceToProfile: _sp,
+      externalBookingId: _eb,
       ...rest
     } = createClientProfileDto as any;
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const clientProfile = await tx.clientProfile.create({
-        data: {
-          ...rest,
-          clientChannel,
-          aggregatorName,
-          onboardingStage: initialStage,
-          createdById: userId,
-        },
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
+    let result;
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        const clientProfile = await tx.clientProfile.create({
+          data: {
+            ...rest,
+            externalBookingId,
+            clientChannel,
+            aggregatorName,
+            onboardingStage: initialStage,
+            createdById: userId,
+          },
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
             },
           },
-        },
-      });
-
-      if (isAggregatorCreation) {
-        await this.createAggregatorBookingTx(tx, {
-          clientProfileId: clientProfile.id,
-          createdById: userId,
-          booking,
-          invoiceSnapshot,
         });
 
-        if (saveInvoiceToProfile && invoiceSnapshot?.legalName) {
-          // Upsert the aggregator's saved invoice profile using the resolved snapshot.
-          await tx.aggregatorInvoiceProfile.upsert({
-            where: { userId },
-            create: {
-              userId,
-              legalName: invoiceSnapshot.legalName,
-              constitution: invoiceSnapshot.constitution,
-              gstin: invoiceSnapshot.gstin,
-              pan: invoiceSnapshot.pan,
-              registeredAddress: invoiceSnapshot.registeredAddress,
-            },
-            update: {
-              legalName: invoiceSnapshot.legalName,
-              constitution: invoiceSnapshot.constitution,
-              gstin: invoiceSnapshot.gstin,
-              pan: invoiceSnapshot.pan,
-              registeredAddress: invoiceSnapshot.registeredAddress,
-            },
+        if (isAggregatorCreation) {
+          await this.createAggregatorBookingTx(tx, {
+            clientProfileId: clientProfile.id,
+            createdById: userId,
+            booking,
+            invoiceSnapshot,
           });
-        }
-      }
 
-      return clientProfile;
-    });
+          if (saveInvoiceToProfile && invoiceSnapshot?.legalName) {
+            // Upsert the aggregator's saved invoice profile using the resolved snapshot.
+            await tx.aggregatorInvoiceProfile.upsert({
+              where: { userId },
+              create: {
+                userId,
+                legalName: invoiceSnapshot.legalName,
+                constitution: invoiceSnapshot.constitution,
+                gstin: invoiceSnapshot.gstin,
+                pan: invoiceSnapshot.pan,
+                registeredAddress: invoiceSnapshot.registeredAddress,
+              },
+              update: {
+                legalName: invoiceSnapshot.legalName,
+                constitution: invoiceSnapshot.constitution,
+                gstin: invoiceSnapshot.gstin,
+                pan: invoiceSnapshot.pan,
+                registeredAddress: invoiceSnapshot.registeredAddress,
+              },
+            });
+          }
+        }
+
+        return clientProfile;
+      });
+    } catch (err) {
+      if (isExternalBookingIdUniqueViolation(err)) {
+        throw new ConflictException(DUPLICATE_EXTERNAL_BOOKING_ID_MESSAGE);
+      }
+      throw err;
+    }
 
     await this.auditLogsService.create({
       userId,
@@ -633,6 +654,20 @@ export class ClientProfilesService {
       }
     }
 
+    let normalizedExternalBookingId: string | null | undefined;
+    if (updateClientProfileDto.externalBookingId !== undefined) {
+      const next = normalizeExternalBookingId(updateClientProfileDto.externalBookingId);
+      if (next !== normalizeExternalBookingId(existing.externalBookingId)) {
+        normalizedExternalBookingId = await assertExternalBookingIdAvailable(
+          this.prisma,
+          updateClientProfileDto.externalBookingId,
+          id,
+        );
+      } else {
+        normalizedExternalBookingId = next;
+      }
+    }
+
     // Authorization check: Only admins/managers can update, or the creator
     if (
       userRole !== UserRole.ADMIN &&
@@ -684,7 +719,9 @@ export class ClientProfilesService {
     if (dto.membershipType !== undefined) data.membershipType = dto.membershipType;
     if (dto.officeType !== undefined) data.officeType = dto.officeType;
     if (dto.notes !== undefined) data.notes = dto.notes;
-    if (dto.externalBookingId !== undefined) data.externalBookingId = dto.externalBookingId;
+    if (normalizedExternalBookingId !== undefined) {
+      data.externalBookingId = normalizedExternalBookingId;
+    }
     if (dto.contractMonths !== undefined) data.contractMonths = dto.contractMonths ?? null;
     if (dto.onboardingStage !== undefined) data.onboardingStage = dto.onboardingStage;
     if (dto.clientChannel !== undefined) data.clientChannel = dto.clientChannel;
@@ -720,26 +757,34 @@ export class ClientProfilesService {
       data.operationalStatus = dto.operationalStatus as OperationalStatus;
     }
 
-    const updated = await this.prisma.clientProfile.update({
-      where: { id },
-      data,
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+    let updated;
+    try {
+      updated = await this.prisma.clientProfile.update({
+        where: { id },
+        data,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          location: {
+            select: { id: true, name: true, code: true, area: true },
+          },
+          vendor: {
+            select: { id: true, name: true, code: true },
           },
         },
-        location: {
-          select: { id: true, name: true, code: true, area: true },
-        },
-        vendor: {
-          select: { id: true, name: true, code: true },
-        },
-      },
-    });
+      });
+    } catch (err) {
+      if (isExternalBookingIdUniqueViolation(err)) {
+        throw new ConflictException(DUPLICATE_EXTERNAL_BOOKING_ID_MESSAGE);
+      }
+      throw err;
+    }
 
     await this.auditLogsService.create({
       userId,

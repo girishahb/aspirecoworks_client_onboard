@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ClientChannel,
@@ -17,6 +23,12 @@ import { EmailService } from '../email/email.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { formatIstDateTime, mailReceivedEmail } from '../email/templates/mail-received';
 import { CreateMobileClientDto, UpdateMobileClientDto } from './dto/mobile-client.dto';
+import {
+  assertExternalBookingIdAvailable,
+  DUPLICATE_EXTERNAL_BOOKING_ID_MESSAGE,
+  isExternalBookingIdUniqueViolation,
+  normalizeExternalBookingId,
+} from '../client-profiles/external-booking-id.helper';
 
 type AuthUser = { id: string; role: UserRole };
 
@@ -301,6 +313,7 @@ export class MobileService {
           { contactPhone: { contains: term } },
           { taxId: { contains: term.toUpperCase(), mode: 'insensitive' } },
           { contactEmail: { contains: term, mode: 'insensitive' } },
+          { externalBookingId: { contains: term, mode: 'insensitive' } },
         ],
       },
       take: Math.min(limit, 50),
@@ -358,37 +371,50 @@ export class MobileService {
         ? ClientChannel.DIRECT
         : ClientChannel.AGGREGATOR;
 
-    const created = await this.prisma.clientProfile.create({
-      data: {
-        companyName: dto.companyName,
-        contactEmail: email,
-        contactPhone: dto.contactPhone,
-        contactPersonName: dto.contactPersonName,
-        contactPersonTitle: dto.contactPersonTitle,
-        contactPersonPhone: dto.contactPersonPhone,
-        address: dto.address,
-        city: dto.city,
-        taxId: dto.taxId?.toUpperCase() || null,
-        gstNumber: dto.gstNumber,
-        membershipType: dto.membershipType,
-        officeType: dto.officeType,
-        leadSource,
-        contractMonths: dto.contractMonths ?? null,
-        locationId: dto.locationId,
-        vendorId: dto.vendorId,
-        contractStartDate: this.parseDateOnly(dto.contractStartDate),
-        contractEndDate: this.parseDateOnly(dto.contractEndDate),
-        renewalDate: this.parseDateOnly(dto.contractEndDate),
-        operationalStatus,
-        onboardingStage,
-        notes: dto.notes,
-        externalBookingId: dto.externalBookingId,
-        clientChannel,
-        aggregatorName: dto.aggregatorName,
-        createdById: user.id,
-      },
-      include: this.includeForRole(user.role),
-    });
+    const externalBookingId = await assertExternalBookingIdAvailable(
+      this.prisma,
+      dto.externalBookingId,
+    );
+
+    let created;
+    try {
+      created = await this.prisma.clientProfile.create({
+        data: {
+          companyName: dto.companyName,
+          contactEmail: email,
+          contactPhone: dto.contactPhone,
+          contactPersonName: dto.contactPersonName,
+          contactPersonTitle: dto.contactPersonTitle,
+          contactPersonPhone: dto.contactPersonPhone,
+          address: dto.address,
+          city: dto.city,
+          taxId: dto.taxId?.toUpperCase() || null,
+          gstNumber: dto.gstNumber,
+          membershipType: dto.membershipType,
+          officeType: dto.officeType,
+          leadSource,
+          contractMonths: dto.contractMonths ?? null,
+          locationId: dto.locationId,
+          vendorId: dto.vendorId,
+          contractStartDate: this.parseDateOnly(dto.contractStartDate),
+          contractEndDate: this.parseDateOnly(dto.contractEndDate),
+          renewalDate: this.parseDateOnly(dto.contractEndDate),
+          operationalStatus,
+          onboardingStage,
+          notes: dto.notes,
+          externalBookingId,
+          clientChannel,
+          aggregatorName: dto.aggregatorName,
+          createdById: user.id,
+        },
+        include: this.includeForRole(user.role),
+      });
+    } catch (err) {
+      if (isExternalBookingIdUniqueViolation(err)) {
+        throw new ConflictException(DUPLICATE_EXTERNAL_BOOKING_ID_MESSAGE);
+      }
+      throw err;
+    }
     return this.serializeWithRates(created, user.role);
   }
 
@@ -432,8 +458,19 @@ export class MobileService {
           : ClientChannel.AGGREGATOR;
     }
     if (dto.contractMonths !== undefined) data.contractMonths = dto.contractMonths ?? null;
-    if (dto.notes !== undefined) data.notes = dto.notes;
-    if (dto.externalBookingId !== undefined) data.externalBookingId = dto.externalBookingId;
+    if (dto.notes !== undefined) data.notes = dto.notes.trim() || null;
+    if (dto.externalBookingId !== undefined) {
+      const next = normalizeExternalBookingId(dto.externalBookingId);
+      if (next !== normalizeExternalBookingId(existing.externalBookingId)) {
+        data.externalBookingId = await assertExternalBookingIdAvailable(
+          this.prisma,
+          dto.externalBookingId,
+          id,
+        );
+      } else {
+        data.externalBookingId = next;
+      }
+    }
     if (dto.aggregatorName !== undefined) data.aggregatorName = dto.aggregatorName;
     if (dto.locationId !== undefined) data.location = { connect: { id: dto.locationId } };
     if (dto.vendorId !== undefined) {
@@ -452,11 +489,19 @@ export class MobileService {
       if (dto.operationalStatus === 'ACTIVE') data.onboardingStage = OnboardingStage.ACTIVE;
     }
 
-    const updated = await this.prisma.clientProfile.update({
-      where: { id },
-      data,
-      include: this.includeForRole(user.role),
-    });
+    let updated;
+    try {
+      updated = await this.prisma.clientProfile.update({
+        where: { id },
+        data,
+        include: this.includeForRole(user.role),
+      });
+    } catch (err) {
+      if (isExternalBookingIdUniqueViolation(err)) {
+        throw new ConflictException(DUPLICATE_EXTERNAL_BOOKING_ID_MESSAGE);
+      }
+      throw err;
+    }
     return this.serializeWithRates(updated, user.role);
   }
 

@@ -33,10 +33,12 @@ Already set:
 
 ## 4. First internal APK
 
-Set production API URL in `.env` first if building for staff:
+`eas.json` already sets `EXPO_PUBLIC_API_URL=https://api.aspirecoworks.in` for preview/production builds (so the APK does not fall back to localhost).
+
+Optional local override in `.env` for Expo Go against your PC:
 
 ```env
-EXPO_PUBLIC_API_URL=https://YOUR-PUBLIC-API-HOST
+EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:3000
 ```
 
 Then:

@@ -26,7 +26,8 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email);
+    const normalized = (email || '').trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalized);
     if (!user) return null;
     if (!user.isActivated) {
       throw new UnauthorizedException(

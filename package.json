@@ -43,6 +43,7 @@
     "scripts:migrate-export-v1": "node --max-old-space-size=8192 -r ts-node/register scripts/migrate-export-v1.ts",
     "scripts:migrate-export-physical": "node --max-old-space-size=8192 -r ts-node/register scripts/migrate-export-v1.ts --file=all-clients-export_physical.xlsx",
     "scripts:import-rate-cards": "ts-node scripts/import-vendor-rate-cards.ts",
+    "scripts:export-email-template": "ts-node scripts/export-client-email-template.ts",
     "scripts:delete-excel-imported": "ts-node scripts/delete-excel-imported-clients.ts",
     "scripts:seed-mobile-roles": "ts-node scripts/seed-mobile-roles.ts",
     "test:excel-date": "jest --config scripts/jest.config.js",

@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,9 +14,15 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import {
   apiRequest,
   AuthUser,
@@ -27,6 +33,30 @@ import {
   login as apiLogin,
   notifyMailReceived,
 } from './src/api';
+
+const LOGO = require('./assets/aspire-logo.png');
+const BRAND = '#134b7f';
+const BRAND_DEEP = '#0b2f52';
+const BRAND_SOFT = '#e8f1f8';
+
+/** Display names for mobile roles (codes stay STAFF / RECEPTION / FINANCE). */
+function roleLabel(role?: string | null): string {
+  switch ((role || '').toUpperCase()) {
+    case 'STAFF':
+      return 'Onboarding';
+    case 'RECEPTION':
+      return 'Front Desk';
+    case 'FINANCE':
+      return 'Finance';
+    case 'ADMIN':
+    case 'SUPER_ADMIN':
+      return 'Admin';
+    case 'MANAGER':
+      return 'Manager';
+    default:
+      return role || 'Staff';
+  }
+}
 
 type Screen = 'login' | 'home' | 'find' | 'new' | 'money' | 'detail';
 
@@ -127,37 +157,66 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 
+const EMPTY_FORM = {
+  companyName: '',
+  contactPersonName: '',
+  contactEmail: '',
+  contactPhone: '',
+  address: '',
+  membershipType: '',
+  officeType: 'Virtual',
+  leadSource: 'Aggregator',
+  contractMonths: '',
+  locationId: '',
+  vendorId: '',
+  contractStartDate: '',
+  contractEndDate: '',
+  operationalStatus: 'UNKNOWN',
+  externalBookingId: '',
+  notes: '',
+};
+
+function homeHint(role?: string | null) {
+  switch ((role || '').toUpperCase()) {
+    case 'STAFF':
+      return 'Create clients, capture Booking ID and notes, and look up records for onboarding.';
+    case 'RECEPTION':
+      return 'Find a client, photograph incoming mail, and email them from the client detail screen.';
+    case 'FINANCE':
+      return 'Look up clients, check rate cards, and review recent payments and invoices.';
+    default:
+      return 'Use Find client to look up a company, or open a task below.';
+  }
+}
+
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppInner />
+    </SafeAreaProvider>
+  );
+}
+
+function AppInner() {
+  const insets = useSafeAreaInsets();
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [screen, setScreen] = useState<Screen>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ClientCard[]>([]);
   const [selected, setSelected] = useState<ClientCard | null>(null);
+  const [editingDetail, setEditingDetail] = useState(false);
+  const [editForm, setEditForm] = useState({ externalBookingId: '', notes: '' });
 
   const [locations, setLocations] = useState<MetaLocation[]>([]);
   const [vendors, setVendors] = useState<MetaVendor[]>([]);
-  const [form, setForm] = useState({
-    companyName: '',
-    contactPersonName: '',
-    contactEmail: '',
-    contactPhone: '',
-    address: '',
-    membershipType: '',
-    officeType: 'Virtual',
-    leadSource: 'Aggregator',
-    contractMonths: '',
-    locationId: '',
-    vendorId: '',
-    contractStartDate: '',
-    contractEndDate: '',
-    operationalStatus: 'UNKNOWN',
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
   const [datePicker, setDatePicker] = useState<'start' | 'end' | null>(null);
 
   const [moneyTab, setMoneyTab] = useState<'payments' | 'invoices'>('payments');
@@ -168,6 +227,7 @@ export default function App() {
   const [mailPhotoMime, setMailPhotoMime] = useState('image/jpeg');
   const [mailNote, setMailNote] = useState('');
   const [mailSending, setMailSending] = useState(false);
+  const loginScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     (async () => {
@@ -224,6 +284,11 @@ export default function App() {
     try {
       const card = await apiRequest<ClientCard>(`/mobile/clients/${id}/status`);
       setSelected(card);
+      setEditingDetail(false);
+      setEditForm({
+        externalBookingId: card.externalBookingId || '',
+        notes: card.notes || '',
+      });
       setMailPhotoUri(null);
       setMailPhotoBase64(null);
       setMailPhotoMime('image/jpeg');
@@ -231,6 +296,45 @@ export default function App() {
       setScreen('detail');
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startEditDetail() {
+    if (!selected) return;
+    setEditForm({
+      externalBookingId: selected.externalBookingId || '',
+      notes: selected.notes || '',
+    });
+    setEditingDetail(true);
+    setError(null);
+  }
+
+  async function saveDetailEdit() {
+    if (!selected) return;
+    const bookingId = editForm.externalBookingId.trim();
+    if (!bookingId) {
+      Alert.alert('Required', 'Booking ID is required for onboarding. Enter a booking ID or cancel.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await apiRequest<ClientCard>(`/mobile/clients/${selected.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          externalBookingId: bookingId,
+          notes: editForm.notes.trim(),
+        }),
+      });
+      setSelected(updated);
+      setEditingDetail(false);
+      Alert.alert('Saved', 'Booking ID and notes updated.');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Update failed';
+      setError(msg);
+      Alert.alert('Could not save', msg);
     } finally {
       setBusy(false);
     }
@@ -327,6 +431,7 @@ export default function App() {
   }
 
   async function openNewClient() {
+    setForm({ ...EMPTY_FORM });
     setScreen('new');
     setError(null);
     setDatePicker(null);
@@ -364,6 +469,11 @@ export default function App() {
       Alert.alert('Invalid email', 'Enter a valid contact email address');
       return;
     }
+    const bookingId = form.externalBookingId.trim();
+    if (!bookingId) {
+      Alert.alert('Required', 'Booking ID is required for onboarding');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -372,6 +482,7 @@ export default function App() {
         contactEmail: email,
         locationId: form.locationId,
         operationalStatus: form.operationalStatus,
+        externalBookingId: bookingId,
       };
       if (form.contactPersonName.trim()) body.contactPersonName = form.contactPersonName.trim();
       if (form.contactPhone.trim()) body.contactPhone = form.contactPhone.trim();
@@ -379,6 +490,7 @@ export default function App() {
       if (form.membershipType.trim()) body.membershipType = form.membershipType.trim();
       if (form.officeType.trim()) body.officeType = form.officeType.trim();
       if (form.leadSource.trim()) body.leadSource = form.leadSource.trim();
+      if (form.notes.trim()) body.notes = form.notes.trim();
       if (form.contractMonths.trim()) {
         const n = Number(form.contractMonths);
         if (!Number.isFinite(n) || n <= 0) {
@@ -398,6 +510,7 @@ export default function App() {
       });
       Alert.alert('Created', created.companyName);
       setSelected(created);
+      setEditingDetail(false);
       setScreen('detail');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed');
@@ -431,76 +544,210 @@ export default function App() {
     );
   }
 
+  const edgePad = {
+    paddingTop: Math.max(insets.top, 12),
+    paddingBottom: Math.max(insets.bottom, 16),
+  };
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
+    <SafeAreaView
+      style={[styles.safe, screen === 'login' && styles.safeLogin]}
+      edges={['left', 'right']}
+    >
+      <StatusBar style={screen === 'login' ? 'light' : 'dark'} />
       {screen === 'login' && (
-        <View style={styles.pad}>
-          <Text style={styles.brand}>Aspire Coworks</Text>
-          <Text style={styles.sub}>Mobile client ops</Text>
-          <TextInput
-            style={styles.input}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            style={styles.input}
-            secureTextEntry
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Pressable style={styles.btn} onPress={handleLogin} disabled={busy}>
-            <Text style={styles.btnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
-          </Pressable>
-          <Text style={styles.hint}>
-            reception@ / Reception123! · staff@ / Staff123! · finance@ / Finance123!
-          </Text>
-        </View>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        >
+          <ScrollView
+            ref={loginScrollRef}
+            contentContainerStyle={[
+              styles.loginScroll,
+              { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+          >
+            <LinearGradient
+              colors={[BRAND_DEEP, BRAND]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.loginTopBar,
+                { paddingTop: Math.max(insets.top, 12) + 16 },
+              ]}
+            >
+              <View style={styles.loginTopRow}>
+                <View style={styles.logoWrapSm}>
+                  <Image source={LOGO} style={styles.loginLogoSm} resizeMode="contain" />
+                </View>
+                <View style={styles.loginTopText}>
+                  <Text style={styles.loginBrandSm}>ASPIRE COWORKS</Text>
+                  <Text style={styles.loginTaglineSm}>Client operations</Text>
+                </View>
+              </View>
+              <Text style={styles.loginRolesLine}>For Onboarding, Front Desk & Finance</Text>
+            </LinearGradient>
+
+            <View style={styles.loginBody}>
+              <View style={styles.loginCard}>
+                <Text style={styles.loginCardTitle}>Sign in</Text>
+                <Text style={styles.loginCardSub}>Use your Aspire account</Text>
+
+                <Text style={styles.loginFieldLabel}>Email</Text>
+                <TextInput
+                  style={styles.loginInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="username"
+                  autoComplete="email"
+                  placeholder="you@aspirecoworks.com"
+                  placeholderTextColor="#94a3b8"
+                  value={email}
+                  onChangeText={setEmail}
+                  returnKeyType="next"
+                  onFocus={() => {
+                    setTimeout(() => loginScrollRef.current?.scrollToEnd({ animated: true }), 150);
+                  }}
+                />
+
+                <Text style={styles.loginFieldLabel}>Password</Text>
+                <View style={styles.passwordRow}>
+                  <TextInput
+                    style={[styles.loginInput, styles.passwordInput]}
+                    secureTextEntry={!showPassword}
+                    textContentType="password"
+                    autoComplete="password"
+                    placeholder="Enter password"
+                    placeholderTextColor="#94a3b8"
+                    value={password}
+                    onChangeText={setPassword}
+                    returnKeyType="go"
+                    onSubmitEditing={handleLogin}
+                    onFocus={() => {
+                      setTimeout(() => loginScrollRef.current?.scrollToEnd({ animated: true }), 150);
+                    }}
+                  />
+                  <Pressable
+                    style={styles.showPassBtn}
+                    onPress={() => setShowPassword((v) => !v)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <Text style={styles.showPassText}>{showPassword ? 'Hide' : 'Show'}</Text>
+                  </Pressable>
+                </View>
+
+                {error ? <Text style={styles.loginError}>{error}</Text> : null}
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.loginBtn,
+                    (busy || !email.trim() || !password) && styles.btnDisabled,
+                    pressed && !busy && styles.loginBtnPressed,
+                  ]}
+                  onPress={handleLogin}
+                  disabled={busy || !email.trim() || !password}
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.btnText}>Sign in</Text>
+                  )}
+                </Pressable>
+              </View>
+
+              <Text style={styles.loginFooter}>Onboarding · Front Desk · Finance</Text>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       )}
 
       {screen === 'home' && user && (
-        <View style={styles.pad}>
-          <Text style={styles.brand}>Hello, {user.firstName}</Text>
-          <Text style={styles.sub}>Role: {user.role}</Text>
+        <ScrollView
+          contentContainerStyle={[styles.homePad, edgePad]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.homeHero}>
+            <View style={styles.homeHeroTop}>
+              <View style={styles.logoWrapSm}>
+                <Image source={LOGO} style={styles.loginLogoSm} resizeMode="contain" />
+              </View>
+              <View style={styles.homeHeroText}>
+                <Text style={styles.homeEyebrow}>Aspire Coworks</Text>
+                <Text style={styles.brand}>Hello, {user.firstName}</Text>
+              </View>
+            </View>
+            <View style={styles.rolePill}>
+              <Text style={styles.rolePillText}>{roleLabel(user.role)}</Text>
+            </View>
+            <Text style={styles.homeHint}>{homeHint(user.role)}</Text>
+          </View>
+
+          <Text style={styles.homeSectionLabel}>Quick actions</Text>
+
           <Pressable
-            style={styles.btn}
+            style={styles.homeAction}
             onPress={() => {
               setScreen('find');
               setResults([]);
               setError(null);
             }}
           >
-            <Text style={styles.btnText}>Find client</Text>
+            <Text style={styles.homeActionTitle}>Find client</Text>
+            <Text style={styles.homeActionSub}>
+              Search by company, phone, booking ID, or contact name
+            </Text>
           </Pressable>
+
           {canWriteClients(user.role) && (
-            <Pressable style={styles.btnSecondary} onPress={openNewClient}>
-              <Text style={styles.btnSecondaryText}>New client</Text>
+            <Pressable style={styles.homeAction} onPress={openNewClient}>
+              <Text style={styles.homeActionTitle}>New client</Text>
+              <Text style={styles.homeActionSub}>
+                Onboard a client with Booking ID, notes, and agreement details
+              </Text>
             </Pressable>
           )}
+
           {canSeeMoney(user.role) && (
-            <Pressable style={styles.btnSecondary} onPress={openMoney}>
-              <Text style={styles.btnSecondaryText}>Payments & invoices</Text>
+            <Pressable style={styles.homeAction} onPress={openMoney}>
+              <Text style={styles.homeActionTitle}>Payments & invoices</Text>
+              <Text style={styles.homeActionSub}>
+                Review recent payments and invoices for finance follow-up
+              </Text>
             </Pressable>
           )}
+
+          {user.role === 'RECEPTION' && (
+            <View style={styles.homeTipCard}>
+              <Text style={styles.homeTipTitle}>Front desk tip</Text>
+              <Text style={styles.homeTipBody}>
+                Open Find client → select the company → use Incoming mail to photograph and email
+                the client.
+              </Text>
+            </View>
+          )}
+
           <Pressable style={styles.linkBtn} onPress={handleLogout}>
             <Text style={styles.link}>Sign out</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       )}
 
       {screen === 'find' && (
-        <View style={styles.flex}>
+        <View style={[styles.flex, edgePad]}>
           <View style={styles.pad}>
             <NavBack label="Home" onPress={() => setScreen('home')} />
             <Text style={styles.h1}>Find client</Text>
             <TextInput
               style={styles.input}
-              placeholder="Company, phone, name…"
+              placeholder="Company, phone, booking ID, name…"
               value={query}
               onChangeText={setQuery}
               onSubmitEditing={runLookup}
@@ -513,7 +760,10 @@ export default function App() {
           <FlatList
             data={results}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listPad}
+            contentContainerStyle={[
+              styles.listPad,
+              { paddingBottom: Math.max(insets.bottom, 16) + 24 },
+            ]}
             renderItem={({ item }) => (
               <Pressable style={styles.card} onPress={() => openDetail(item.id)}>
                 <View style={styles.rowBetween}>
@@ -545,8 +795,23 @@ export default function App() {
       )}
 
       {screen === 'detail' && selected && (
-        <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
-          <NavBack label="Back" onPress={() => setScreen('find')} />
+        <ScrollView
+          contentContainerStyle={[
+            styles.pad,
+            {
+              paddingTop: Math.max(insets.top, 12) + 8,
+              paddingBottom: Math.max(insets.bottom, 16) + 28,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <NavBack
+            label="Back"
+            onPress={() => {
+              setEditingDetail(false);
+              setScreen('find');
+            }}
+          />
           <Text style={styles.h1}>{selected.companyName}</Text>
           <Text style={selected.isActive ? styles.badgeOk : styles.badgeBad}>
             {selected.isActive ? 'ACTIVE' : 'INACTIVE'}
@@ -564,6 +829,61 @@ export default function App() {
               <Text style={styles.label}>Phone</Text>
               <Text style={styles.value}>{selected.contactPhone}</Text>
             </>
+          ) : null}
+
+          {canWriteClients(user?.role || '') ? (
+            <View style={[styles.sectionCard, { marginTop: 16 }]}>
+              <SectionTitle>Onboarding fields</SectionTitle>
+              {editingDetail ? (
+                <>
+                  <FieldLabel>Booking ID *</FieldLabel>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="External booking / reference ID"
+                    autoCapitalize="characters"
+                    value={editForm.externalBookingId}
+                    onChangeText={(t) => setEditForm((f) => ({ ...f, externalBookingId: t }))}
+                  />
+                  <FieldLabel>Notes</FieldLabel>
+                  <TextInput
+                    style={[styles.input, styles.notesInput]}
+                    placeholder="Onboarding notes for this client"
+                    multiline
+                    textAlignVertical="top"
+                    value={editForm.notes}
+                    onChangeText={(t) => setEditForm((f) => ({ ...f, notes: t }))}
+                  />
+                  {error ? <Text style={styles.error}>{error}</Text> : null}
+                  <Pressable style={styles.btn} onPress={saveDetailEdit} disabled={busy}>
+                    <Text style={styles.btnText}>{busy ? 'Saving…' : 'Save changes'}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.btnSecondary, { marginTop: 10 }]}
+                    onPress={() => {
+                      setEditingDetail(false);
+                      setError(null);
+                      setEditForm({
+                        externalBookingId: selected.externalBookingId || '',
+                        notes: selected.notes || '',
+                      });
+                    }}
+                    disabled={busy}
+                  >
+                    <Text style={styles.btnSecondaryText}>Cancel</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>Booking ID</Text>
+                  <Text style={styles.value}>{selected.externalBookingId || '—'}</Text>
+                  <Text style={styles.label}>Notes</Text>
+                  <Text style={styles.value}>{selected.notes || '—'}</Text>
+                  <Pressable style={[styles.btnSecondary, { marginTop: 12 }]} onPress={startEditDetail}>
+                    <Text style={styles.btnSecondaryText}>Edit Booking ID & notes</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           ) : null}
 
           {user?.role === 'RECEPTION' ? (
@@ -674,7 +994,12 @@ export default function App() {
           <DetailRow label="Channel" value={selected.clientChannel} />
           <DetailRow label="Aggregator" value={selected.aggregatorName} />
           <DetailRow label="Contract months" value={selected.contractMonths} />
-          <DetailRow label="Booking ID" value={selected.externalBookingId} />
+          {!canWriteClients(user?.role || '') ? (
+            <>
+              <DetailRow label="Booking ID" value={selected.externalBookingId} />
+              <DetailRow label="Notes" value={selected.notes} />
+            </>
+          ) : null}
           <DetailRow label="Onboarding" value={selected.onboardingStage} />
           <DetailRow label="Renewal" value={selected.renewalStatus} />
           {selected.renewalDate ? (
@@ -688,7 +1013,6 @@ export default function App() {
                 : selected.kycCompleted
             }
           />
-          <DetailRow label="Notes" value={selected.notes} />
 
           {canSeeMoney(user?.role || '') && selected.payments?.length ? (
             <>
@@ -714,9 +1038,39 @@ export default function App() {
       )}
 
       {screen === 'new' && (
-        <ScrollView contentContainerStyle={styles.formPad} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={[
+            styles.formPad,
+            {
+              paddingTop: Math.max(insets.top, 12) + 8,
+              paddingBottom: Math.max(insets.bottom, 16) + 32,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
           <NavBack label="Home" onPress={() => setScreen('home')} />
           <Text style={styles.h1}>New client</Text>
+
+          <View style={styles.sectionCard}>
+            <SectionTitle>Onboarding</SectionTitle>
+            <FieldLabel>Booking ID *</FieldLabel>
+            <TextInput
+              style={styles.input}
+              placeholder="External booking / reference ID"
+              autoCapitalize="characters"
+              value={form.externalBookingId}
+              onChangeText={(t) => setForm((f) => ({ ...f, externalBookingId: t }))}
+            />
+            <FieldLabel>Notes</FieldLabel>
+            <TextInput
+              style={[styles.input, styles.notesInput, styles.inputLast]}
+              placeholder="Onboarding notes for this client"
+              multiline
+              textAlignVertical="top"
+              value={form.notes}
+              onChangeText={(t) => setForm((f) => ({ ...f, notes: t }))}
+            />
+          </View>
 
           <View style={styles.sectionCard}>
             <SectionTitle>Company</SectionTitle>
@@ -886,7 +1240,7 @@ export default function App() {
       )}
 
       {screen === 'money' && (
-        <View style={styles.flex}>
+        <View style={[styles.flex, edgePad]}>
           <View style={styles.pad}>
             <NavBack label="Home" onPress={() => setScreen('home')} />
             <Text style={styles.h1}>Finance</Text>
@@ -909,7 +1263,10 @@ export default function App() {
           <FlatList
             data={moneyTab === 'payments' ? payments : invoices}
             keyExtractor={(item, idx) => item.id || String(idx)}
-            contentContainerStyle={styles.listPad}
+            contentContainerStyle={[
+              styles.listPad,
+              { paddingBottom: Math.max(insets.bottom, 16) + 24 },
+            ]}
             renderItem={({ item }) => (
               <View style={styles.card}>
                 {moneyTab === 'payments' ? (
@@ -943,13 +1300,204 @@ export default function App() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#eef3f8' },
+  safeLogin: { backgroundColor: BRAND_DEEP },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  pad: { padding: 20 },
-  formPad: { padding: 20, paddingBottom: 40 },
+  pad: { paddingHorizontal: 20, paddingVertical: 12 },
+  formPad: { paddingHorizontal: 20, paddingBottom: 40 },
   listPad: { paddingHorizontal: 20, paddingBottom: 40 },
-  brand: { fontSize: 28, fontWeight: '700', color: '#134b7f', marginBottom: 4 },
+  homePad: { paddingHorizontal: 20, paddingBottom: 28 },
+  homeHero: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 18,
+  },
+  homeHeroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  homeHeroText: { flex: 1 },
+  homeEyebrow: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  rolePill: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    backgroundColor: BRAND_SOFT,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#c9dae8',
+  },
+  rolePillText: { color: BRAND, fontWeight: '700', fontSize: 13 },
+  homeHint: {
+    marginTop: 12,
+    color: '#475569',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  homeSectionLabel: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  homeAction: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#d7e2ef',
+  },
+  homeActionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: BRAND,
+    marginBottom: 4,
+  },
+  homeActionSub: { color: '#64748b', fontSize: 13, lineHeight: 18 },
+  homeTipCard: {
+    backgroundColor: BRAND_SOFT,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#c9dae8',
+  },
+  homeTipTitle: { color: BRAND_DEEP, fontWeight: '700', fontSize: 13, marginBottom: 4 },
+  homeTipBody: { color: '#334155', fontSize: 13, lineHeight: 19 },
+  notesInput: {
+    minHeight: 96,
+    paddingTop: 12,
+  },
+  brand: { fontSize: 26, fontWeight: '700', color: '#134b7f', marginBottom: 0 },
   sub: { color: '#64748b', marginBottom: 20 },
+  loginScroll: {
+    flexGrow: 1,
+    backgroundColor: '#f4f7fb',
+    paddingBottom: 48,
+    justifyContent: 'flex-start',
+  },
+  loginTopBar: {
+    paddingBottom: 28,
+    paddingHorizontal: 20,
+  },
+  loginTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoWrapSm: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginLogoSm: { width: 36, height: 36 },
+  loginTopText: { flex: 1 },
+  loginBrandSm: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  loginTaglineSm: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  loginRolesLine: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 14,
+  },
+  loginBody: {
+    marginTop: -16,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  loginCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: BRAND_DEEP,
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
+  },
+  loginCardTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  loginCardSub: { color: '#64748b', marginBottom: 18, fontSize: 14 },
+  loginFieldLabel: {
+    color: '#334155',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  loginInput: {
+    backgroundColor: BRAND_SOFT,
+    borderWidth: 1,
+    borderColor: '#c9dae8',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    marginBottom: 14,
+    fontSize: 16,
+    color: '#0f172a',
+  },
+  passwordRow: { position: 'relative', justifyContent: 'center' },
+  passwordInput: { paddingRight: 64, marginBottom: 14 },
+  showPassBtn: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  showPassText: { color: BRAND, fontWeight: '700', fontSize: 13 },
+  loginError: {
+    color: '#b91c1c',
+    backgroundColor: '#fef2f2',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    overflow: 'hidden',
+    fontSize: 14,
+  },
+  loginBtn: {
+    backgroundColor: BRAND,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 54,
+    marginTop: 2,
+  },
+  loginBtnPressed: { backgroundColor: BRAND_DEEP },
+  loginFooter: {
+    textAlign: 'center',
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 18,
+    lineHeight: 18,
+  },
   h1: { fontSize: 24, fontWeight: '700', color: '#0f172a', marginTop: 4, marginBottom: 16 },
   navBack: {
     alignSelf: 'flex-start',
