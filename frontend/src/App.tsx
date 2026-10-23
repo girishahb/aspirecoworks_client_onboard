@@ -34,6 +34,7 @@ const AdminAggregatorUsers = lazy(() => import('./pages/AdminAggregatorUsers'));
 const AdminCustomers = lazy(() => import('./pages/AdminCustomers'));
 const AdminImportQa = lazy(() => import('./pages/AdminImportQa'));
 const AdminMobileUsers = lazy(() => import('./pages/AdminMobileUsers'));
+const AdminMailNotifications = lazy(() => import('./pages/AdminMailNotifications'));
 const AggregatorDashboard = lazy(() => import('./pages/AggregatorDashboard'));
 const AggregatorCreateCompany = lazy(() => import('./pages/AggregatorCreateCompany'));
 const AggregatorInvoices = lazy(() => import('./pages/AggregatorInvoices'));
@@ -98,6 +99,7 @@ export default function App() {
             <Route path="invoices" element={<AdminInvoices />} />
             <Route path="aggregator-users" element={<AdminAggregatorUsers />} />
             <Route path="mobile-users" element={<AdminMobileUsers />} />
+            <Route path="mail-notifications" element={<AdminMailNotifications />} />
             <Route path="import-qa" element={<AdminImportQa />} />
           </Route>
         </Route>

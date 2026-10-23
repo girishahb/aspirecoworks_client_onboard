@@ -25,6 +25,7 @@ import { AggregatorUsersModule } from './aggregator-users/aggregator-users.modul
 import { AggregatorProfileModule } from './aggregator-profile/aggregator-profile.module';
 import { ImportQaModule } from './import-qa/import-qa.module';
 import { MobileModule } from './mobile/mobile.module';
+import { MailNotificationsModule } from './mail-notifications/mail-notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -64,6 +65,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AggregatorProfileModule,
     ImportQaModule,
     MobileModule,
+    MailNotificationsModule,
   ],
   controllers: [],
   providers: [

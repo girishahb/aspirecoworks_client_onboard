@@ -644,9 +644,26 @@ export class MobileService {
     });
 
     if (!sendResult.success) {
-      throw new BadRequestException(
-        sendResult.error || 'Failed to send email. Photo was saved; try again or check email config.',
-      );
+      const errorMessage =
+        sendResult.error || 'Failed to send email. Photo was saved; try again or check email config.';
+      await this.auditLogs.create({
+        userId: user.id,
+        clientProfileId: clientId,
+        documentId: document.id,
+        action: 'MAIL_RECEIVED_FAILED',
+        entityType: 'ClientProfile',
+        entityId: clientId,
+        changes: {
+          status: 'failed',
+          to,
+          receivedAt: receivedAt.toISOString(),
+          receivedAtIst,
+          documentId: document.id,
+          error: errorMessage,
+          note: note?.trim() || null,
+        },
+      });
+      throw new BadRequestException(errorMessage);
     }
 
     await this.auditLogs.create({
@@ -657,11 +674,13 @@ export class MobileService {
       entityType: 'ClientProfile',
       entityId: clientId,
       changes: {
+        status: 'success',
         to,
         receivedAt: receivedAt.toISOString(),
         receivedAtIst,
         documentId: document.id,
         messageId: sendResult.messageId,
+        note: note?.trim() || null,
       },
     });
 

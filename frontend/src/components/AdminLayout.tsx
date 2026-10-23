@@ -16,6 +16,7 @@ import {
   Handshake,
   FileSpreadsheet,
   Smartphone,
+  Mail,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -27,6 +28,12 @@ const NAV_ITEMS = [
   { to: '/admin/pricing', icon: Tag, label: 'Pricing' },
   { to: '/admin/aggregator-users', icon: Handshake, label: 'Aggregators', roles: ['ADMIN', 'SUPER_ADMIN'] as const },
   { to: '/admin/mobile-users', icon: Smartphone, label: 'Mobile users', roles: ['ADMIN', 'SUPER_ADMIN', 'FINANCE'] as const },
+  {
+    to: '/admin/mail-notifications',
+    icon: Mail,
+    label: 'Mail notifications',
+    roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'] as const,
+  },
   { to: '/admin/import-qa', icon: FileSpreadsheet, label: 'Import QA' },
   { to: '/admin/audit-log', icon: Shield, label: 'Audit Log' },
 ];

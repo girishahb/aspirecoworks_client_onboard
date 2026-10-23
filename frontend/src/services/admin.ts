@@ -466,6 +466,98 @@ export interface ListAuditLogsParams {
   entityType?: string;
 }
 
+export type MailNotifyStatusFilter = 'success' | 'failed' | 'all';
+
+export interface MailNotificationRow {
+  id: string;
+  status: 'success' | 'failed';
+  createdAt: string;
+  receivedAtIst: string | null;
+  to: string | null;
+  messageId: string | null;
+  error: string | null;
+  note: string | null;
+  receptionist: {
+    id: string;
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+  client: { id: string; companyName: string } | null;
+  document: { id: string; fileName: string } | null;
+}
+
+export interface MailNotificationsResponse {
+  rows: MailNotificationRow[];
+  from: string;
+  to: string;
+  status: MailNotifyStatusFilter;
+}
+
+export interface ListMailNotificationsParams {
+  status?: MailNotifyStatusFilter;
+  from?: string;
+  to?: string;
+  receptionistId?: string;
+  clientProfileId?: string;
+}
+
+/**
+ * Reception mail email notifications report.
+ * Backend: GET /admin/mail-notifications
+ */
+export async function listMailNotifications(
+  params?: ListMailNotificationsParams,
+): Promise<MailNotificationsResponse> {
+  const search = new URLSearchParams();
+  if (params?.status) search.set('status', params.status);
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  if (params?.receptionistId) search.set('receptionistId', params.receptionistId);
+  if (params?.clientProfileId) search.set('clientProfileId', params.clientProfileId);
+  const qs = search.toString();
+  return apiGet<MailNotificationsResponse>(
+    qs ? `/admin/mail-notifications?${qs}` : '/admin/mail-notifications',
+  );
+}
+
+/**
+ * Download Excel export of mail notifications.
+ * Backend: GET /admin/mail-notifications/export
+ */
+export async function downloadMailNotificationsExcel(
+  params?: ListMailNotificationsParams,
+): Promise<void> {
+  const { apiUrl } = await import('../api/url');
+  const { getAuthHeaders } = await import('./auth');
+  const search = new URLSearchParams();
+  if (params?.status) search.set('status', params.status);
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+  if (params?.receptionistId) search.set('receptionistId', params.receptionistId);
+  if (params?.clientProfileId) search.set('clientProfileId', params.clientProfileId);
+  const qs = search.toString();
+  const res = await fetch(
+    apiUrl(qs ? `/admin/mail-notifications/export?${qs}` : '/admin/mail-notifications/export'),
+    { headers: getAuthHeaders() },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error((err as { message?: string }).message ?? `Export failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition');
+  let fileName = 'mail-notifications.xlsx';
+  const match = disposition?.match(/filename="?([^";\n]+)"?/);
+  if (match) fileName = match[1];
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
  * List audit logs (read-only). Supports optional filters.
  * Backend: GET /audit-logs (ADMIN, MANAGER).
