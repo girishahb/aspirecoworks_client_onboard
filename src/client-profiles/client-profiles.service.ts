@@ -26,7 +26,9 @@ import { AggregatorProfileService } from '../aggregator-profile/aggregator-profi
 import { leadSourceToClientChannel } from '../common/constants/client-ops-options';
 import {
   agreementOperationalStatus,
+  agreementStatusWhere,
   isActiveFromAgreement,
+  type DeskStatusFilter,
 } from '../common/utils/agreement-status';
 import { ClientChannel, OperationalStatus, Prisma } from '@prisma/client';
 import type {
@@ -541,49 +543,161 @@ export class ClientProfilesService {
     }
   }
 
-  async findAll(userRole: UserRole, userId?: string) {
-    const where: any = {};
+  private mapProfileRow<T extends {
+    onboardingStage: string;
+    contractStartDate?: Date | null;
+    contractEndDate?: Date | null;
+  }>(p: T) {
+    const onboardingLocked = p.onboardingStage === 'ACTIVE';
+    const isActive = isActiveFromAgreement(p);
+    return {
+      ...p,
+      isActive,
+      operationalStatus: agreementOperationalStatus(p),
+      onboardingLocked,
+    };
+  }
 
-    // COMPANY_ADMIN users can only see their own company profile (filtered by companyId in service logic)
-    // This check is handled elsewhere for COMPANY_ADMIN users
+  private buildListWhere(
+    userRole: UserRole,
+    userId: string | undefined,
+    opts?: {
+      q?: string;
+      locationId?: string;
+      clientChannel?: string;
+      status?: DeskStatusFilter;
+    },
+  ): Prisma.ClientProfileWhereInput {
+    const parts: Prisma.ClientProfileWhereInput[] = [];
 
-    // AGGREGATOR partners only see clients they onboarded.
     if (userRole === UserRole.AGGREGATOR && userId) {
-      where.createdById = userId;
+      parts.push({ createdById: userId });
     }
 
-    const list = await this.prisma.clientProfile.findMany({
-      where,
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        location: {
-          select: { id: true, name: true, code: true, area: true },
-        },
-        _count: {
-          select: {
-            documents: true,
-          },
+    const q = opts?.q?.trim();
+    if (q) {
+      parts.push({
+        OR: [
+          { companyName: { contains: q, mode: 'insensitive' } },
+          { contactEmail: { contains: q, mode: 'insensitive' } },
+          { contactPhone: { contains: q, mode: 'insensitive' } },
+          { contactPersonName: { contains: q, mode: 'insensitive' } },
+          { aggregatorName: { contains: q, mode: 'insensitive' } },
+          { location: { name: { contains: q, mode: 'insensitive' } } },
+          { location: { code: { contains: q, mode: 'insensitive' } } },
+        ],
+      });
+    }
+
+    if (opts?.locationId) {
+      parts.push({ locationId: opts.locationId });
+    }
+
+    if (opts?.clientChannel === 'DIRECT' || opts?.clientChannel === 'AGGREGATOR') {
+      parts.push({ clientChannel: opts.clientChannel });
+    }
+
+    if (opts?.status) {
+      parts.push(agreementStatusWhere(opts.status) as Prisma.ClientProfileWhereInput);
+    }
+
+    if (parts.length === 0) return {};
+    if (parts.length === 1) return parts[0];
+    return { AND: parts };
+  }
+
+  async findAll(
+    userRole: UserRole,
+    userId?: string,
+    opts?: {
+      page?: number;
+      pageSize?: number;
+      q?: string;
+      locationId?: string;
+      clientChannel?: string;
+      status?: DeskStatusFilter;
+    },
+  ) {
+    const include = {
+      createdBy: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
         },
       },
+      location: {
+        select: { id: true, name: true, code: true, area: true },
+      },
+      _count: {
+        select: {
+          documents: true,
+        },
+      },
+    } as const;
+
+    // Paginated response when page is requested (desk Customers page).
+    if (opts?.page != null) {
+      const page = Math.max(1, Math.floor(opts.page) || 1);
+      const pageSize = Math.min(50, Math.max(1, Math.floor(opts.pageSize ?? 10) || 10));
+      const where = this.buildListWhere(userRole, userId, opts);
+      const baseWhere = this.buildListWhere(userRole, userId, {
+        q: opts.q,
+        locationId: opts.locationId,
+        clientChannel: opts.clientChannel,
+      });
+
+      const [total, list, baseTotal, active, pending, expired, aggregator] = await Promise.all([
+        this.prisma.clientProfile.count({ where }),
+        this.prisma.clientProfile.findMany({
+          where,
+          include,
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        this.prisma.clientProfile.count({ where: baseWhere }),
+        this.prisma.clientProfile.count({
+          where: { AND: [baseWhere, agreementStatusWhere('active') as Prisma.ClientProfileWhereInput] },
+        }),
+        this.prisma.clientProfile.count({
+          where: { AND: [baseWhere, agreementStatusWhere('pending') as Prisma.ClientProfileWhereInput] },
+        }),
+        this.prisma.clientProfile.count({
+          where: { AND: [baseWhere, agreementStatusWhere('expired') as Prisma.ClientProfileWhereInput] },
+        }),
+        this.prisma.clientProfile.count({
+          where: { AND: [baseWhere, { clientChannel: ClientChannel.AGGREGATOR }] },
+        }),
+      ]);
+
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+      return {
+        items: list.map((p) => this.mapProfileRow(p)),
+        page,
+        pageSize,
+        total,
+        totalPages,
+        counts: {
+          total: baseTotal,
+          active,
+          pending,
+          expired,
+          aggregator,
+        },
+      };
+    }
+
+    // Legacy full list (dashboard / aggregator).
+    const where = this.buildListWhere(userRole, userId);
+    const list = await this.prisma.clientProfile.findMany({
+      where,
+      include,
       orderBy: { createdAt: 'desc' },
     });
-    return list.map((p) => {
-      const onboardingLocked = p.onboardingStage === OnboardingStage.ACTIVE;
-      const isActive = isActiveFromAgreement(p);
-      return {
-        ...p,
-        isActive,
-        operationalStatus: agreementOperationalStatus(p),
-        onboardingLocked,
-      };
-    });
+    return list.map((p) => this.mapProfileRow(p));
   }
 
   async findOne(id: string, userRole: UserRole, userId?: string) {

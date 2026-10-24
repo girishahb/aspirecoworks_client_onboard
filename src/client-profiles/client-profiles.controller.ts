@@ -8,8 +8,9 @@ import {
   Delete,
   UseGuards,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ClientProfilesService } from './client-profiles.service';
 import { UpdateClientProfileDto } from './dto/update-client-profile.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
@@ -95,10 +96,44 @@ export class ClientProfilesController {
 
   @Get()
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
-  @ApiOperation({ summary: 'Get all client profiles' })
-  @ApiResponse({ status: 200, description: 'List of client profiles' })
-  findAll(@CurrentUser() user: any) {
-    return this.clientProfilesService.findAll(user.role, user.id);
+  @ApiOperation({
+    summary: 'Get client profiles',
+    description:
+      'Omit page for full list. Pass page (1-based) for paginated desk list (default pageSize=10).',
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'pageSize', required: false })
+  @ApiQuery({ name: 'q', required: false })
+  @ApiQuery({ name: 'locationId', required: false })
+  @ApiQuery({ name: 'clientChannel', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiResponse({ status: 200, description: 'List of client profiles (or paginated page)' })
+  findAll(
+    @CurrentUser() user: any,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+    @Query('locationId') locationId?: string,
+    @Query('clientChannel') clientChannel?: string,
+    @Query('status') status?: string,
+  ) {
+    const pageNum = page != null && page !== '' ? Number(page) : undefined;
+    const sizeNum = pageSize != null && pageSize !== '' ? Number(pageSize) : undefined;
+    const statusFilter =
+      status === 'active' ||
+      status === 'inactive' ||
+      status === 'pending' ||
+      status === 'expired'
+        ? status
+        : undefined;
+    return this.clientProfilesService.findAll(user.role, user.id, {
+      page: Number.isFinite(pageNum) ? pageNum : undefined,
+      pageSize: Number.isFinite(sizeNum) ? sizeNum : undefined,
+      q,
+      locationId,
+      clientChannel,
+      status: statusFilter,
+    });
   }
 
   @Get(':id')

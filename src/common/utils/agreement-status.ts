@@ -40,3 +40,40 @@ export function agreementOperationalStatus(p: {
 }, now: Date = new Date()): 'ACTIVE' | 'INACTIVE' {
   return isActiveFromAgreement(p, now) ? 'ACTIVE' : 'INACTIVE';
 }
+
+/** Midnight UTC for the given IST calendar day (YYYY-MM-DD). */
+export function istYmdToUtcDate(ymd: string): Date {
+  return new Date(`${ymd}T00:00:00.000Z`);
+}
+
+export type DeskStatusFilter = 'active' | 'inactive' | 'pending' | 'expired';
+
+/**
+ * Prisma where fragment matching deskClientStatus / mobile agreement rules.
+ */
+export function agreementStatusWhere(
+  status: DeskStatusFilter,
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const today = istYmdToUtcDate(todayIstYmd(now));
+  switch (status) {
+    case 'expired':
+      return { contractEndDate: { lt: today } };
+    case 'pending':
+      return {
+        contractStartDate: { gt: today },
+        OR: [{ contractEndDate: null }, { contractEndDate: { gte: today } }],
+      };
+    case 'inactive':
+      return { onboardingStage: 'REJECTED' };
+    case 'active':
+    default:
+      return {
+        NOT: { onboardingStage: 'REJECTED' },
+        AND: [
+          { OR: [{ contractStartDate: null }, { contractStartDate: { lte: today } }] },
+          { OR: [{ contractEndDate: null }, { contractEndDate: { gte: today } }] },
+        ],
+      };
+  }
+}

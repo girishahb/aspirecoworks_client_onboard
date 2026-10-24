@@ -98,12 +98,52 @@ export interface AdminDocumentListItem {
   [key: string]: unknown;
 }
 
+export type ListCompaniesParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  locationId?: string;
+  clientChannel?: 'DIRECT' | 'AGGREGATOR';
+  status?: 'active' | 'inactive' | 'pending' | 'expired';
+};
+
+export type CompaniesPage = {
+  items: AdminCompany[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  counts: {
+    total: number;
+    active: number;
+    pending: number;
+    expired: number;
+    aggregator: number;
+  };
+};
+
 /**
  * List all companies (client profiles).
  * Backend: GET /client-profiles (ADMIN, MANAGER, CLIENT with filtering).
+ * Without page → full array (dashboard). With page → paginated CompaniesPage.
  */
 export async function listCompanies(): Promise<AdminCompany[]> {
   return apiGet<AdminCompany[]>('/client-profiles');
+}
+
+/**
+ * Paginated companies for desk Customers page (default 10 / page).
+ * Backend: GET /client-profiles?page=1&pageSize=10&…
+ */
+export async function listCompaniesPage(params: ListCompaniesParams): Promise<CompaniesPage> {
+  const search = new URLSearchParams();
+  search.set('page', String(params.page ?? 1));
+  search.set('pageSize', String(params.pageSize ?? 10));
+  if (params.q?.trim()) search.set('q', params.q.trim());
+  if (params.locationId) search.set('locationId', params.locationId);
+  if (params.clientChannel) search.set('clientChannel', params.clientChannel);
+  if (params.status) search.set('status', params.status);
+  return apiGet<CompaniesPage>(`/client-profiles?${search.toString()}`);
 }
 
 /**
