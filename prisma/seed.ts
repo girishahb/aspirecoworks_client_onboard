@@ -10,7 +10,7 @@ async function main() {
   const adminPassword = await bcrypt.hash('Admin123!', 10);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@aspirecoworks.com' },
-    update: { passwordHash: adminPassword },
+    update: { passwordHash: adminPassword, isActive: true, isActivated: true },
     create: {
       email: 'admin@aspirecoworks.com',
       passwordHash: adminPassword,
@@ -18,6 +18,32 @@ async function main() {
       lastName: 'User',
       role: 'ADMIN',
       isActive: true,
+      isActivated: true,
+    },
+  });
+
+  // Admin: Uma (production ops)
+  const umaPassword = await bcrypt.hash('Uma123!', 10);
+  const uma = await prisma.user.upsert({
+    where: { email: 'uma@aspirecoworks.in' },
+    update: {
+      passwordHash: umaPassword,
+      role: 'ADMIN',
+      isActive: true,
+      isActivated: true,
+      inviteToken: null,
+      inviteTokenExpiry: null,
+      firstName: 'Uma',
+      lastName: 'Aspire',
+    },
+    create: {
+      email: 'uma@aspirecoworks.in',
+      passwordHash: umaPassword,
+      firstName: 'Uma',
+      lastName: 'Aspire',
+      role: 'ADMIN',
+      isActive: true,
+      isActivated: true,
     },
   });
 
@@ -335,6 +361,7 @@ async function main() {
 
   console.log('Seed data created:');
   console.log('- Admin user:', admin.email);
+  console.log('- Admin user (Uma):', uma.email);
   console.log('- Manager user:', manager.email);
   console.log('- Finance user:', finance.email, '(Finance123!)');
   console.log('- Staff user:', staff.email, '(Staff123!)');

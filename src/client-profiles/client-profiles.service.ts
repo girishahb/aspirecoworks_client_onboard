@@ -24,6 +24,10 @@ import { clientInviteSetPassword } from '../email/templates/client-invite-set-pa
 import { assertValidTransition } from './onboarding-stage.helper';
 import { AggregatorProfileService } from '../aggregator-profile/aggregator-profile.service';
 import { leadSourceToClientChannel } from '../common/constants/client-ops-options';
+import {
+  agreementOperationalStatus,
+  isActiveFromAgreement,
+} from '../common/utils/agreement-status';
 import { ClientChannel, OperationalStatus, Prisma } from '@prisma/client';
 import type {
   AggregatorBookingInput,
@@ -559,6 +563,9 @@ export class ClientProfilesService {
             lastName: true,
           },
         },
+        location: {
+          select: { id: true, name: true, code: true, area: true },
+        },
         _count: {
           select: {
             documents: true,
@@ -568,8 +575,14 @@ export class ClientProfilesService {
       orderBy: { createdAt: 'desc' },
     });
     return list.map((p) => {
-      const isActive = p.onboardingStage === OnboardingStage.ACTIVE;
-      return { ...p, isActive, onboardingLocked: isActive };
+      const onboardingLocked = p.onboardingStage === OnboardingStage.ACTIVE;
+      const isActive = isActiveFromAgreement(p);
+      return {
+        ...p,
+        isActive,
+        operationalStatus: agreementOperationalStatus(p),
+        onboardingLocked,
+      };
     });
   }
 
@@ -621,7 +634,8 @@ export class ClientProfilesService {
       );
     }
 
-    const isActive = clientProfile.onboardingStage === OnboardingStage.ACTIVE;
+    const onboardingLocked = clientProfile.onboardingStage === OnboardingStage.ACTIVE;
+    const isActive = isActiveFromAgreement(clientProfile);
 
     const clientUser = await this.prisma.user.findFirst({
       where: { companyId: id, role: UserRole.CLIENT },
@@ -631,7 +645,8 @@ export class ClientProfilesService {
     return {
       ...clientProfile,
       isActive,
-      onboardingLocked: isActive,
+      operationalStatus: agreementOperationalStatus(clientProfile),
+      onboardingLocked,
       clientUser: clientUser ?? null,
     };
   }
@@ -1136,10 +1151,12 @@ export class ClientProfilesService {
       // Total companies
       this.prisma.clientProfile.count(),
 
-      // Active companies
-      this.prisma.clientProfile.count({
-        where: { onboardingStage: OnboardingStage.ACTIVE },
-      }),
+      // Active by agreement dates (same rule as mobile / desk status)
+      this.prisma.clientProfile
+        .findMany({
+          select: { contractStartDate: true, contractEndDate: true },
+        })
+        .then((rows) => rows.filter((r) => isActiveFromAgreement(r)).length),
 
       // Payment pending
       this.prisma.clientProfile.count({

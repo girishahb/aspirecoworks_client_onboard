@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Badge from '../components/Badge';
-import { listCompanies, type AdminCompany } from '../services/admin';
+import {
+  getMobileLocations,
+  listCompanies,
+  type AdminCompany,
+} from '../services/admin';
+import {
+  deskClientStatus,
+  type DeskClientStatus,
+} from '../utils/agreementStatus';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -30,17 +38,7 @@ function stageLabel(stage: string | null | undefined): string {
   return stage ? (STAGE_LABELS[stage] ?? stage) : '—';
 }
 
-type ClientStatus = 'active' | 'inactive' | 'pending' | 'expired';
-
-function clientStatus(company: AdminCompany): ClientStatus {
-  if (company.renewalStatus === 'EXPIRED') return 'expired';
-  if (company.renewalStatus === 'ACTIVE') return 'active';
-  if (company.onboardingStage === 'ACTIVE' || company.onboardingStage === 'COMPLETED') return 'active';
-  if (company.onboardingStage === 'REJECTED') return 'inactive';
-  return 'pending';
-}
-
-function statusLabel(status: ClientStatus): string {
+function statusLabel(status: DeskClientStatus): string {
   switch (status) {
     case 'active':
       return 'Active';
@@ -50,29 +48,37 @@ function statusLabel(status: ClientStatus): string {
       return 'Inactive';
     case 'pending':
     default:
-      return 'Onboarding';
+      return 'Not started';
   }
 }
 
 type ChannelFilter = 'ALL' | 'DIRECT' | 'AGGREGATOR';
-type StatusFilter = 'ALL' | ClientStatus;
+type StatusFilter = 'ALL' | DeskClientStatus;
 
 export default function AdminCustomers() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<AdminCompany[]>([]);
+  const [locations, setLocations] = useState<{ id: string; name: string; code?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('ALL');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [locationFilter, setLocationFilter] = useState<string>('ALL');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    listCompanies()
-      .then((data) => {
-        if (!cancelled) setCompanies(data);
+    Promise.all([
+      listCompanies(),
+      getMobileLocations().catch(() => [] as { id: string; name: string; code?: string | null }[]),
+    ])
+      .then(([data, locs]) => {
+        if (!cancelled) {
+          setCompanies(data);
+          setLocations(locs);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -92,16 +98,22 @@ export default function AdminCustomers() {
     const q = search.trim().toLowerCase();
     return companies.filter((c) => {
       if (channelFilter !== 'ALL' && (c.clientChannel ?? 'DIRECT') !== channelFilter) return false;
-      if (statusFilter !== 'ALL' && clientStatus(c) !== statusFilter) return false;
+      if (statusFilter !== 'ALL' && deskClientStatus(c) !== statusFilter) return false;
+      if (locationFilter !== 'ALL' && (c.locationId ?? c.location?.id ?? '') !== locationFilter) {
+        return false;
+      }
       if (!q) return true;
       return (
         c.companyName.toLowerCase().includes(q) ||
         c.contactEmail.toLowerCase().includes(q) ||
         (c.contactPhone ?? '').toLowerCase().includes(q) ||
-        (c.aggregatorName ?? '').toLowerCase().includes(q)
+        (c.contactPersonName ?? '').toLowerCase().includes(q) ||
+        (c.aggregatorName ?? '').toLowerCase().includes(q) ||
+        (c.location?.name ?? '').toLowerCase().includes(q) ||
+        (c.location?.code ?? '').toLowerCase().includes(q)
       );
     });
-  }, [companies, search, channelFilter, statusFilter]);
+  }, [companies, search, channelFilter, statusFilter, locationFilter]);
 
   const counts = useMemo(() => {
     const total = companies.length;
@@ -110,7 +122,7 @@ export default function AdminCustomers() {
     let expired = 0;
     let aggregator = 0;
     for (const c of companies) {
-      const s = clientStatus(c);
+      const s = deskClientStatus(c);
       if (s === 'active') active += 1;
       else if (s === 'pending') onboarding += 1;
       else if (s === 'expired') expired += 1;
@@ -140,7 +152,7 @@ export default function AdminCustomers() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="Total" value={counts.total} />
         <StatCard label="Active" value={counts.active} tone="emerald" />
-        <StatCard label="Onboarding" value={counts.onboarding} tone="amber" />
+        <StatCard label="Not started" value={counts.onboarding} tone="amber" />
         <StatCard label="Expired" value={counts.expired} tone="red" />
         <StatCard label="Aggregator" value={counts.aggregator} tone="slate" />
       </div>
@@ -148,14 +160,31 @@ export default function AdminCustomers() {
       <div className="card p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[220px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Search</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Search customer</label>
             <input
-              type="text"
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Company, email, phone, aggregator…"
+              placeholder="Company name, contact, email, phone, location…"
               className="form-input"
+              autoComplete="off"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Location</label>
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="form-input min-w-[160px]"
+            >
+              <option value="ALL">All locations</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}
+                  {loc.code ? ` (${loc.code})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Channel</label>
@@ -178,7 +207,7 @@ export default function AdminCustomers() {
             >
               <option value="ALL">All</option>
               <option value="active">Active</option>
-              <option value="pending">Onboarding</option>
+              <option value="pending">Not started</option>
               <option value="expired">Expired</option>
               <option value="inactive">Inactive</option>
             </select>
@@ -217,6 +246,7 @@ export default function AdminCustomers() {
                     <th>Company</th>
                     <th>Contact email</th>
                     <th>Contact phone</th>
+                    <th>Location</th>
                     <th>Channel</th>
                     <th>Aggregator</th>
                     <th>Stage</th>
@@ -228,7 +258,7 @@ export default function AdminCustomers() {
                 </thead>
                 <tbody>
                   {filtered.map((company) => {
-                    const status = clientStatus(company);
+                    const status = deskClientStatus(company);
                     const channel = company.clientChannel ?? 'DIRECT';
                     return (
                       <tr
@@ -239,6 +269,9 @@ export default function AdminCustomers() {
                         <td className="font-medium text-slate-900">{company.companyName}</td>
                         <td className="text-slate-700">{company.contactEmail}</td>
                         <td className="text-slate-700">{company.contactPhone ?? '—'}</td>
+                        <td className="text-slate-700">
+                          {company.location?.name ?? '—'}
+                        </td>
                         <td>
                           <span
                             className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium border"

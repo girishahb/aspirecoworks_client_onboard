@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   downloadMailNotificationsExcel,
+  getMobileLocations,
   listMailNotifications,
   type MailNotificationRow,
   type MailNotifyStatusFilter,
@@ -35,16 +36,34 @@ export default function AdminMailNotifications() {
   const [status, setStatus] = useState<MailNotifyStatusFilter>('success');
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
+  const [searchInput, setSearchInput] = useState('');
+  const [q, setQ] = useState('');
+  const [locationId, setLocationId] = useState('');
+  const [locations, setLocations] = useState<{ id: string; name: string; code: string | null }[]>([]);
   const [rows, setRows] = useState<MailNotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    getMobileLocations()
+      .then(setLocations)
+      .catch(() => setLocations([]));
+  }, []);
+
+  const load = useCallback(async (overrides?: { q?: string; locationId?: string }) => {
+    const nextQ = overrides?.q ?? q;
+    const nextLocationId = overrides?.locationId ?? locationId;
     setLoading(true);
     setError(null);
     try {
-      const res = await listMailNotifications({ status, from, to });
+      const res = await listMailNotifications({
+        status,
+        from,
+        to,
+        q: nextQ.trim() || undefined,
+        locationId: nextLocationId || undefined,
+      });
       setRows(res.rows);
     } catch (err) {
       setRows([]);
@@ -52,17 +71,29 @@ export default function AdminMailNotifications() {
     } finally {
       setLoading(false);
     }
-  }, [status, from, to]);
+  }, [status, from, to, q, locationId]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [status, from, to, locationId]); // eslint-disable-line react-hooks/exhaustive-deps -- search applies on Apply
+
+  function handleApply() {
+    const nextQ = searchInput.trim();
+    setQ(nextQ);
+    void load({ q: nextQ });
+  }
 
   async function handleExport() {
     setExporting(true);
     setError(null);
     try {
-      await downloadMailNotificationsExcel({ status, from, to });
+      await downloadMailNotificationsExcel({
+        status,
+        from,
+        to,
+        q: (searchInput.trim() || q).trim() || undefined,
+        locationId: locationId || undefined,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Excel export failed');
     } finally {
@@ -79,6 +110,39 @@ export default function AdminMailNotifications() {
       </p>
 
       <div className="mt-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <label className="grid gap-1 text-sm flex-1 min-w-[200px]">
+          <span className="font-medium text-slate-700">Search customer</span>
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleApply();
+              }
+            }}
+            placeholder="Company name…"
+            className="rounded-md border border-slate-300 px-3 py-2"
+            autoComplete="off"
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium text-slate-700">Location</span>
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 min-w-[160px]"
+          >
+            <option value="">All locations</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}
+                {loc.code ? ` (${loc.code})` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-slate-700">Status</span>
           <select
@@ -111,7 +175,7 @@ export default function AdminMailNotifications() {
         </label>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={handleApply}
           disabled={loading}
           className="rounded-md bg-sky-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
@@ -141,6 +205,7 @@ export default function AdminMailNotifications() {
               <th className="px-4 py-3 font-semibold">When</th>
               <th className="px-4 py-3 font-semibold">Receptionist</th>
               <th className="px-4 py-3 font-semibold">Client</th>
+              <th className="px-4 py-3 font-semibold">Location</th>
               <th className="px-4 py-3 font-semibold">Email to</th>
               <th className="px-4 py-3 font-semibold">Message ID / Error</th>
               <th className="px-4 py-3 font-semibold">Note</th>
@@ -149,13 +214,13 @@ export default function AdminMailNotifications() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-slate-500">
+                <td colSpan={8} className="px-4 py-8 text-slate-500">
                   Loading…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-slate-500">
+                <td colSpan={8} className="px-4 py-8 text-slate-500">
                   No mail notifications for this filter.
                 </td>
               </tr>
@@ -189,6 +254,9 @@ export default function AdminMailNotifications() {
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {r.client?.location?.name ?? '—'}
                   </td>
                   <td className="px-4 py-3 text-slate-700">{r.to ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={r.error || r.messageId || ''}>

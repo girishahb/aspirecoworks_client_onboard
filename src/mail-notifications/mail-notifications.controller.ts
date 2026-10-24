@@ -30,6 +30,8 @@ export class MailNotificationsController {
   @ApiQuery({ name: 'to', required: false, description: 'YYYY-MM-DD' })
   @ApiQuery({ name: 'receptionistId', required: false })
   @ApiQuery({ name: 'clientProfileId', required: false })
+  @ApiQuery({ name: 'locationId', required: false })
+  @ApiQuery({ name: 'q', required: false, description: 'Search by customer / company name' })
   @ApiResponse({ status: 200, description: 'Mail notification rows' })
   list(
     @CurrentUser() user: { role: UserRole },
@@ -38,9 +40,11 @@ export class MailNotificationsController {
     @Query('to') to?: string,
     @Query('receptionistId') receptionistId?: string,
     @Query('clientProfileId') clientProfileId?: string,
+    @Query('locationId') locationId?: string,
+    @Query('q') q?: string,
   ) {
     return this.mailNotificationsService.list(
-      { status, from, to, receptionistId, clientProfileId },
+      { status, from, to, receptionistId, clientProfileId, locationId, q },
       user.role,
     );
   }
@@ -50,6 +54,8 @@ export class MailNotificationsController {
   @ApiQuery({ name: 'status', required: false, enum: ['success', 'failed', 'all'] })
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'locationId', required: false })
+  @ApiQuery({ name: 'q', required: false })
   async exportExcel(
     @CurrentUser() user: { role: UserRole },
     @Res() res: Response,
@@ -58,9 +64,11 @@ export class MailNotificationsController {
     @Query('to') to?: string,
     @Query('receptionistId') receptionistId?: string,
     @Query('clientProfileId') clientProfileId?: string,
+    @Query('locationId') locationId?: string,
+    @Query('q') q?: string,
   ) {
     const { buffer, fileName } = await this.mailNotificationsService.exportExcel(
-      { status, from, to, receptionistId, clientProfileId },
+      { status, from, to, receptionistId, clientProfileId, locationId, q },
       user.role,
     );
     res.setHeader(

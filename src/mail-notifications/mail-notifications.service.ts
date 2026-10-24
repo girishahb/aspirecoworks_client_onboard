@@ -26,6 +26,8 @@ export type MailNotificationRow = {
   client: {
     id: string;
     companyName: string;
+    locationId?: string | null;
+    location?: { id: string; name: string; code: string | null } | null;
   } | null;
   document: {
     id: string;
@@ -101,6 +103,8 @@ export class MailNotificationsService {
       to?: string;
       receptionistId?: string;
       clientProfileId?: string;
+      locationId?: string;
+      q?: string;
       limit?: number;
     },
     role?: UserRole,
@@ -111,6 +115,7 @@ export class MailNotificationsService {
     const fromDate = parseDateBound(opts.from, false) ?? defaultFromDate();
     const toDate = parseDateBound(opts.to, true) ?? new Date();
     const limit = Math.min(Math.max(opts.limit ?? 500, 1), 2000);
+    const q = opts.q?.trim();
 
     const actions: string[] =
       status === 'success'
@@ -119,11 +124,25 @@ export class MailNotificationsService {
           ? ['MAIL_RECEIVED_FAILED']
           : [...MAIL_ACTIONS];
 
+    const clientProfileFilter: Prisma.ClientProfileWhereInput = {
+      ...(opts.locationId ? { locationId: opts.locationId } : {}),
+      ...(q
+        ? {
+            companyName: { contains: q, mode: 'insensitive' },
+          }
+        : {}),
+    };
+
     const where: Prisma.AuditLogWhereInput = {
       action: { in: actions },
       createdAt: { gte: fromDate, lte: toDate },
       ...(opts.receptionistId ? { userId: opts.receptionistId } : {}),
       ...(opts.clientProfileId ? { clientProfileId: opts.clientProfileId } : {}),
+      ...(opts.locationId || q
+        ? {
+            clientProfile: clientProfileFilter,
+          }
+        : {}),
     };
 
     const entries = await this.prisma.auditLog.findMany({
@@ -133,7 +152,12 @@ export class MailNotificationsService {
           select: { id: true, email: true, firstName: true, lastName: true },
         },
         clientProfile: {
-          select: { id: true, companyName: true },
+          select: {
+            id: true,
+            companyName: true,
+            locationId: true,
+            location: { select: { id: true, name: true, code: true } },
+          },
         },
         document: {
           select: { id: true, fileName: true },
@@ -158,6 +182,8 @@ export class MailNotificationsService {
       to?: string;
       receptionistId?: string;
       clientProfileId?: string;
+      locationId?: string;
+      q?: string;
     },
     role?: UserRole,
   ): Promise<{ buffer: Buffer; fileName: string }> {
@@ -174,6 +200,7 @@ export class MailNotificationsService {
       { header: 'Received (IST)', key: 'receivedAtIst', width: 24 },
       { header: 'Receptionist', key: 'receptionist', width: 28 },
       { header: 'Company', key: 'company', width: 32 },
+      { header: 'Location', key: 'location', width: 24 },
       { header: 'Email to', key: 'to', width: 32 },
       { header: 'Resend message ID', key: 'messageId', width: 36 },
       { header: 'Document', key: 'document', width: 28 },
@@ -194,6 +221,7 @@ export class MailNotificationsService {
         receivedAtIst: r.receivedAtIst ?? '',
         receptionist: name ? `${name} <${r.receptionist?.email ?? ''}>` : r.receptionist?.email ?? '',
         company: r.client?.companyName ?? '',
+        location: r.client?.location?.name ?? '',
         to: r.to ?? '',
         messageId: r.messageId ?? '',
         document: r.document?.fileName ?? '',

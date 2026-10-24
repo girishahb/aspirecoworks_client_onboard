@@ -483,7 +483,12 @@ export interface MailNotificationRow {
     firstName?: string | null;
     lastName?: string | null;
   } | null;
-  client: { id: string; companyName: string } | null;
+  client: {
+    id: string;
+    companyName: string;
+    locationId?: string | null;
+    location?: { id: string; name: string; code: string | null } | null;
+  } | null;
   document: { id: string; fileName: string } | null;
 }
 
@@ -500,6 +505,9 @@ export interface ListMailNotificationsParams {
   to?: string;
   receptionistId?: string;
   clientProfileId?: string;
+  locationId?: string;
+  /** Customer / company name search */
+  q?: string;
 }
 
 /**
@@ -515,6 +523,8 @@ export async function listMailNotifications(
   if (params?.to) search.set('to', params.to);
   if (params?.receptionistId) search.set('receptionistId', params.receptionistId);
   if (params?.clientProfileId) search.set('clientProfileId', params.clientProfileId);
+  if (params?.locationId) search.set('locationId', params.locationId);
+  if (params?.q) search.set('q', params.q);
   const qs = search.toString();
   return apiGet<MailNotificationsResponse>(
     qs ? `/admin/mail-notifications?${qs}` : '/admin/mail-notifications',
@@ -536,6 +546,8 @@ export async function downloadMailNotificationsExcel(
   if (params?.to) search.set('to', params.to);
   if (params?.receptionistId) search.set('receptionistId', params.receptionistId);
   if (params?.clientProfileId) search.set('clientProfileId', params.clientProfileId);
+  if (params?.locationId) search.set('locationId', params.locationId);
+  if (params?.q) search.set('q', params.q);
   const qs = search.toString();
   const res = await fetch(
     apiUrl(qs ? `/admin/mail-notifications/export?${qs}` : '/admin/mail-notifications/export'),

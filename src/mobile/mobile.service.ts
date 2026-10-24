@@ -29,6 +29,7 @@ import {
   isExternalBookingIdUniqueViolation,
   normalizeExternalBookingId,
 } from '../client-profiles/external-booking-id.helper';
+import { isActiveFromAgreement } from '../common/utils/agreement-status';
 
 type AuthUser = { id: string; role: UserRole };
 
@@ -52,35 +53,11 @@ export class MobileService {
     return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
   }
 
-  /** Calendar YYYY-MM-DD in Asia/Kolkata (today). */
-  private todayIstYmd(): string {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date());
-  }
-
-  private contractEndYmd(d: Date | string | null | undefined): string | null {
-    if (!d) return null;
-    if (d instanceof Date) return d.toISOString().slice(0, 10);
-    const s = String(d).trim();
-    return s.length >= 10 ? s.slice(0, 10) : null;
-  }
-
-  /**
-   * Active when agreement end date is missing or >= today (IST);
-   * Inactive when end date < today.
-   */
-  private isActiveFromAgreement(p: { contractEndDate?: Date | string | null }): boolean {
-    const end = this.contractEndYmd(p.contractEndDate);
-    if (!end) return true;
-    return end >= this.todayIstYmd();
-  }
-
-  private agreementStatus(p: { contractEndDate?: Date | string | null }) {
-    const isActive = this.isActiveFromAgreement(p);
+  private agreementStatus(p: {
+    contractStartDate?: Date | string | null;
+    contractEndDate?: Date | string | null;
+  }) {
+    const isActive = isActiveFromAgreement(p);
     return {
       isActive,
       operationalStatus: isActive ? OperationalStatus.ACTIVE : OperationalStatus.INACTIVE,

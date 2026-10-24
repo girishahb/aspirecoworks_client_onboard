@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Calendar,
 } from 'lucide-react';
+import { deskClientStatus } from '../utils/agreementStatus';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -31,10 +32,8 @@ function formatCurrency(amount: number): string {
 }
 
 function companyStatus(company: AdminCompany): 'active' | 'inactive' {
-  if (company.renewalStatus === 'EXPIRED') return 'inactive';
-  if (company.renewalStatus === 'ACTIVE') return 'active';
-  if (company.onboardingStage === 'ACTIVE' || company.onboardingStage === 'COMPLETED') return 'active';
-  return 'inactive';
+  const s = deskClientStatus(company);
+  return s === 'active' ? 'active' : 'inactive';
 }
 
 const STAGE_LABELS: Record<string, string> = {
