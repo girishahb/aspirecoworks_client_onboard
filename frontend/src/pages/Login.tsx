@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { login, getCurrentUser, clearSessionExpired } from '../services/auth';
+import { isStaffPortalRole } from '../services/staffOps';
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'];
+const STAFF_ONLY_ROLES = ['RECEPTION', 'STAFF'];
 
 export default function Login() {
   const navigate = useNavigate();
@@ -29,8 +31,10 @@ export default function Login() {
       const user = getCurrentUser();
       const role = user?.role;
       let target = '/dashboard';
-      if (role && ADMIN_ROLES.includes(role)) target = '/admin/dashboard';
+      if (role && STAFF_ONLY_ROLES.includes(role)) target = '/staff';
+      else if (role && ADMIN_ROLES.includes(role)) target = '/admin/dashboard';
       else if (role === 'AGGREGATOR') target = '/aggregator/dashboard';
+      else if (role && isStaffPortalRole(role)) target = '/staff';
       navigate(target, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -105,6 +109,12 @@ export default function Login() {
         New to Aspire Coworks?{' '}
         <Link to="/signup" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
           Create an account
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-xs text-slate-400">
+        Staff Ops?{' '}
+        <Link to="/staff/login" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
+          Front Desk / Onboarding / Finance
         </Link>
       </p>
       <p className="mt-2 text-center text-xs text-slate-400">

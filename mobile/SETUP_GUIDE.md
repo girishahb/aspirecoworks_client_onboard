@@ -161,7 +161,7 @@ Until verification finishes, you can often still create an app and use **Interna
 
 Your Android application ID is:
 
-`com.aspirecoworks.clientops`
+`aspire.coworks.app`
 
 **Never change this** after the first Play upload — Google treats it as the app identity forever.
 

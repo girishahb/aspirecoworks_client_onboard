@@ -29,7 +29,7 @@ This writes `extra.eas.projectId` into `app.json`. Commit that change.
 
 Already set:
 
-- Android package: `com.aspirecoworks.clientops`
+- Android package: `aspire.coworks.app`
 
 ## 4. First internal APK
 

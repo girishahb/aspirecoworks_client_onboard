@@ -8,6 +8,8 @@ import PublicLayout from './components/PublicLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import AggregatorRoute from './components/AggregatorRoute';
+import StaffRoute from './components/StaffRoute';
+import StaffLayout from './components/StaffLayout';
 
 const Login = lazy(() => import('./pages/Login'));
 const Signup = lazy(() => import('./pages/Signup'));
@@ -35,6 +37,12 @@ const AdminCustomers = lazy(() => import('./pages/AdminCustomers'));
 const AdminImportQa = lazy(() => import('./pages/AdminImportQa'));
 const AdminMobileUsers = lazy(() => import('./pages/AdminMobileUsers'));
 const AdminMailNotifications = lazy(() => import('./pages/AdminMailNotifications'));
+const StaffLogin = lazy(() => import('./pages/StaffLogin'));
+const StaffHome = lazy(() => import('./pages/StaffHome'));
+const StaffFind = lazy(() => import('./pages/StaffFind'));
+const StaffNewClient = lazy(() => import('./pages/StaffNewClient'));
+const StaffClientDetail = lazy(() => import('./pages/StaffClientDetail'));
+const StaffMoney = lazy(() => import('./pages/StaffMoney'));
 const AggregatorDashboard = lazy(() => import('./pages/AggregatorDashboard'));
 const AggregatorCreateCompany = lazy(() => import('./pages/AggregatorCreateCompany'));
 const AggregatorInvoices = lazy(() => import('./pages/AggregatorInvoices'));
@@ -71,6 +79,18 @@ export default function App() {
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
           <Route path="admin/login" element={<AdminLogin />} />
+          <Route path="staff/login" element={<StaffLogin />} />
+        </Route>
+
+        {/* Staff Ops — Front Desk / Onboarding / Finance (same APIs as mobile) */}
+        <Route path="staff" element={<StaffLayout />}>
+          <Route element={<StaffRoute />}>
+            <Route index element={<StaffHome />} />
+            <Route path="find" element={<StaffFind />} />
+            <Route path="clients/new" element={<StaffNewClient />} />
+            <Route path="clients/:id" element={<StaffClientDetail />} />
+            <Route path="money" element={<StaffMoney />} />
+          </Route>
         </Route>
 
         {/* Client portal — brand-forward top-nav layout */}

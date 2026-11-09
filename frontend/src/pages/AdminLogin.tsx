@@ -107,6 +107,10 @@ export default function AdminLogin() {
         <Link to="/login" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
           Client login
         </Link>
+        {' · '}
+        <Link to="/staff/login" className="font-medium hover:underline" style={{ color: '#134b7f' }}>
+          Staff Ops
+        </Link>
       </p>
     </div>
   );

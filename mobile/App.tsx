@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import * as ScreenCapture from 'expo-screen-capture';
 import {
   SafeAreaProvider,
   SafeAreaView,
@@ -228,6 +229,13 @@ function AppInner() {
   const [mailNote, setMailNote] = useState('');
   const [mailSending, setMailSending] = useState(false);
   const loginScrollRef = useRef<ScrollView>(null);
+
+  // Clear Android FLAG_SECURE so Teams/Zoom can screen-share this app.
+  useEffect(() => {
+    void ScreenCapture.allowScreenCaptureAsync().catch(() => {
+      /* Expo Go / unsupported platforms — ignore */
+    });
+  }, []);
 
   useEffect(() => {
     (async () => {

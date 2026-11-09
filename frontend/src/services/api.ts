@@ -47,9 +47,13 @@ async function request(path: string, init: ApiRequestInit = {}): Promise<Respons
   if (res.status === 401) {
     setSessionExpired();
     logout();
-    const isAdminPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
-    const loginUrl = isAdminPath ? '/admin/login' : '/login';
     if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const loginUrl = path.startsWith('/staff')
+        ? '/staff/login'
+        : path.startsWith('/admin')
+          ? '/admin/login'
+          : '/login';
       window.location.href = loginUrl;
     }
   }
