@@ -17,6 +17,7 @@ import {
   FileSpreadsheet,
   Smartphone,
   Mail,
+  ClipboardList,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -32,6 +33,12 @@ const NAV_ITEMS = [
     to: '/admin/mail-notifications',
     icon: Mail,
     label: 'Mail notifications',
+    roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'] as const,
+  },
+  {
+    to: '/admin/visitors',
+    icon: ClipboardList,
+    label: 'Visitors',
     roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'FINANCE'] as const,
   },
   { to: '/admin/import-qa', icon: FileSpreadsheet, label: 'Import QA' },

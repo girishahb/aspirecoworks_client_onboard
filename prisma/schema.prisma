@@ -130,6 +130,8 @@ model User {
   invoiceProfile   AggregatorInvoiceProfile? // Only populated for AGGREGATOR role
   createdBookings  AggregatorBooking[]       @relation("BookingCreatedBy")
   contractHistoryChanges ClientContractHistory[] @relation("ContractHistoryChangedBy")
+  visitorCheckIns        VisitorVisit[]          @relation("VisitorCheckedInBy")
+  visitorCheckOuts       VisitorVisit[]          @relation("VisitorCheckedOutBy")
 
   @@map("users")
 }
@@ -512,6 +514,11 @@ enum BookingSource {
   INTERNAL_COUPON
 }
 
+enum VisitorVisitStatus {
+  CHECKED_IN
+  CHECKED_OUT
+}
+
 model Location {
   id        String          @id @default(uuid())
   name      String
@@ -522,9 +529,56 @@ model Location {
   resources Resource[]
   vendors   Vendor[]
   clients   ClientProfile[]
+  visits    VisitorVisit[]
   createdAt DateTime        @default(now())
 
   @@map("locations")
+}
+
+/// Staff-operated reception visitor log (face + signature + optional Aadhaar last-4).
+model VisitorVisit {
+  id        String             @id @default(uuid())
+  name      String
+  phone     String
+  email     String?
+  company   String?
+  purpose   String
+  hostName  String?
+  hostEmail String?
+  locationId String?
+  location   Location?         @relation(fields: [locationId], references: [id])
+  status     VisitorVisitStatus @default(CHECKED_IN)
+  checkInAt  DateTime           @default(now())
+  checkOutAt DateTime?
+
+  // Aadhaar (never store full 12-digit number)
+  aadhaarConsent        Boolean   @default(false)
+  aadhaarConsentAt      DateTime?
+  aadhaarConsentVersion String?
+  aadhaarLast4          String?   @db.VarChar(4)
+
+  // R2 object keys (private; serve via authenticated API)
+  facePhotoKey    String
+  signatureKey    String
+  aadhaarPhotoKey String?
+
+  checkedInById  String?
+  checkedInBy    User?    @relation("VisitorCheckedInBy", fields: [checkedInById], references: [id])
+  checkedOutById String?
+  checkedOutBy   User?    @relation("VisitorCheckedOutBy", fields: [checkedOutById], references: [id])
+
+  hostEmailSent   Boolean @default(false)
+  hostEmailError  String?
+
+  deletedAt  DateTime? // soft delete / retention purge marker
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([checkInAt])
+  @@index([status, checkInAt])
+  @@index([locationId])
+  @@index([phone])
+  @@map("visitor_visits")
 }
 
 model Resource {

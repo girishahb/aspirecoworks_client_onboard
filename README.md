@@ -8,6 +8,7 @@ A robust NestJS backend application for managing client onboarding processes wit
 - **User Management**: Complete CRUD operations with role-based access (SUPER_ADMIN, ADMIN, MANAGER, COMPANY_ADMIN, USER)
 - **Client Profiles**: Manage client onboarding profiles with status tracking
 - **Document Management**: Upload, verify, and manage client documents
+- **Visitor Management**: Staff reception check-in (webcam photo, signature, optional Aadhaar last-4) — see [docs/visitor-management.md](docs/visitor-management.md)
 - **Audit Logging**: Comprehensive audit trail for all operations
 - **Zod Validation**: Type-safe request validation using Zod schemas
 - **Swagger Documentation**: Auto-generated API documentation

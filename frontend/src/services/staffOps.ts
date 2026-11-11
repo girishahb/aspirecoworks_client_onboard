@@ -63,7 +63,7 @@ export function homeHint(role?: string | null): string {
     case 'STAFF':
       return 'Create clients, capture Booking ID and notes, and look up records for onboarding.';
     case 'RECEPTION':
-      return 'Find a client, attach a photo of incoming mail, and email them from the client detail screen.';
+      return 'Check in visitors, manage today’s board, find clients, and notify them about incoming mail.';
     case 'FINANCE':
       return 'Look up clients, check rate cards, and review recent payments and invoices.';
     default:

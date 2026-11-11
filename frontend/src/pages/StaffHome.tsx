@@ -6,6 +6,7 @@ import {
   homeHint,
   roleLabel,
 } from '../services/staffOps';
+import { canManageVisitors } from '../services/visitors';
 
 export default function StaffHome() {
   const user = getCurrentUser();
@@ -38,6 +39,30 @@ export default function StaffHome() {
           Quick actions
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
+          {canManageVisitors(role) && (
+            <Link
+              to="/staff/visitors/check-in"
+              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#134b7f]/40"
+            >
+              <h2 className="text-base font-semibold text-slate-900">Visitor check-in</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Capture photo, signature, and optional Aadhaar for walk-ins and guests
+              </p>
+            </Link>
+          )}
+
+          {canManageVisitors(role) && (
+            <Link
+              to="/staff/visitors"
+              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#134b7f]/40"
+            >
+              <h2 className="text-base font-semibold text-slate-900">Today’s visitors</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                See who is on site and check visitors out
+              </p>
+            </Link>
+          )}
+
           <Link
             to="/staff/find"
             className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#134b7f]/40"
@@ -78,8 +103,8 @@ export default function StaffHome() {
         <div className="rounded-xl border border-blue-100 bg-[#e8f1f8] p-4 text-sm text-slate-700">
           <p className="font-semibold text-[#134b7f]">Front desk tip</p>
           <p className="mt-1">
-            Open Find client → select the company → use Incoming mail to upload a photo and email
-            the client.
+            Use Visitor check-in for walk-ins (host optional). For courier mail, open Find client →
+            company → Incoming mail to photo and email the client.
           </p>
         </div>
       )}

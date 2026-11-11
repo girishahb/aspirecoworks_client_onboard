@@ -43,6 +43,10 @@ const StaffFind = lazy(() => import('./pages/StaffFind'));
 const StaffNewClient = lazy(() => import('./pages/StaffNewClient'));
 const StaffClientDetail = lazy(() => import('./pages/StaffClientDetail'));
 const StaffMoney = lazy(() => import('./pages/StaffMoney'));
+const StaffVisitorsToday = lazy(() => import('./pages/StaffVisitorsToday'));
+const StaffVisitorCheckIn = lazy(() => import('./pages/StaffVisitorCheckIn'));
+const StaffVisitorDetail = lazy(() => import('./pages/StaffVisitorDetail'));
+const AdminVisitors = lazy(() => import('./pages/AdminVisitors'));
 const AggregatorDashboard = lazy(() => import('./pages/AggregatorDashboard'));
 const AggregatorCreateCompany = lazy(() => import('./pages/AggregatorCreateCompany'));
 const AggregatorInvoices = lazy(() => import('./pages/AggregatorInvoices'));
@@ -90,6 +94,9 @@ export default function App() {
             <Route path="clients/new" element={<StaffNewClient />} />
             <Route path="clients/:id" element={<StaffClientDetail />} />
             <Route path="money" element={<StaffMoney />} />
+            <Route path="visitors/check-in" element={<StaffVisitorCheckIn />} />
+            <Route path="visitors/:id" element={<StaffVisitorDetail />} />
+            <Route path="visitors" element={<StaffVisitorsToday />} />
           </Route>
         </Route>
 
@@ -120,6 +127,7 @@ export default function App() {
             <Route path="aggregator-users" element={<AdminAggregatorUsers />} />
             <Route path="mobile-users" element={<AdminMobileUsers />} />
             <Route path="mail-notifications" element={<AdminMailNotifications />} />
+            <Route path="visitors" element={<AdminVisitors />} />
             <Route path="import-qa" element={<AdminImportQa />} />
           </Route>
         </Route>
