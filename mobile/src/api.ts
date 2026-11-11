@@ -97,6 +97,10 @@ export function canWriteClients(role: MobileRole) {
   return ['STAFF', 'FINANCE', 'ADMIN', 'SUPER_ADMIN'].includes(role);
 }
 
+export function canEditContractTerm(role: MobileRole) {
+  return ['STAFF', 'ADMIN', 'SUPER_ADMIN'].includes(role);
+}
+
 export function canSeeMoney(role: MobileRole) {
   return ['FINANCE', 'ADMIN', 'SUPER_ADMIN'].includes(role);
 }

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getCurrentUser } from '../services/auth';
 import {
+  canEditContractTerm,
   canNotifyMail,
   canSeeMoney,
   canWriteClients,
@@ -12,6 +13,10 @@ import {
   StaffClientCard,
   updateClient,
 } from '../services/staffOps';
+
+function toDateInput(v?: string | null): string {
+  return v ? String(v).slice(0, 10) : '';
+}
 
 function DetailRow({ label, value }: { label: string; value?: string | number | null | boolean }) {
   if (value === null || value === undefined || value === '') return null;
@@ -33,8 +38,14 @@ export default function StaffClientDetail() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ externalBookingId: '', notes: '' });
+  const [editForm, setEditForm] = useState({
+    externalBookingId: '',
+    notes: '',
+    contractStartDate: '',
+    contractEndDate: '',
+  });
   const [saving, setSaving] = useState(false);
+  const canEditTerm = canEditContractTerm(role);
 
   const [mailPreview, setMailPreview] = useState<string | null>(null);
   const [mailBase64, setMailBase64] = useState<string | null>(null);
@@ -53,8 +64,11 @@ export default function StaffClientDetail() {
         if (cancelled) return;
         setSelected(card);
         setEditForm({
-          externalBookingId: card.externalBookingId || '',
+          // Force a new booking ID on term edits — leave blank until staff enters one.
+          externalBookingId: '',
           notes: card.notes || '',
+          contractStartDate: toDateInput(card.contractStartDate),
+          contractEndDate: toDateInput(card.contractEndDate),
         });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load');
@@ -70,20 +84,55 @@ export default function StaffClientDetail() {
   async function saveEdit(e: FormEvent) {
     e.preventDefault();
     if (!selected) return;
-    const bookingId = editForm.externalBookingId.trim();
-    if (!bookingId) {
-      setError('Booking ID is required for onboarding.');
-      return;
+
+    const notes = editForm.notes.trim();
+    const body: {
+      notes: string;
+      externalBookingId?: string;
+      contractStartDate?: string;
+      contractEndDate?: string;
+    } = { notes };
+
+    if (canEditTerm) {
+      const start = editForm.contractStartDate;
+      const end = editForm.contractEndDate;
+      const bookingId = editForm.externalBookingId.trim();
+      const startChanged = start !== toDateInput(selected.contractStartDate);
+      const endChanged = end !== toDateInput(selected.contractEndDate);
+      const termTouched = startChanged || endChanged || !!bookingId;
+
+      if (start && end && end <= start) {
+        setError('End date must be after start date.');
+        return;
+      }
+
+      if (termTouched) {
+        if (!bookingId) {
+          setError('Enter a new Booking ID when updating agreement dates or renewing.');
+          return;
+        }
+        if (bookingId === (selected.externalBookingId || '').trim()) {
+          setError('Booking ID must be different from the current one.');
+          return;
+        }
+        body.externalBookingId = bookingId;
+        body.contractStartDate = start || undefined;
+        body.contractEndDate = end || undefined;
+      }
     }
+
     setSaving(true);
     setError(null);
     try {
-      const updated = await updateClient(selected.id, {
-        externalBookingId: bookingId,
-        notes: editForm.notes.trim(),
-      });
+      const updated = await updateClient(selected.id, body);
       setSelected(updated);
       setEditing(false);
+      setEditForm({
+        externalBookingId: '',
+        notes: updated.notes || '',
+        contractStartDate: toDateInput(updated.contractStartDate),
+        contractEndDate: toDateInput(updated.contractEndDate),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update failed');
     } finally {
@@ -177,21 +226,60 @@ export default function StaffClientDetail() {
       {canWriteClients(role) && (
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Onboarding fields
+            {canEditTerm ? 'Agreement & onboarding' : 'Onboarding notes'}
           </h2>
           {editing ? (
             <form onSubmit={saveEdit} className="mt-3 space-y-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Booking ID *</label>
-                <input
-                  className="form-input"
-                  value={editForm.externalBookingId}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, externalBookingId: e.target.value }))
-                  }
-                  required
-                />
-              </div>
+              {canEditTerm ? (
+                <>
+                  <p className="text-sm text-slate-500">
+                    Current booking ID: <strong>{selected.externalBookingId || '—'}</strong>. Changing
+                    dates requires a <strong>new</strong> booking ID. Status updates from the dates
+                    automatically.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Start date
+                      </label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={editForm.contractStartDate}
+                        onChange={(e) =>
+                          setEditForm((f) => ({ ...f, contractStartDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        End date
+                      </label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={editForm.contractEndDate}
+                        onChange={(e) =>
+                          setEditForm((f) => ({ ...f, contractEndDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      New Booking ID *
+                    </label>
+                    <input
+                      className="form-input"
+                      placeholder="Enter a new booking / reference ID"
+                      value={editForm.externalBookingId}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, externalBookingId: e.target.value }))
+                      }
+                    />
+                  </div>
+                </>
+              ) : null}
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Notes</label>
                 <textarea
@@ -210,8 +298,10 @@ export default function StaffClientDetail() {
                   onClick={() => {
                     setEditing(false);
                     setEditForm({
-                      externalBookingId: selected.externalBookingId || '',
+                      externalBookingId: '',
                       notes: selected.notes || '',
+                      contractStartDate: toDateInput(selected.contractStartDate),
+                      contractEndDate: toDateInput(selected.contractEndDate),
                     });
                   }}
                 >
@@ -221,14 +311,22 @@ export default function StaffClientDetail() {
             </form>
           ) : (
             <div className="mt-3">
-              <DetailRow label="Booking ID" value={selected.externalBookingId || '—'} />
+              {canEditTerm ? (
+                <>
+                  <DetailRow label="Booking ID" value={selected.externalBookingId || '—'} />
+                  <DetailRow
+                    label="Agreement"
+                    value={`${fmtDate(selected.contractStartDate)} → ${fmtDate(selected.contractEndDate)}`}
+                  />
+                </>
+              ) : null}
               <DetailRow label="Notes" value={selected.notes || '—'} />
               <button
                 type="button"
                 className="mt-3 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 onClick={() => setEditing(true)}
               >
-                Edit Booking ID &amp; notes
+                {canEditTerm ? 'Edit agreement & notes' : 'Edit notes'}
               </button>
             </div>
           )}

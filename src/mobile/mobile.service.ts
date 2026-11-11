@@ -29,7 +29,14 @@ import {
   isExternalBookingIdUniqueViolation,
   normalizeExternalBookingId,
 } from '../client-profiles/external-booking-id.helper';
+import { prepareContractTermChange } from '../client-profiles/contract-history.helper';
 import { isActiveFromAgreement } from '../common/utils/agreement-status';
+
+const CONTRACT_TERM_EDIT_ROLES: UserRole[] = [
+  UserRole.STAFF,
+  UserRole.ADMIN,
+  UserRole.SUPER_ADMIN,
+];
 
 type AuthUser = { id: string; role: UserRole };
 
@@ -436,42 +443,80 @@ export class MobileService {
     }
     if (dto.contractMonths !== undefined) data.contractMonths = dto.contractMonths ?? null;
     if (dto.notes !== undefined) data.notes = dto.notes.trim() || null;
-    if (dto.externalBookingId !== undefined) {
-      const next = normalizeExternalBookingId(dto.externalBookingId);
-      if (next !== normalizeExternalBookingId(existing.externalBookingId)) {
-        data.externalBookingId = await assertExternalBookingIdAvailable(
-          this.prisma,
-          dto.externalBookingId,
-          id,
-        );
-      } else {
-        data.externalBookingId = next;
-      }
-    }
     if (dto.aggregatorName !== undefined) data.aggregatorName = dto.aggregatorName;
     if (dto.locationId !== undefined) data.location = { connect: { id: dto.locationId } };
     if (dto.vendorId !== undefined) {
       data.vendor = dto.vendorId ? { connect: { id: dto.vendorId } } : { disconnect: true };
-    }
-    if (dto.contractStartDate !== undefined) {
-      data.contractStartDate = this.parseDateOnly(dto.contractStartDate);
-    }
-    if (dto.contractEndDate !== undefined) {
-      const end = this.parseDateOnly(dto.contractEndDate);
-      data.contractEndDate = end;
-      data.renewalDate = end;
     }
     if (dto.operationalStatus !== undefined) {
       data.operationalStatus = dto.operationalStatus as OperationalStatus;
       if (dto.operationalStatus === 'ACTIVE') data.onboardingStage = OnboardingStage.ACTIVE;
     }
 
+    const termChange = await prepareContractTermChange(this.prisma, {
+      existing: {
+        contractStartDate: existing.contractStartDate,
+        contractEndDate: existing.contractEndDate,
+        externalBookingId: existing.externalBookingId,
+      },
+      startProvided: dto.contractStartDate !== undefined,
+      endProvided: dto.contractEndDate !== undefined,
+      bookingIdProvided: dto.externalBookingId !== undefined,
+      nextStart:
+        dto.contractStartDate !== undefined
+          ? this.parseDateOnly(dto.contractStartDate)
+          : undefined,
+      nextEnd:
+        dto.contractEndDate !== undefined ? this.parseDateOnly(dto.contractEndDate) : undefined,
+      nextBookingId: dto.externalBookingId,
+      clientId: id,
+      changedById: user.id,
+      note: dto.notes,
+    });
+
+    if (termChange.termChanged) {
+      if (!CONTRACT_TERM_EDIT_ROLES.includes(user.role)) {
+        throw new ForbiddenException(
+          'Only Onboarding (STAFF) can update agreement dates or booking ID.',
+        );
+      }
+      if (termChange.profilePatch.contractStartDate !== undefined) {
+        data.contractStartDate = termChange.profilePatch.contractStartDate;
+      }
+      if (termChange.profilePatch.contractEndDate !== undefined) {
+        data.contractEndDate = termChange.profilePatch.contractEndDate;
+      }
+      if (termChange.profilePatch.renewalDate !== undefined) {
+        data.renewalDate = termChange.profilePatch.renewalDate;
+      }
+      if (termChange.profilePatch.renewalStatus !== undefined) {
+        data.renewalStatus = termChange.profilePatch.renewalStatus;
+      }
+      if (termChange.profilePatch.externalBookingId !== undefined) {
+        data.externalBookingId = termChange.profilePatch.externalBookingId;
+      }
+    }
+
     let updated;
     try {
-      updated = await this.prisma.clientProfile.update({
-        where: { id },
-        data,
-        include: this.includeForRole(user.role),
+      updated = await this.prisma.$transaction(async (tx) => {
+        if (termChange.termChanged && termChange.historyCreate) {
+          await tx.clientContractHistory.create({
+            data: {
+              clientProfileId: id,
+              contractStartDate: termChange.historyCreate.contractStartDate ?? null,
+              contractEndDate: termChange.historyCreate.contractEndDate ?? null,
+              externalBookingId: termChange.historyCreate.externalBookingId ?? null,
+              note: (termChange.historyCreate.note as string | null) ?? null,
+              changedById: user.id,
+            },
+          });
+        }
+        return tx.clientProfile.update({
+          where: { id },
+          data,
+          include: this.includeForRole(user.role),
+        });
       });
     } catch (err) {
       if (isExternalBookingIdUniqueViolation(err)) {

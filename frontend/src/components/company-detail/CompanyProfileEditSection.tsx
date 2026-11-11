@@ -102,6 +102,31 @@ export default function CompanyProfileEditSection({ company, onSaved }: Props) {
       return;
     }
 
+    const originalStart = toDateInputValue(company.contractStartDate);
+    const originalEnd = toDateInputValue(company.contractEndDate);
+    const originalBooking = (company.externalBookingId || '').trim();
+    const nextStart = form.contractStartDate || '';
+    const nextEnd = form.contractEndDate || '';
+    const nextBooking = form.externalBookingId.trim();
+    const datesChanged = nextStart !== originalStart || nextEnd !== originalEnd;
+    const bookingChanged = nextBooking !== originalBooking;
+
+    if (nextStart && nextEnd && nextEnd <= nextStart) {
+      setError('Agreement end date must be after start date.');
+      return;
+    }
+
+    if (datesChanged || bookingChanged) {
+      if (!nextBooking) {
+        setError('Enter a new Booking ID when changing agreement dates or renewing.');
+        return;
+      }
+      if (nextBooking === originalBooking) {
+        setError('Booking ID must be new (different from the current one) when dates or booking ID change.');
+        return;
+      }
+    }
+
     const payload: UpdateCompanyInput = {
       companyName: form.companyName.trim(),
       contactEmail: form.contactEmail.trim(),
@@ -117,18 +142,20 @@ export default function CompanyProfileEditSection({ company, onSaved }: Props) {
       contactPersonTitle: form.contactPersonTitle.trim() || undefined,
       contactPersonPhone: form.contactPersonPhone.trim() || undefined,
       gstNumber: form.gstNumber.trim() || undefined,
-      externalBookingId: form.externalBookingId.trim() || undefined,
       membershipType: form.membershipType.trim() || undefined,
       officeType: form.officeType.trim() || undefined,
       leadSource: form.leadSource.trim() || undefined,
       aggregatorName: form.aggregatorName.trim() || undefined,
       locationId: form.locationId || '',
       vendorId: form.vendorId || '',
-      contractStartDate: form.contractStartDate || undefined,
-      contractEndDate: form.contractEndDate || undefined,
       operationalStatus: form.operationalStatus as UpdateCompanyInput['operationalStatus'],
     };
     if (form.contractMonths) payload.contractMonths = Number(form.contractMonths);
+    if (datesChanged || bookingChanged) {
+      payload.contractStartDate = form.contractStartDate || undefined;
+      payload.contractEndDate = form.contractEndDate || undefined;
+      payload.externalBookingId = nextBooking;
+    }
 
     setSaving(true);
     try {
@@ -295,9 +322,18 @@ export default function CompanyProfileEditSection({ company, onSaved }: Props) {
           </FieldGroup>
 
           <FieldGroup title="Agreement">
+            <p className="sm:col-span-2 text-xs text-slate-500">
+              Changing start/end dates or booking ID archives the previous term and requires a{' '}
+              <strong>new Booking ID</strong>. Active/inactive status follows the agreement dates.
+            </p>
             <Input label="Agreement start date" name="contractStartDate" type="date" value={form.contractStartDate} onChange={handleChange} />
             <Input label="Agreement end date" name="contractEndDate" type="date" value={form.contractEndDate} onChange={handleChange} />
-            <Input label="Booking ID" name="externalBookingId" value={form.externalBookingId} onChange={handleChange} />
+            <Input
+              label="Booking ID (new ID required when dates change)"
+              name="externalBookingId"
+              value={form.externalBookingId}
+              onChange={handleChange}
+            />
             <Select label="Operational status" name="operationalStatus" value={form.operationalStatus} onChange={handleChange}>
               {OPERATIONAL_STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>

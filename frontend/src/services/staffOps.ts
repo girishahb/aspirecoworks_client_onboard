@@ -27,6 +27,11 @@ export function canWriteClients(role?: string | null): boolean {
   return ['STAFF', 'FINANCE', 'ADMIN', 'SUPER_ADMIN'].includes((role || '').toUpperCase());
 }
 
+/** Agreement dates + booking ID renewals (Onboarding / admin). */
+export function canEditContractTerm(role?: string | null): boolean {
+  return ['STAFF', 'ADMIN', 'SUPER_ADMIN'].includes((role || '').toUpperCase());
+}
+
 export function canSeeMoney(role?: string | null): boolean {
   return ['FINANCE', 'ADMIN', 'SUPER_ADMIN'].includes((role || '').toUpperCase());
 }
@@ -148,7 +153,15 @@ export function createClient(body: CreateStaffClientBody) {
   return apiPost<StaffClientCard>('/mobile/clients', body);
 }
 
-export function updateClient(id: string, body: { externalBookingId: string; notes: string }) {
+export function updateClient(
+  id: string,
+  body: {
+    notes?: string;
+    externalBookingId?: string;
+    contractStartDate?: string;
+    contractEndDate?: string;
+  },
+) {
   return apiPatch<StaffClientCard>(`/mobile/clients/${id}`, body);
 }
 

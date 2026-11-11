@@ -27,6 +27,7 @@ import {
 import {
   apiRequest,
   AuthUser,
+  canEditContractTerm,
   canSeeMoney,
   canWriteClients,
   clearSession,
@@ -213,12 +214,19 @@ function AppInner() {
   const [results, setResults] = useState<ClientCard[]>([]);
   const [selected, setSelected] = useState<ClientCard | null>(null);
   const [editingDetail, setEditingDetail] = useState(false);
-  const [editForm, setEditForm] = useState({ externalBookingId: '', notes: '' });
+  const [editForm, setEditForm] = useState({
+    externalBookingId: '',
+    notes: '',
+    contractStartDate: '',
+    contractEndDate: '',
+  });
 
   const [locations, setLocations] = useState<MetaLocation[]>([]);
   const [vendors, setVendors] = useState<MetaVendor[]>([]);
   const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [datePicker, setDatePicker] = useState<'start' | 'end' | null>(null);
+  const [datePicker, setDatePicker] = useState<'start' | 'end' | 'editStart' | 'editEnd' | null>(
+    null,
+  );
 
   const [moneyTab, setMoneyTab] = useState<'payments' | 'invoices'>('payments');
   const [payments, setPayments] = useState<any[]>([]);
@@ -294,8 +302,10 @@ function AppInner() {
       setSelected(card);
       setEditingDetail(false);
       setEditForm({
-        externalBookingId: card.externalBookingId || '',
+        externalBookingId: '',
         notes: card.notes || '',
+        contractStartDate: fmtDate(card.contractStartDate) === '—' ? '' : fmtDate(card.contractStartDate),
+        contractEndDate: fmtDate(card.contractEndDate) === '—' ? '' : fmtDate(card.contractEndDate),
       });
       setMailPhotoUri(null);
       setMailPhotoBase64(null);
@@ -312,8 +322,10 @@ function AppInner() {
   function startEditDetail() {
     if (!selected) return;
     setEditForm({
-      externalBookingId: selected.externalBookingId || '',
+      externalBookingId: '',
       notes: selected.notes || '',
+      contractStartDate: fmtDate(selected.contractStartDate) === '—' ? '' : fmtDate(selected.contractStartDate),
+      contractEndDate: fmtDate(selected.contractEndDate) === '—' ? '' : fmtDate(selected.contractEndDate),
     });
     setEditingDetail(true);
     setError(null);
@@ -321,24 +333,59 @@ function AppInner() {
 
   async function saveDetailEdit() {
     if (!selected) return;
-    const bookingId = editForm.externalBookingId.trim();
-    if (!bookingId) {
-      Alert.alert('Required', 'Booking ID is required for onboarding. Enter a booking ID or cancel.');
-      return;
+    const canEditTerm = canEditContractTerm((user?.role || '') as any);
+    const notes = editForm.notes.trim();
+    const body: Record<string, string> = { notes };
+
+    if (canEditTerm) {
+      const start = editForm.contractStartDate.trim();
+      const end = editForm.contractEndDate.trim();
+      const bookingId = editForm.externalBookingId.trim();
+      const currentStart = fmtDate(selected.contractStartDate) === '—' ? '' : fmtDate(selected.contractStartDate);
+      const currentEnd = fmtDate(selected.contractEndDate) === '—' ? '' : fmtDate(selected.contractEndDate);
+      const startChanged = start !== currentStart;
+      const endChanged = end !== currentEnd;
+      const termTouched = startChanged || endChanged || !!bookingId;
+
+      if (start && end && end <= start) {
+        Alert.alert('Invalid dates', 'End date must be after start date.');
+        return;
+      }
+
+      if (termTouched) {
+        if (!bookingId) {
+          Alert.alert(
+            'New Booking ID required',
+            'Enter a new Booking ID when updating agreement dates or renewing.',
+          );
+          return;
+        }
+        if (bookingId === (selected.externalBookingId || '').trim()) {
+          Alert.alert('New Booking ID required', 'Booking ID must be different from the current one.');
+          return;
+        }
+        body.externalBookingId = bookingId;
+        if (start) body.contractStartDate = start;
+        if (end) body.contractEndDate = end;
+      }
     }
+
     setBusy(true);
     setError(null);
     try {
       const updated = await apiRequest<ClientCard>(`/mobile/clients/${selected.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          externalBookingId: bookingId,
-          notes: editForm.notes.trim(),
-        }),
+        body: JSON.stringify(body),
       });
       setSelected(updated);
       setEditingDetail(false);
-      Alert.alert('Saved', 'Booking ID and notes updated.');
+      setEditForm({
+        externalBookingId: '',
+        notes: updated.notes || '',
+        contractStartDate: fmtDate(updated.contractStartDate) === '—' ? '' : fmtDate(updated.contractStartDate),
+        contractEndDate: fmtDate(updated.contractEndDate) === '—' ? '' : fmtDate(updated.contractEndDate),
+      });
+      Alert.alert('Saved', canEditTerm ? 'Agreement and notes updated.' : 'Notes updated.');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Update failed';
       setError(msg);
@@ -459,7 +506,9 @@ function AppInner() {
     }
     const ymd = toYmd(selected);
     if (which === 'start') setForm((f) => ({ ...f, contractStartDate: ymd }));
-    else setForm((f) => ({ ...f, contractEndDate: ymd }));
+    else if (which === 'end') setForm((f) => ({ ...f, contractEndDate: ymd }));
+    else if (which === 'editStart') setEditForm((f) => ({ ...f, contractStartDate: ymd }));
+    else if (which === 'editEnd') setEditForm((f) => ({ ...f, contractEndDate: ymd }));
     if (Platform.OS === 'ios') setDatePicker(null);
   }
 
@@ -841,17 +890,61 @@ function AppInner() {
 
           {canWriteClients(user?.role || '') ? (
             <View style={[styles.sectionCard, { marginTop: 16 }]}>
-              <SectionTitle>Onboarding fields</SectionTitle>
+              <SectionTitle>
+                {canEditContractTerm((user?.role || '') as any)
+                  ? 'Agreement & onboarding'
+                  : 'Onboarding notes'}
+              </SectionTitle>
               {editingDetail ? (
                 <>
-                  <FieldLabel>Booking ID *</FieldLabel>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="External booking / reference ID"
-                    autoCapitalize="characters"
-                    value={editForm.externalBookingId}
-                    onChangeText={(t) => setEditForm((f) => ({ ...f, externalBookingId: t }))}
-                  />
+                  {canEditContractTerm((user?.role || '') as any) ? (
+                    <>
+                      <Text style={styles.muted}>
+                        Current booking ID: {selected.externalBookingId || '—'}. Changing dates
+                        requires a new Booking ID. Status follows the agreement dates.
+                      </Text>
+                      <FieldLabel>Start date</FieldLabel>
+                      <Pressable
+                        style={styles.dateBtn}
+                        onPress={() => setDatePicker('editStart')}
+                        accessibilityRole="button"
+                      >
+                        <Text
+                          style={
+                            editForm.contractStartDate
+                              ? styles.dateBtnText
+                              : styles.dateBtnPlaceholder
+                          }
+                        >
+                          {editForm.contractStartDate || 'Select start date'}
+                        </Text>
+                        <Text style={styles.dateBtnIcon}>Change</Text>
+                      </Pressable>
+                      <FieldLabel>End date</FieldLabel>
+                      <Pressable
+                        style={styles.dateBtn}
+                        onPress={() => setDatePicker('editEnd')}
+                        accessibilityRole="button"
+                      >
+                        <Text
+                          style={
+                            editForm.contractEndDate ? styles.dateBtnText : styles.dateBtnPlaceholder
+                          }
+                        >
+                          {editForm.contractEndDate || 'Select end date'}
+                        </Text>
+                        <Text style={styles.dateBtnIcon}>Change</Text>
+                      </Pressable>
+                      <FieldLabel>New Booking ID *</FieldLabel>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter a new booking / reference ID"
+                        autoCapitalize="characters"
+                        value={editForm.externalBookingId}
+                        onChangeText={(t) => setEditForm((f) => ({ ...f, externalBookingId: t }))}
+                      />
+                    </>
+                  ) : null}
                   <FieldLabel>Notes</FieldLabel>
                   <TextInput
                     style={[styles.input, styles.notesInput]}
@@ -869,25 +962,58 @@ function AppInner() {
                     style={[styles.btnSecondary, { marginTop: 10 }]}
                     onPress={() => {
                       setEditingDetail(false);
+                      setDatePicker(null);
                       setError(null);
                       setEditForm({
-                        externalBookingId: selected.externalBookingId || '',
+                        externalBookingId: '',
                         notes: selected.notes || '',
+                        contractStartDate:
+                          fmtDate(selected.contractStartDate) === '—'
+                            ? ''
+                            : fmtDate(selected.contractStartDate),
+                        contractEndDate:
+                          fmtDate(selected.contractEndDate) === '—'
+                            ? ''
+                            : fmtDate(selected.contractEndDate),
                       });
                     }}
                     disabled={busy}
                   >
                     <Text style={styles.btnSecondaryText}>Cancel</Text>
                   </Pressable>
+                  {datePicker === 'editStart' || datePicker === 'editEnd' ? (
+                    <DateTimePicker
+                      value={parseYmd(
+                        datePicker === 'editStart'
+                          ? editForm.contractStartDate
+                          : editForm.contractEndDate,
+                      )}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={onDateChange}
+                    />
+                  ) : null}
                 </>
               ) : (
                 <>
-                  <Text style={styles.label}>Booking ID</Text>
-                  <Text style={styles.value}>{selected.externalBookingId || '—'}</Text>
+                  {canEditContractTerm((user?.role || '') as any) ? (
+                    <>
+                      <Text style={styles.label}>Booking ID</Text>
+                      <Text style={styles.value}>{selected.externalBookingId || '—'}</Text>
+                      <Text style={styles.label}>Agreement</Text>
+                      <Text style={styles.value}>
+                        {fmtDate(selected.contractStartDate)} → {fmtDate(selected.contractEndDate)}
+                      </Text>
+                    </>
+                  ) : null}
                   <Text style={styles.label}>Notes</Text>
                   <Text style={styles.value}>{selected.notes || '—'}</Text>
                   <Pressable style={[styles.btnSecondary, { marginTop: 12 }]} onPress={startEditDetail}>
-                    <Text style={styles.btnSecondaryText}>Edit Booking ID & notes</Text>
+                    <Text style={styles.btnSecondaryText}>
+                      {canEditContractTerm((user?.role || '') as any)
+                        ? 'Edit agreement & notes'
+                        : 'Edit notes'}
+                    </Text>
                   </Pressable>
                 </>
               )}

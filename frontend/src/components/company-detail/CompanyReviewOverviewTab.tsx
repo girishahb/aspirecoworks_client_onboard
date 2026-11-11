@@ -3,6 +3,7 @@ import type { AggregatorBooking } from '../../services/aggregatorProfile';
 import OnboardingStepper from '../OnboardingStepper';
 import BookingDetailsCard from './BookingDetailsCard';
 import CompanyProfileEditSection from './CompanyProfileEditSection';
+import ContractHistorySection from './ContractHistorySection';
 import { formatCompanyDate } from './formatting';
 
 type Props = {
@@ -12,6 +13,8 @@ type Props = {
   isAggregator: boolean;
   isAggregatorView: boolean;
   canEditProfile: boolean;
+  /** SUPER_ADMIN / ADMIN only — previous agreement terms. */
+  showContractHistory?: boolean;
   inviteSentBanner: boolean;
   inviteSentFromCreate: boolean;
   inviteStatusFromCreate?: 'sent' | 'already_activated' | 'failed' | null;
@@ -30,6 +33,7 @@ export default function CompanyReviewOverviewTab({
   isAggregator,
   isAggregatorView,
   canEditProfile,
+  showContractHistory = false,
   inviteSentBanner,
   inviteSentFromCreate,
   inviteStatusFromCreate,
@@ -127,6 +131,13 @@ export default function CompanyReviewOverviewTab({
           </div>
         </section>
       )}
+
+      {showContractHistory ? (
+        <ContractHistorySection
+          companyId={company.id}
+          refreshKey={`${company.updatedAt || ''}:${company.externalBookingId || ''}:${company.contractEndDate || ''}`}
+        />
+      ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="mt-0 text-lg font-semibold text-slate-900">Portal & renewal</h2>

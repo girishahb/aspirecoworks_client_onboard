@@ -94,6 +94,20 @@ export class ClientProfilesController {
     return this.clientProfilesService.listBookings(id, { id: user.id, role: user.role });
   }
 
+  @Get(':id/contract-history')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'List previous agreement terms for a client (admin only)',
+    description:
+      'Each row is a snapshot of start date, end date, and booking ID before a change.',
+  })
+  @ApiResponse({ status: 200, description: 'Agreement history (newest first)' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Client profile not found' })
+  listContractHistory(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.clientProfilesService.listContractHistory(id, user.role, user.id);
+  }
+
   @Get()
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.FINANCE, UserRole.AGGREGATOR)
   @ApiOperation({

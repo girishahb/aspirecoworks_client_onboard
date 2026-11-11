@@ -129,6 +129,7 @@ model User {
   authTokens       AuthToken[]
   invoiceProfile   AggregatorInvoiceProfile? // Only populated for AGGREGATOR role
   createdBookings  AggregatorBooking[]       @relation("BookingCreatedBy")
+  contractHistoryChanges ClientContractHistory[] @relation("ContractHistoryChangedBy")
 
   @@map("users")
 }
@@ -204,6 +205,7 @@ model ClientProfile {
   auditLogs          AuditLog[]
   renewalReminders   RenewalReminder[]
   aggregatorBookings AggregatorBooking[]
+  contractHistory    ClientContractHistory[]
   location           Location?           @relation(fields: [locationId], references: [id])
   vendor             Vendor?             @relation(fields: [vendorId], references: [id])
 
@@ -213,6 +215,25 @@ model ClientProfile {
   @@index([vendorId])
   @@index([operationalStatus])
   @@map("client_profiles")
+}
+
+/// Snapshot of a previous agreement term when start/end or booking ID is changed.
+model ClientContractHistory {
+  id                   String   @id @default(uuid())
+  clientProfileId      String
+  contractStartDate    DateTime?
+  contractEndDate      DateTime?
+  externalBookingId    String?
+  note                 String?  @db.Text
+  changedById          String
+  changedAt            DateTime @default(now())
+
+  clientProfile ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+  changedBy     User          @relation("ContractHistoryChangedBy", fields: [changedById], references: [id])
+
+  @@index([clientProfileId, changedAt])
+  @@index([changedById])
+  @@map("client_contract_history")
 }
 
 model Vendor {

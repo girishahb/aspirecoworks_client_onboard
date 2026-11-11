@@ -162,6 +162,28 @@ export async function updateCompany(companyId: string, data: UpdateCompanyInput)
   return apiPatch<AdminCompany>(`/client-profiles/${companyId}`, data);
 }
 
+export type ContractHistoryRow = {
+  id: string;
+  clientProfileId: string;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  externalBookingId?: string | null;
+  note?: string | null;
+  changedAt: string;
+  changedBy?: {
+    id: string;
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    role?: string | null;
+  } | null;
+};
+
+/** Previous agreement terms. Backend: GET /client-profiles/:id/contract-history (ADMIN only). */
+export async function getContractHistory(companyId: string): Promise<ContractHistoryRow[]> {
+  return apiGet<ContractHistoryRow[]>(`/client-profiles/${companyId}/contract-history`);
+}
+
 /**
  * Aggregator-only booking payload accepted on create-client.
  */

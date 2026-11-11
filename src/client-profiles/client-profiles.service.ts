@@ -41,6 +41,7 @@ import {
   isExternalBookingIdUniqueViolation,
   normalizeExternalBookingId,
 } from './external-booking-id.helper';
+import { prepareContractTermChange } from './contract-history.helper';
 
 const INVITE_TOKEN_EXPIRY_HOURS = 48;
 
@@ -783,20 +784,6 @@ export class ClientProfilesService {
       }
     }
 
-    let normalizedExternalBookingId: string | null | undefined;
-    if (updateClientProfileDto.externalBookingId !== undefined) {
-      const next = normalizeExternalBookingId(updateClientProfileDto.externalBookingId);
-      if (next !== normalizeExternalBookingId(existing.externalBookingId)) {
-        normalizedExternalBookingId = await assertExternalBookingIdAvailable(
-          this.prisma,
-          updateClientProfileDto.externalBookingId,
-          id,
-        );
-      } else {
-        normalizedExternalBookingId = next;
-      }
-    }
-
     // Authorization check: Only admins/managers can update, or the creator
     if (
       userRole !== UserRole.ADMIN &&
@@ -848,9 +835,6 @@ export class ClientProfilesService {
     if (dto.membershipType !== undefined) data.membershipType = dto.membershipType;
     if (dto.officeType !== undefined) data.officeType = dto.officeType;
     if (dto.notes !== undefined) data.notes = dto.notes;
-    if (normalizedExternalBookingId !== undefined) {
-      data.externalBookingId = normalizedExternalBookingId;
-    }
     if (dto.contractMonths !== undefined) data.contractMonths = dto.contractMonths ?? null;
     if (dto.onboardingStage !== undefined) data.onboardingStage = dto.onboardingStage;
     if (dto.clientChannel !== undefined) data.clientChannel = dto.clientChannel;
@@ -874,39 +858,86 @@ export class ClientProfilesService {
           ? { connect: { id: dto.vendorId } }
           : { disconnect: true };
     }
-    if (dto.contractStartDate !== undefined) {
-      data.contractStartDate = this.parseDateOnly(dto.contractStartDate);
-    }
-    if (dto.contractEndDate !== undefined) {
-      const end = this.parseDateOnly(dto.contractEndDate);
-      data.contractEndDate = end;
-      data.renewalDate = end;
-    }
     if (dto.operationalStatus !== undefined) {
       data.operationalStatus = dto.operationalStatus as OperationalStatus;
     }
 
+    const termChange = await prepareContractTermChange(this.prisma, {
+      existing: {
+        contractStartDate: existing.contractStartDate
+          ? new Date(existing.contractStartDate)
+          : null,
+        contractEndDate: existing.contractEndDate ? new Date(existing.contractEndDate) : null,
+        externalBookingId: existing.externalBookingId ?? null,
+      },
+      startProvided: dto.contractStartDate !== undefined,
+      endProvided: dto.contractEndDate !== undefined,
+      bookingIdProvided: dto.externalBookingId !== undefined,
+      nextStart:
+        dto.contractStartDate !== undefined
+          ? this.parseDateOnly(dto.contractStartDate)
+          : undefined,
+      nextEnd:
+        dto.contractEndDate !== undefined ? this.parseDateOnly(dto.contractEndDate) : undefined,
+      nextBookingId: dto.externalBookingId,
+      clientId: id,
+      changedById: userId,
+      note: typeof dto.notes === 'string' ? dto.notes : undefined,
+    });
+
+    if (termChange.termChanged) {
+      if (termChange.profilePatch.contractStartDate !== undefined) {
+        data.contractStartDate = termChange.profilePatch.contractStartDate;
+      }
+      if (termChange.profilePatch.contractEndDate !== undefined) {
+        data.contractEndDate = termChange.profilePatch.contractEndDate;
+      }
+      if (termChange.profilePatch.renewalDate !== undefined) {
+        data.renewalDate = termChange.profilePatch.renewalDate;
+      }
+      if (termChange.profilePatch.renewalStatus !== undefined) {
+        data.renewalStatus = termChange.profilePatch.renewalStatus;
+      }
+      if (termChange.profilePatch.externalBookingId !== undefined) {
+        data.externalBookingId = termChange.profilePatch.externalBookingId;
+      }
+    }
+
     let updated;
     try {
-      updated = await this.prisma.clientProfile.update({
-        where: { id },
-        data,
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
+      updated = await this.prisma.$transaction(async (tx) => {
+        if (termChange.termChanged && termChange.historyCreate) {
+          await tx.clientContractHistory.create({
+            data: {
+              clientProfileId: id,
+              contractStartDate: termChange.historyCreate.contractStartDate ?? null,
+              contractEndDate: termChange.historyCreate.contractEndDate ?? null,
+              externalBookingId: termChange.historyCreate.externalBookingId ?? null,
+              note: (termChange.historyCreate.note as string | null) ?? null,
+              changedById: userId,
+            },
+          });
+        }
+        return tx.clientProfile.update({
+          where: { id },
+          data,
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            location: {
+              select: { id: true, name: true, code: true, area: true },
+            },
+            vendor: {
+              select: { id: true, name: true, code: true },
             },
           },
-          location: {
-            select: { id: true, name: true, code: true, area: true },
-          },
-          vendor: {
-            select: { id: true, name: true, code: true },
-          },
-        },
+        });
       });
     } catch (err) {
       if (isExternalBookingIdUniqueViolation(err)) {
@@ -928,6 +959,29 @@ export class ClientProfilesService {
     });
 
     return this.findOne(id, userRole, userId);
+  }
+
+  /** Admin-only ledger of previous agreement terms (booking ID + dates). */
+  async listContractHistory(id: string, userRole: UserRole, userId: string) {
+    if (userRole !== UserRole.SUPER_ADMIN && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only admins can view agreement history');
+    }
+    await this.findOne(id, userRole, userId);
+    return this.prisma.clientContractHistory.findMany({
+      where: { clientProfileId: id },
+      orderBy: { changedAt: 'desc' },
+      include: {
+        changedBy: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+      },
+    });
   }
 
   /**

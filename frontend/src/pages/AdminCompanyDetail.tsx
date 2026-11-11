@@ -111,6 +111,8 @@ export default function AdminCompanyDetail() {
     (currentUser?.role === 'ADMIN' ||
       currentUser?.role === 'MANAGER' ||
       currentUser?.role === 'SUPER_ADMIN');
+  const showContractHistory =
+    currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN';
   const [searchParams, setSearchParams] = useSearchParams();
   const dashboardPath = isAggregatorView ? '/aggregator/dashboard' : '/admin/dashboard';
 
@@ -590,6 +592,7 @@ export default function AdminCompanyDetail() {
             isAggregator={!!isAggregator}
             isAggregatorView={isAggregatorView}
             canEditProfile={canEditProfile}
+            showContractHistory={showContractHistory}
             inviteSentBanner={inviteSentBanner}
             inviteSentFromCreate={inviteSentFromCreate}
             inviteStatusFromCreate={inviteStatusFromCreate}
