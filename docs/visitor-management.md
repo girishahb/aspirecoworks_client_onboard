@@ -51,7 +51,7 @@ Sign in at `/staff/login` with a `RECEPTION` role (or `ADMIN` / `SUPER_ADMIN` fo
 |------|------------------------|-----|
 | Reception PC/laptop | Windows 11 or macOS; 8GB+ RAM; Chrome/Edge | Runs Staff Ops all day |
 | Webcam | Logitech C920/C922 or equivalent 1080p USB autofocus | Clear face capture |
-| Signature pad | Wacom STU-430/540 or budget HID LCD pad; fallback: on-screen canvas | Pen feel; USB plug-and-play |
+| Signature pad | XP-PEN graphic tablet **101.6 × 76.2 mm** (4:3) active area, or Wacom STU; fallback: on-screen canvas | Pen feel; USB plug-and-play. App canvas matches that aspect ratio |
 | Backup input | Built-in trackpad/mouse | Pad failure must not block check-in |
 | Optional doc cam | USB doc cam or phone stand | Cleaner Aadhaar card photo |
 | Desk mount | Webcam clamp + fixed pad position | Consistent framing |
@@ -65,6 +65,8 @@ Sign in at `/staff/login` with a `RECEPTION` role (or `ADMIN` / `SUPER_ADMIN` fo
 
 - Use Chrome or Edge; pin `/staff/visitors/check-in`; optional fullscreen (`F11`)
 - Grant camera permission once per browser profile
+- On check-in photo step, use the **Camera** dropdown and pick the USB / Logitech cam (★). The app prefers external cameras over the laptop built-in and remembers the choice on that PC
+- Signature canvas is fixed to XP-PEN **101.6 × 76.2 mm (4:3)**. In XP-PEN driver, map the tablet to the browser window (or the signature box) so the full physical area aligns with the on-screen pad; enable Windows Ink if available
 - Test signature pad with Windows Ink / browser pointer events before go-live
 - Face visitor toward soft light; avoid backlight from glass doors
 
