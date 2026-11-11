@@ -6,76 +6,114 @@ type Props = {
 };
 
 /**
- * XP-PEN graphic pen tablet active area (common StarG430 / similar):
- * 101.6 mm × 76.2 mm → exactly 4:3. Canvas keeps this aspect so pen
- * travel matches the physical pad when the driver maps to the window.
+ * XP-PEN active area is 101.6 × 76.2 mm (4:3). Drivers usually map that
+ * whole surface to the *entire monitor*, so a small on-page canvas only
+ * receives a tiny corner of the pad. Full-screen canvas = full pad travel.
  */
 export const XP_PEN_AREA_MM = { width: 101.6, height: 76.2 } as const;
-const PAD_ASPECT = XP_PEN_AREA_MM.width / XP_PEN_AREA_MM.height; // 4/3
-
-/** ~2× physical size at 96 CSS px/inch for comfortable on-screen drawing. */
-const MM_TO_CSS_PX = 96 / 25.4;
-const TARGET_CSS_WIDTH = Math.round(XP_PEN_AREA_MM.width * MM_TO_CSS_PX * 2); // ~768
 
 export default function SignaturePad({ value, onChange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const drawing = useRef(false);
   const inkRef = useRef(false);
+  const sizeRef = useRef({ w: 800, h: 600 });
   const [hasInk, setHasInk] = useState(false);
-  const [boxCss, setBoxCss] = useState({ w: TARGET_CSS_WIDTH, h: Math.round(TARGET_CSS_WIDTH / PAD_ASPECT) });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function paintBlank(w: number, h: number) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(w * ratio));
+    canvas.height = Math.max(1, Math.floor(h * ratio));
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    sizeRef.current = { w, h };
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0f172a';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    inkRef.current = false;
+    setHasInk(false);
+  }
+
+  /** Size canvas to the drawing surface (full screen or large on-page box). */
+  function fitCanvasToStage() {
+    const canvas = canvasRef.current;
+    const host = canvas?.parentElement;
+    if (!host) return;
+    const w = Math.max(320, Math.floor(host.clientWidth));
+    const h = Math.max(240, Math.floor(host.clientHeight));
+    paintBlank(w, h);
+    onChange(null);
+  }
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
-
-    const resize = () => {
-      const parentW = wrap.clientWidth || TARGET_CSS_WIDTH;
-      const w = Math.min(TARGET_CSS_WIDTH, parentW);
-      const h = Math.round(w / PAD_ASPECT);
-      setBoxCss({ w, h });
-
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(w * ratio);
-      canvas.height = Math.floor(h * ratio);
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      ctx.lineWidth = 2.2;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#0f172a';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, w, h);
-      inkRef.current = false;
-      setHasInk(false);
-      onChange(null);
+    const onFsChange = () => {
+      const active = document.fullscreenElement === stageRef.current;
+      setIsFullscreen(active);
+      // Refit after fullscreen transition
+      requestAnimationFrame(() => fitCanvasToStage());
     };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    resize();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
-    ro?.observe(wrap);
-    window.addEventListener('resize', resize);
+  useEffect(() => {
+    fitCanvasToStage();
+    const stage = stageRef.current;
+    if (!stage) return;
+    const host = canvasRef.current?.parentElement ?? stage;
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => fitCanvasToStage()) : null;
+    ro?.observe(host);
+    window.addEventListener('resize', fitCanvasToStage);
     return () => {
       ro?.disconnect();
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', fitCanvasToStage);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount resize only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function enterFullscreen() {
+    setError(null);
+    const stage = stageRef.current;
+    if (!stage) return;
+    try {
+      if (stage.requestFullscreen) {
+        await stage.requestFullscreen();
+      } else {
+        setError('Fullscreen is not available in this browser. Use Chrome/Edge.');
+      }
+    } catch {
+      setError('Could not enter fullscreen. Allow it when the browser prompts, then try again.');
+    }
+  }
+
+  async function exitFullscreen() {
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 
   function pointFromEvent(e: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    // Normalize to CSS pixel space used by the 2d context transform
-    const scaleX = boxCss.w / rect.width;
-    const scaleY = boxCss.h / rect.height;
+    const { w, h } = sizeRef.current;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: ((e.clientX - rect.left) / rect.width) * w,
+      y: ((e.clientY - rect.top) / rect.height) * h,
     };
   }
 
@@ -96,9 +134,10 @@ export default function SignaturePad({ value, onChange }: Props) {
     e.preventDefault();
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
-    // Optional pressure from XP-Pen / Windows Ink
     if (typeof e.pressure === 'number' && e.pressure > 0) {
-      ctx.lineWidth = 1.2 + e.pressure * 2.4;
+      ctx.lineWidth = 1.4 + e.pressure * 2.8;
+    } else {
+      ctx.lineWidth = 2.4;
     }
     const p = pointFromEvent(e);
     ctx.lineTo(p.x, p.y);
@@ -121,45 +160,86 @@ export default function SignaturePad({ value, onChange }: Props) {
   }
 
   function clear() {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, boxCss.w, boxCss.h);
-    inkRef.current = false;
-    setHasInk(false);
+    const { w, h } = sizeRef.current;
+    paintBlank(w, h);
     onChange(null);
   }
 
-  function commit() {
+  function commitAndExit() {
     const canvas = canvasRef.current;
-    if (!canvas || !inkRef.current) return;
-    onChange(canvas.toDataURL('image/png'));
+    if (canvas && inkRef.current) {
+      onChange(canvas.toDataURL('image/png'));
+    }
+    void exitFullscreen();
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        Sign on the XP-PEN pad (active area {XP_PEN_AREA_MM.width}&nbsp;×&nbsp;{XP_PEN_AREA_MM.height}&nbsp;mm,
-        4:3) or draw with mouse / trackpad.
-      </p>
-      <div
-        ref={wrapRef}
-        className="mx-auto max-w-full rounded-xl border-2 border-slate-300 bg-slate-100 p-2 touch-none"
-        style={{ maxWidth: TARGET_CSS_WIDTH + 16 }}
-      >
-        <div
-          className="relative mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white touch-none"
-          style={{
-            width: boxCss.w,
-            height: boxCss.h,
-            aspectRatio: `${XP_PEN_AREA_MM.width} / ${XP_PEN_AREA_MM.height}`,
-          }}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <p className="font-semibold">XP-PEN tip</p>
+        <p className="mt-1">
+          The tablet maps its full {XP_PEN_AREA_MM.width}&nbsp;×&nbsp;{XP_PEN_AREA_MM.height}&nbsp;mm
+          area to the whole screen. Use <strong>Full-screen signature</strong> so the entire pad
+          draws on the canvas (a small box on the page only uses a tiny corner of the tablet).
+        </p>
+      </div>
+
+      {error && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      )}
+
+      {!value && (
+        <button
+          type="button"
+          onClick={() => void enterFullscreen()}
+          className="w-full rounded-lg px-4 py-3 text-sm font-semibold text-white sm:w-auto"
+          style={{ background: '#134b7f' }}
         >
+          Full-screen signature (recommended)
+        </button>
+      )}
+
+      {/*
+        On-page stage is large (≈70vh) so even without fullscreen more of the
+        tablet is usable. Fullscreen makes stage = entire monitor.
+      */}
+      <div
+        ref={stageRef}
+        className={`relative overflow-hidden border border-slate-300 bg-slate-900 touch-none ${
+          isFullscreen ? 'flex h-screen w-screen flex-col' : 'rounded-xl'
+        }`}
+        style={isFullscreen ? undefined : { height: 'min(70vh, 720px)' }}
+      >
+        {isFullscreen && (
+          <div className="flex shrink-0 items-center justify-between gap-2 bg-slate-950/90 px-4 py-2 text-white">
+            <p className="text-sm">
+              Sign using the full XP-PEN pad · Esc to exit
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={clear}
+                className="rounded-md border border-white/30 px-3 py-1.5 text-xs font-medium hover:bg-white/10"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={commitAndExit}
+                disabled={!hasInk}
+                className="rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                style={{ background: '#134b7f' }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+        <div className={`relative min-h-0 flex-1 ${isFullscreen ? 'h-full' : 'h-full'}`}>
           <canvas
             ref={canvasRef}
-            className="block cursor-crosshair touch-none"
-            style={{ width: boxCss.w, height: boxCss.h, touchAction: 'none' }}
+            className="absolute inset-0 h-full w-full cursor-crosshair touch-none bg-white"
+            style={{ touchAction: 'none' }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={endStroke}
@@ -168,35 +248,53 @@ export default function SignaturePad({ value, onChange }: Props) {
               if (drawing.current) endStroke(e);
             }}
           />
-          <span className="pointer-events-none absolute bottom-1 right-2 text-[10px] font-medium text-slate-400">
-            {XP_PEN_AREA_MM.width} × {XP_PEN_AREA_MM.height} mm
-          </span>
         </div>
       </div>
-      <p className="text-xs text-slate-500">
-        Tip: In XP-PEN driver, map the tablet to this browser window (or the signature box) so the
-        full {XP_PEN_AREA_MM.width}&nbsp;×&nbsp;{XP_PEN_AREA_MM.height}&nbsp;mm area matches the pad above.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={clear}
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          onClick={commit}
-          disabled={!hasInk}
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          style={{ background: '#134b7f' }}
-        >
-          Use signature
-        </button>
-      </div>
-      {value && (
-        <p className="text-xs text-emerald-700">Signature captured. Continue when ready.</p>
+
+      {!isFullscreen && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={clear}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const canvas = canvasRef.current;
+              if (!canvas || !inkRef.current) return;
+              onChange(canvas.toDataURL('image/png'));
+            }}
+            disabled={!hasInk}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            style={{ background: '#134b7f' }}
+          >
+            Use signature
+          </button>
+        </div>
+      )}
+
+      {value && !isFullscreen && (
+        <div className="space-y-2">
+          <p className="text-xs text-emerald-700">Signature captured. Continue when ready.</p>
+          <img
+            src={value}
+            alt="Signature preview"
+            className="max-h-40 rounded-lg border border-slate-200 bg-white object-contain"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              void enterFullscreen();
+            }}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Re-sign full screen
+          </button>
+        </div>
       )}
     </div>
   );

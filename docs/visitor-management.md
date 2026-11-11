@@ -66,7 +66,7 @@ Sign in at `/staff/login` with a `RECEPTION` role (or `ADMIN` / `SUPER_ADMIN` fo
 - Use Chrome or Edge; pin `/staff/visitors/check-in`; optional fullscreen (`F11`)
 - Grant camera permission once per browser profile
 - On check-in photo step, use the **Camera** dropdown and pick the USB / Logitech cam (★). The app prefers external cameras over the laptop built-in and remembers the choice on that PC
-- Signature canvas is fixed to XP-PEN **101.6 × 76.2 mm (4:3)**. In XP-PEN driver, map the tablet to the browser window (or the signature box) so the full physical area aligns with the on-screen pad; enable Windows Ink if available
+- XP-PEN **101.6 × 76.2 mm** usually maps to the **entire monitor**. On the signature step use **Full-screen signature** so the whole tablet draws on the canvas (a small page box only uses a tiny corner of the pad). Optional: in XP-PEN driver set mapping to the browser window; enable Windows Ink if available
 - Test signature pad with Windows Ink / browser pointer events before go-live
 - Face visitor toward soft light; avoid backlight from glass doors
 
