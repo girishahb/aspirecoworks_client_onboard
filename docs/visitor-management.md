@@ -29,7 +29,7 @@ npm install
 npm run dev
 ```
 
-Sign in at `/staff/login` with a `RECEPTION`, `STAFF`, or admin role.
+Sign in at `/staff/login` with a `RECEPTION` role (or `ADMIN` / `SUPER_ADMIN` for break-glass). Onboarding `STAFF` cannot use visitor check-in.
 
 ### Env (already used by the app)
 

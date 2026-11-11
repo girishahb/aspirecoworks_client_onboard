@@ -40,14 +40,11 @@ export const MOBILE_MAIL_NOTIFY_ROLES: UserRole[] = [
   UserRole.ADMIN,
 ];
 
-/** Staff visitor check-in / today board / media (reception desk + ops) */
+/** Front desk visitor check-in / today board / media (RECEPTION only; admins break-glass) */
 export const VISITOR_DESK_ROLES: UserRole[] = [
   UserRole.RECEPTION,
-  UserRole.STAFF,
   UserRole.SUPER_ADMIN,
   UserRole.ADMIN,
-  UserRole.MANAGER,
-  UserRole.FINANCE,
 ];
 
 /** Admin visitor search / CSV export */

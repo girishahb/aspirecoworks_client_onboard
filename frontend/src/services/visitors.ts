@@ -70,15 +70,9 @@ export type CheckInVisitorBody = {
   aadhaarConsentVersion?: string;
 };
 
+/** Front desk only (RECEPTION); ADMIN / SUPER_ADMIN for break-glass. Not STAFF. */
 export function canManageVisitors(role?: string | null): boolean {
-  return [
-    'RECEPTION',
-    'STAFF',
-    'FINANCE',
-    'ADMIN',
-    'SUPER_ADMIN',
-    'MANAGER',
-  ].includes((role || '').toUpperCase());
+  return ['RECEPTION', 'ADMIN', 'SUPER_ADMIN'].includes((role || '').toUpperCase());
 }
 
 export function getVisitorConsentMeta() {
