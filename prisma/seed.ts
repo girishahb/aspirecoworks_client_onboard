@@ -1,7 +1,83 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
+
+const SUPPORT_GROUPS: { name: string; department: string }[] = [
+  { name: 'Internet / Wi-Fi', department: 'IT Support' },
+  { name: 'Housekeeping', department: 'Operations' },
+  { name: 'Electricity', department: 'Facilities' },
+  { name: 'Air Conditioning', department: 'Facilities' },
+  { name: 'Meeting Room', department: 'Operations' },
+  { name: 'Access Card', department: 'Administration' },
+  { name: 'Parking', department: 'Operations' },
+  { name: 'Furniture / Infrastructure', department: 'Facilities' },
+  { name: 'Washroom / Plumbing', department: 'Facilities' },
+  { name: 'Other', department: 'Operations' },
+];
+
+async function seedSupportDesk(
+  db: PrismaClient,
+  opts: {
+    receptionId: string;
+    locations: { id: string; name: string }[];
+  },
+) {
+  const departments = new Map<string, string>();
+  for (const name of ['IT Support', 'Operations', 'Facilities', 'Administration', 'Finance']) {
+    const department = await db.department.upsert({
+      where: { name },
+      update: { isActive: true },
+      create: { name },
+    });
+    departments.set(name, department.id);
+  }
+
+  for (let i = 0; i < SUPPORT_GROUPS.length; i++) {
+    const spec = SUPPORT_GROUPS[i];
+    const existing = await db.issueGroup.findFirst({
+      where: { name: spec.name },
+    });
+    const group = existing
+      ? await db.issueGroup.update({
+          where: { id: existing.id },
+          data: { sortOrder: i + 1, isActive: true },
+        })
+      : await db.issueGroup.create({
+          data: { name: spec.name, sortOrder: i + 1 },
+        });
+    await db.issueGroupRoute.upsert({
+      where: { issueGroupId_locationKey: { issueGroupId: group.id, locationKey: 'GLOBAL' } },
+      update: {},
+      create: {
+        issueGroupId: group.id,
+        locationKey: 'GLOBAL',
+        departmentId: departments.get(spec.department)!,
+      },
+    });
+  }
+
+  for (const location of opts.locations) {
+    const existing = await db.qrCode.findFirst({
+      where: { locationId: location.id, label: 'Reception' },
+    });
+    if (!existing) {
+      await db.qrCode.create({
+        data: {
+          locationId: location.id,
+          label: 'Reception',
+          publicToken: randomBytes(24).toString('base64url'),
+        },
+      });
+    }
+  }
+
+  await db.user.updateMany({
+    where: { id: opts.receptionId, homeLocationId: null },
+    data: { homeLocationId: opts.locations[0]?.id },
+  });
+}
 
 async function main() {
   console.log('Seeding database...');
@@ -267,6 +343,11 @@ async function main() {
       area: 'Kormangala',
       isActive: true,
     },
+  });
+
+  await seedSupportDesk(prisma, {
+    receptionId: reception.id,
+    locations: [loc1, loc2, loc3],
   });
 
   // 2. Fixed time slots (hourly for rooms)

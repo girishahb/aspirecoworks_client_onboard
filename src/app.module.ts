@@ -27,6 +27,7 @@ import { ImportQaModule } from './import-qa/import-qa.module';
 import { MobileModule } from './mobile/mobile.module';
 import { MailNotificationsModule } from './mail-notifications/mail-notifications.module';
 import { VisitorsModule } from './visitors/visitors.module';
+import { TicketsModule } from './tickets/tickets.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -68,6 +69,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     MobileModule,
     MailNotificationsModule,
     VisitorsModule,
+    TicketsModule,
   ],
   controllers: [],
   providers: [

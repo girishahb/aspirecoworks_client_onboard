@@ -7,6 +7,7 @@ import {
   roleLabel,
 } from '../services/staffOps';
 import { canManageVisitors } from '../services/visitors';
+import { canWorkTickets } from '../services/tickets';
 
 export default function StaffHome() {
   const user = getCurrentUser();
@@ -59,6 +60,18 @@ export default function StaffHome() {
               <h2 className="text-base font-semibold text-slate-900">Today’s visitors</h2>
               <p className="mt-1 text-sm text-slate-500">
                 See who is on site and check visitors out
+              </p>
+            </Link>
+          )}
+
+          {canWorkTickets(role) && (
+            <Link
+              to="/staff/tickets"
+              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#134b7f]/40"
+            >
+              <h2 className="text-base font-semibold text-slate-900">Support tickets</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                See tickets assigned to you, the branch queue, and closed tickets
               </p>
             </Link>
           )}

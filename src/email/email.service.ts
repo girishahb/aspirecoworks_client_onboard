@@ -9,6 +9,7 @@ export interface EmailAttachment {
 
 export interface SendEmailOptions {
   to: string | string[];
+  cc?: string | string[];
   subject: string;
   html: string;
   text?: string;
@@ -42,8 +43,11 @@ export class EmailService {
   }
 
   async sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
-    const { to, subject, html, text, attachments, from } = options;
-    const toList = Array.isArray(to) ? to : [to];
+    const { to, cc, subject, html, text, attachments, from } = options;
+    const toList = (Array.isArray(to) ? to : [to]).map((e) => e.trim()).filter(Boolean);
+    const ccList = (cc == null ? [] : Array.isArray(cc) ? cc : [cc])
+      .map((e) => e.trim())
+      .filter((e) => e && !toList.includes(e));
     const fromAddress = (from?.trim() || this.from).trim();
 
     if (!this.resend) {
@@ -69,6 +73,7 @@ export class EmailService {
       const { data, error } = await this.resend.emails.send({
         from: fromAddress,
         to: toList,
+        cc: ccList.length > 0 ? ccList : undefined,
         subject,
         html,
         text: text ?? undefined,

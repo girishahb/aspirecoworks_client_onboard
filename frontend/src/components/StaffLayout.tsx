@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LogOut, Menu, Search, UserPlus, Wallet, X, Home, ClipboardList } from 'lucide-react';
+import { LogOut, Menu, Search, UserPlus, Wallet, X, Home, ClipboardList, LifeBuoy } from 'lucide-react';
 import { getCurrentUser, logout } from '../services/auth';
 import { canSeeMoney, canWriteClients, roleLabel } from '../services/staffOps';
 import { canManageVisitors } from '../services/visitors';
+import { canWorkTickets } from '../services/tickets';
 
 export default function StaffLayout() {
   const navigate = useNavigate();
@@ -15,6 +16,9 @@ export default function StaffLayout() {
     { to: '/staff', icon: Home, label: 'Home', end: true },
     ...(canManageVisitors(role)
       ? [{ to: '/staff/visitors', icon: ClipboardList, label: 'Visitors' }]
+      : []),
+    ...(canWorkTickets(role)
+      ? [{ to: '/staff/tickets', icon: LifeBuoy, label: 'Tickets' }]
       : []),
     { to: '/staff/find', icon: Search, label: 'Find client' },
     ...(canWriteClients(role)

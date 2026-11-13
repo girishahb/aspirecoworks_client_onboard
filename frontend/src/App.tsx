@@ -47,6 +47,12 @@ const StaffVisitorsToday = lazy(() => import('./pages/StaffVisitorsToday'));
 const StaffVisitorCheckIn = lazy(() => import('./pages/StaffVisitorCheckIn'));
 const StaffVisitorDetail = lazy(() => import('./pages/StaffVisitorDetail'));
 const AdminVisitors = lazy(() => import('./pages/AdminVisitors'));
+const AdminTickets = lazy(() => import('./pages/AdminTickets'));
+const AdminTicketDetail = lazy(() => import('./pages/AdminTicketDetail'));
+const AdminTicketSettings = lazy(() => import('./pages/AdminTicketSettings'));
+const StaffTickets = lazy(() => import('./pages/StaffTickets'));
+const StaffTicketDetail = lazy(() => import('./pages/StaffTicketDetail'));
+const RaiseTicket = lazy(() => import('./pages/RaiseTicket'));
 const AggregatorDashboard = lazy(() => import('./pages/AggregatorDashboard'));
 const AggregatorCreateCompany = lazy(() => import('./pages/AggregatorCreateCompany'));
 const AggregatorInvoices = lazy(() => import('./pages/AggregatorInvoices'));
@@ -97,6 +103,8 @@ export default function App() {
             <Route path="visitors/check-in" element={<StaffVisitorCheckIn />} />
             <Route path="visitors/:id" element={<StaffVisitorDetail />} />
             <Route path="visitors" element={<StaffVisitorsToday />} />
+            <Route path="tickets/:id" element={<StaffTicketDetail />} />
+            <Route path="tickets" element={<StaffTickets />} />
           </Route>
         </Route>
 
@@ -128,6 +136,9 @@ export default function App() {
             <Route path="mobile-users" element={<AdminMobileUsers />} />
             <Route path="mail-notifications" element={<AdminMailNotifications />} />
             <Route path="visitors" element={<AdminVisitors />} />
+            <Route path="tickets/:id" element={<AdminTicketDetail />} />
+            <Route path="tickets" element={<AdminTickets />} />
+            <Route path="ticket-setup" element={<AdminTicketSettings />} />
             <Route path="import-qa" element={<AdminImportQa />} />
           </Route>
         </Route>
@@ -155,6 +166,7 @@ export default function App() {
           <Route path="terms-of-service" element={<TermsOfService />} />
         </Route>
 
+        <Route path="raise-ticket" element={<RaiseTicket />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

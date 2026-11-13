@@ -132,7 +132,16 @@ model User {
   contractHistoryChanges ClientContractHistory[] @relation("ContractHistoryChangedBy")
   visitorCheckIns        VisitorVisit[]          @relation("VisitorCheckedInBy")
   visitorCheckOuts       VisitorVisit[]          @relation("VisitorCheckedOutBy")
+  homeLocationId         String?
+  homeLocation           Location?               @relation("UserHomeLocation", fields: [homeLocationId], references: [id])
+  assignedTickets        Ticket[]                @relation("TicketAssignee")
+  closedTickets          Ticket[]                @relation("TicketClosedBy")
+  ticketEvents           TicketEvent[]           @relation("TicketEventActor")
+  ticketAttachments      TicketAttachment[]      @relation("TicketAttachmentUploader")
+  defaultTicketRoutes    IssueGroupRoute[]       @relation("RouteDefaultAssignee")
+  createdQrCodes         QrCode[]                @relation("QrCodeCreatedBy")
 
+  @@index([homeLocationId])
   @@map("users")
 }
 
@@ -530,6 +539,10 @@ model Location {
   vendors   Vendor[]
   clients   ClientProfile[]
   visits    VisitorVisit[]
+  homeUsers User[]          @relation("UserHomeLocation")
+  qrCodes   QrCode[]
+  tickets   Ticket[]
+  issueGroupRoutes IssueGroupRoute[]
   createdAt DateTime        @default(now())
 
   @@map("locations")
@@ -641,4 +654,207 @@ model Booking {
   @@index([razorpayOrderId])
   @@index([status, expiresAt])
   @@map("bookings")
+}
+
+// ============ QR support tickets ============
+
+enum TicketStatus {
+  IN_PROGRESS
+  CLOSED
+}
+
+enum TicketEventType {
+  CREATED
+  ASSIGNED
+  COMMENTED
+  STATUS_CHANGED
+  EMAIL
+  ATTACHMENT
+}
+
+enum RecipientKind {
+  TO
+  CC
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routes  IssueGroupRoute[]
+  tickets Ticket[]
+
+  @@map("departments")
+}
+
+model IssueGroup {
+  id        String   @id @default(uuid())
+  name      String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routes  IssueGroupRoute[]
+  tickets Ticket[]
+
+  @@map("issue_groups")
+}
+
+/// One route per issue group and location. locationKey is "GLOBAL" or the location id.
+model IssueGroupRoute {
+  id                String      @id @default(uuid())
+  issueGroupId      String
+  issueGroup        IssueGroup  @relation(fields: [issueGroupId], references: [id])
+  locationKey       String
+  locationId        String?
+  location          Location?   @relation(fields: [locationId], references: [id])
+  departmentId      String
+  department        Department  @relation(fields: [departmentId], references: [id])
+  defaultAssigneeId String?
+  defaultAssignee   User?       @relation("RouteDefaultAssignee", fields: [defaultAssigneeId], references: [id])
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  recipients        IssueGroupRecipient[]
+
+  @@unique([issueGroupId, locationKey])
+  @@index([locationId])
+  @@map("issue_group_routes")
+}
+
+model IssueGroupRecipient {
+  id      String           @id @default(uuid())
+  routeId String
+  route   IssueGroupRoute  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  email   String
+  kind    RecipientKind    @default(TO)
+
+  @@index([routeId])
+  @@map("issue_group_recipients")
+}
+
+model QrCode {
+  id          String   @id @default(uuid())
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id])
+  publicToken String   @unique
+  label       String
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdBy   User?    @relation("QrCodeCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tickets     Ticket[]
+
+  @@index([locationId])
+  @@map("qr_codes")
+}
+
+model TicketSequence {
+  year       Int @id
+  lastNumber Int @default(0)
+
+  @@map("ticket_sequences")
+}
+
+model Ticket {
+  id                   String       @id @default(uuid())
+  ticketNumber         String       @unique
+  clientRequestId      String?      @unique
+  customerName         String
+  companyName          String
+  customerEmail        String?
+  customerPhone        String?
+  locationId           String
+  location             Location     @relation(fields: [locationId], references: [id])
+  qrCodeId             String
+  qrCode               QrCode       @relation(fields: [qrCodeId], references: [id])
+  issueGroupId         String
+  issueGroup           IssueGroup   @relation(fields: [issueGroupId], references: [id])
+  issueDescription     String       @db.Text
+  status               TicketStatus @default(IN_PROGRESS)
+  assignedDepartmentId String?
+  assignedDepartment   Department?  @relation(fields: [assignedDepartmentId], references: [id])
+  assignedUserId       String?
+  assignedUser         User?        @relation("TicketAssignee", fields: [assignedUserId], references: [id])
+  resolutionNotes      String?      @db.Text
+  closedAt             DateTime?
+  closedById           String?
+  closedBy             User?        @relation("TicketClosedBy", fields: [closedById], references: [id])
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  events        TicketEvent[]
+  attachments   TicketAttachment[]
+  notifications NotificationLog[]
+
+  @@index([status, createdAt])
+  @@index([locationId, status])
+  @@index([issueGroupId])
+  @@index([assignedDepartmentId])
+  @@index([assignedUserId, status])
+  @@index([companyName])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+model TicketEvent {
+  id        String          @id @default(uuid())
+  ticketId  String
+  ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type      TicketEventType
+  actorId   String?
+  actor     User?           @relation("TicketEventActor", fields: [actorId], references: [id])
+  details   Json?
+  createdAt DateTime        @default(now())
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_events")
+}
+
+model TicketAttachment {
+  id           String   @id @default(uuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fileKey      String
+  fileName     String
+  contentType  String
+  sizeBytes    Int
+  uploadedById String?
+  uploadedBy   User?    @relation("TicketAttachmentUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([ticketId])
+  @@map("ticket_attachments")
+}
+
+model NotificationLog {
+  id        String             @id @default(uuid())
+  ticketId  String
+  ticket    Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  kind      String
+  subject   String
+  html      String             @db.Text
+  text      String             @db.Text
+  toEmails  String[]
+  ccEmails  String[]
+  status    NotificationStatus @default(QUEUED)
+  error     String?
+  attempt   Int                @default(0)
+  createdAt DateTime           @default(now())
+  sentAt    DateTime?
+
+  @@index([status, attempt])
+  @@index([ticketId])
+  @@map("notification_logs")
 }

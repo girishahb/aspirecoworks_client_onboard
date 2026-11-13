@@ -54,3 +54,24 @@ export const VISITOR_ADMIN_ROLES: UserRole[] = [
   UserRole.MANAGER,
   UserRole.FINANCE,
 ];
+
+/** Reception desk works support tickets. Admins and managers can open the same queue. */
+export const TICKET_DESK_ROLES: UserRole[] = [
+  UserRole.RECEPTION,
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+];
+
+/** All-branch ticket list */
+export const TICKET_ADMIN_ROLES: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+];
+
+/** Issue groups, email routes, QR codes, reception home branch */
+export const TICKET_SETTINGS_ROLES: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN,
+];
